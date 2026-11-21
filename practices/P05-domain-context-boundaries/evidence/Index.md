@@ -1,0 +1,16 @@
+# Evidence index — P05
+
+| ID | Label | Requirement | Action | Expected outcome | Actual outcome | Environment | Limitation |
+|---|---|---|---|---|---|---|---|
+| E1 | **Observed** | Start / Step 8: P04 tests pass, code unchanged | `python -m unittest -v` and `python -m pytest` in a snapshot of `hotel-booking/` | 8 passing (course); full portfolio suite passing | 8 OK; 82 passed ([O1](observed-runs.md#o1--starting-point-the-p04-tests)) | Linux container, Python 3.13.18, 2026-11-21 | Run on a copy so P05 writes nothing into the project; the copy is byte-identical (E5). |
+| E2 | **Observed** | Same nine demo lines; race still there | `python main.py`, `python main.py --race` | Nine lines; 2 Confirmed for R7 (known defect) | As expected ([O2](observed-runs.md#o2--the-demo-and-the-race-unchanged-behaviour)) | same | One run each. |
+| E3 | **Observed** | Step 8 checklist: 18 words, 4/8/3/3, 8 owners, 3 borders, 6 × 7 scenario lines, numbers in Measures, code names exist | `pytest checks/test_p05_docs.py` | All pass | 26 passed ([O3](observed-runs.md#o3--document-checks)) | same | Checks structure and names, not whether a meaning is *good*; that needs the domain expert and the pair review (E7). |
+| E4 | **Observed** | Step 6: context map renders and has the required shape | `mmdc` on `context-map.mmd`, `module-dependencies.mmd`, `contexts.md`; XML check of `context-map.drawio` | No parse errors; 4 boxes, 1 green, 3 arrows from Reservations, 1 dotted | OK ([O4](observed-runs.md#o4--diagram-render-check)) | Mermaid CLI 11.16.0, headless Chromium | The `.drawio` file was not opened in draw.io here; only its XML structure is checked. |
+| E5 | **Observed** | "Code: unchanged" | SHA-256 of `hotel-booking/` before and after P05's checks | Identical | Identical, 23 files ([O5](observed-runs.md#o5--p05-changed-nothing-in-hotel-booking)) | Linux container | Proves P05 did not change the project; it does not cover P04's own changes. |
+| E6 | **Simulated** | Contexts make change local | The four manager requests traced through the context map ([Implications § 7](../Implications-for-the-code.md#7-change-impact-check-simulated)) | Out of service and Deluxe price: Rooms only; SMS: Notifications only; deposit: Payments + one call | As expected on paper | Thought experiment | Becomes Observed only when P06 has the modules and a later practice makes the change. |
+| E7 | **Proposed** | Pair work and hand-over | Partner reads `contexts.md`, checks the owners and the map; folder copied to the partner's laptop | Partner agrees or a change is recorded | Not done — **to do by the student** | Classroom | — |
+| E8 | **Proposed** | Same results on the student's Mac | `python3 -m pytest` in `hotel-booking/` and in `checks/` | Same as E1, E3 | Not run — **to do by the student** | macOS, Python ≥ 3.12 | — |
+| E9 | **Proposed** | S1, S2, S4, S6 targets | Measured in P08/P09/P21/P23/P24 | Targets in quality-scenarios.md | Not measured — no performance, security or energy claim is made in P05 | — | Targets are the course's; real prices (deposit examples) are **to agree** with the manager. |
+
+S3 and S5 are backed by P04's observed tests (`test_a_failed_confirmation_keeps_the_booking`,
+`test_sms_confirmations_need_no_change_to_booking_service`, both in E1).

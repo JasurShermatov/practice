@@ -1,0 +1,18 @@
+---
+title: Hotel context map (P05) - four bounded contexts and what crosses between them
+---
+flowchart LR
+  rooms["<b>Rooms (Inventory)</b><br/>keeps: rooms, type, nightly price<br/>status: in / out of service<br/>owns: what is on sale, prices"]
+  payments["<b>Payments</b><br/>keeps: deposits<br/>status: Paid / Declined<br/>owns: money rules"]
+  reservations["<b>Reservations</b><br/>keeps: guests, stays, reservations (R101)<br/>status: Confirmed / Cancelled<br/>owns: the booking rule"]
+  notifications["<b>Notifications</b><br/>keeps: messages, channel (email/SMS)<br/>status: Sent / Failed<br/>owns: telling the guest"]
+
+  reservations -->|"Asks: which rooms exist?"| rooms
+  reservations -->|"Asks: take a deposit (P17)"| payments
+  reservations -.->|"Announces: ReservationConfirmed"| notifications
+
+  classDef owner fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#1b1b1b
+  classDef context fill:#ffffff,stroke:#424242,color:#1b1b1b
+  class reservations owner
+  class rooms,payments,notifications context
+  linkStyle 2 stroke:#2e7d32,stroke-width:2px,color:#2e7d32

@@ -17,6 +17,7 @@ separately introduced fictional hotel (rooms R7 and R8, one guest per room per n
 | P02 | OS introduction, kernels and process lifecycle | [practices/P02-os-process-lifecycle](practices/P02-os-process-lifecycle) | Done (Linux observed; macOS rerun, pair review and online submission to do) |
 | P03 | Hotel booking domain and UML workshop (starts the [hotel-booking](hotel-booking) codebase) | [practices/P03-hotel-domain-uml](practices/P03-hotel-domain-uml) | Done (pair review and partner hand-over: to do by the student) |
 | P04 | Refactor a reservation design (SOLID: storage and notification behind protocols; hotel-booking version 2, R6, SMS) | [practices/P04-refactor-reservation](practices/P04-refactor-reservation) | Done (8 unittest / 82 total tests observed; macOS rerun, pair work and partner hand-over: to do by the student) |
+| P05 | Hotel domain and context boundaries (quality scenarios S1–S6, ubiquitous language, four bounded contexts, rule owners, context map, borders; design only, no code change) | [practices/P05-domain-context-boundaries](practices/P05-domain-context-boundaries) | Done (26 document checks observed; copying docs into hotel-booking/docs at P06 start, pair work and partner hand-over: to do) |
 
 ## How to read the evidence
 

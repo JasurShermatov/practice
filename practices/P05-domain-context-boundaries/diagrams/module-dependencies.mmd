@@ -1,0 +1,49 @@
+---
+title: Target module dependencies for P06 (derived from the P05 context map)
+---
+flowchart TB
+  main["<b>main.py / demo</b><br/>wiring: the only app code<br/>that names internal classes"]
+
+  subgraph res["hotel_booking.reservations"]
+    booking["BookingService, BookingResult<br/>Reservation, DateRange, Guest<br/>ReservationStore (protocol)"]
+    resint["internal: InMemoryReservationStore"]
+  end
+
+  subgraph rms["hotel_booking.rooms"]
+    roomsc["contract: Room, RoomCatalog"]
+    roomsi["internal: InMemoryRoomCatalog"]
+  end
+
+  subgraph pay["hotel_booking.payments"]
+    payc["contract: PaymentService, PaymentStatus"]
+    payi["internal: SimulatedPaymentService"]
+  end
+
+  subgraph ntf["hotel_booking.notifications"]
+    ntfc["contract: Confirmation, NotificationSender"]
+    ntfi["internal: EmailNotificationSender,<br/>SmsNotificationSender"]
+  end
+
+  booking -.->|uses| roomsc
+  booking -.->|"uses (from P17)"| payc
+  booking -.->|uses| ntfc
+  resint -.->|implements| booking
+  roomsi -.->|implements| roomsc
+  payi -.->|implements| payc
+  ntfi -.->|implements| ntfc
+  main --> booking
+  main --> resint
+  main --> roomsi
+  main --> payi
+  main --> ntfi
+  booking -. "FORBIDDEN (P06 import check)" .-x ntfi
+
+  classDef owner fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#1b1b1b
+  classDef contract fill:#ffffff,stroke:#424242,color:#1b1b1b
+  classDef internal fill:#f3e5f5,stroke:#7b1fa2,stroke-dasharray:5 3,color:#1b1b1b
+  classDef wiring fill:#eeeeee,stroke:#616161,color:#1b1b1b
+  class booking owner
+  class roomsc,payc,ntfc contract
+  class resint,roomsi,payi,ntfi internal
+  class main wiring
+  linkStyle 12 stroke:#c62828,stroke-width:2px,color:#c62828
