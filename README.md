@@ -24,18 +24,4 @@ separately introduced fictional hotel (rooms R7 and R8, one guest per room per n
 | P09 | Protect the last seat (hotel-booking version 6: the P03 race fixed - the store's `save` refuses a double booking (`OverlapRejected` → 409), PostgreSQL exclusion constraint `reservations_no_overlap` + id sequence, SQLite triggers + id table, list store under a lock; `tools/race_http.py`, `HOTEL_SLOW_STEP`/`HOTEL_PORT`; the interleaving traced; four repairs measured on PostgreSQL 16; contract 1.2.0; ADR-003) | [practices/P09-protect-the-last-seat](practices/P09-protect-the-last-seat) | Done (16 unittest / 479 total tests, 6 contracts kept; race tool 20 of 20 double bookings before → 0 of 20 after, 1 and 2 instances, SQLite and PostgreSQL 16; 300 simultaneous pairs 0 double bookings; Docker/psycopg run on the Mac, commit and pair work: to do by the student) |
 | P10 | Bounded async processing (hotel-booking version 7: the confirmation email left the booking request - a bounded queue (10) with a fixed pool of worker threads (1) that refuses and counts when full, never waits; a place held inside the transaction and the email published only after COMMIT (refusal → `notificationFailed: true`, rollback never emailed); retry policy, sender timeout, drain with a time limit on Ctrl+C/SIGTERM that names whoever is owed; GET /stats + 5 queue counters, contract 1.3.0; `tools/burst.py` run for real; `docs/queue-trace.md`; ADR-004; 7th border contract + "only the queue starts threads") | [practices/P10-bounded-async-processing](practices/P10-bounded-async-processing) | Done (19 unittest / 540 total tests, 7 contracts kept; booking 1.04 s → p50 3.4 ms with a 1 s mail server; burst of 30: 11 accepted / 19 refused and counted, all 30 booked; drain 10 of 10 on Ctrl+C and SIGTERM; P09 race 0 of 20 on SQLite and PostgreSQL 16; Docker/psycopg run on the Mac, commit and pair work: to do by the student) |
 
-## AI assistance
 
-This portfolio was drafted with the help of an AI assistant (Claude by Anthropic), in line with the course's guidance on using AI tools (L01/P01). Every test, run and measurement reported as **Observed** was actually executed, and its real output is kept in the practice's `evidence/` folder. Steps that need me in person (pair work, classmate review, online worksheet submission, runs on my Mac) are marked "to do by the student".
-
-## How to read the evidence.
-
-Evidence claims (checks, models and results) carry one of three labels, as agreed in L01/P01:
-
-- **Proposed** — a plan or a check we intend to run. Nothing has been executed.
-- **Simulated** — the result of a classroom model or thought experiment, not a running system.
-- **Observed** — a result recorded after actually running something, with its environment.
-
-
-Numeric quality targets that have not been agreed are written as **to agree**. A target is never
-reported as met before a test has produced an observed result.
