@@ -1,0 +1,16 @@
+---
+title: One full turn of L04's rhythm - estimate, measure, remove the bottleneck, measure, find the next (Observed numbers)
+---
+flowchart LR
+  est["<b>P07 estimate</b><br/>1 query per room per search<br/>133 queries/s at the peak (40 rooms)"]
+  m1["<b>Measure, no cache</b><br/>1,000 searches = 2,000 queries (2 rooms)<br/>= 40,000 queries (40 rooms)<br/>p95 1.31 ms / 1.86 ms"]
+  fix["<b>Remove it</b><br/>cache-aside in Redis, TTL 30 s<br/>version raised after every committed change"]
+  m2["<b>Measure again</b><br/>1,000 searches = 2 queries (40 with 40 rooms)<br/>999 hits; p95 1.13 ms / 1.22 ms<br/>busy sale: 98 % hits, 1 miss per booking"]
+  next["<b>The next bottleneck</b><br/>POST /reservations: 3 exact queries per booking,<br/>cannot be cached; the P03 race is still there<br/>-> L05 + P09"]
+  est --> m1 --> fix --> m2 --> next
+  classDef measured fill:#e8f5e9,stroke:#2e7d32,color:#1b1b1b
+  classDef plan fill:#ffffff,stroke:#424242,color:#1b1b1b
+  classDef nextc fill:#ffebee,stroke:#c62828,stroke-width:2px,color:#1b1b1b
+  class m1,m2 measured
+  class est,fix plan
+  class next nextc

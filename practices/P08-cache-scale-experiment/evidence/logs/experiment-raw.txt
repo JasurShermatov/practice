@@ -1,0 +1,252 @@
+Date (UTC): 2026-11-21 07:50:46
+Machine: Linux container, kernel 6.18.44-fc-v726, 2 vCPU (Intel(R) Xeon(R) Processor @ 2.10GHz), 8024 MiB RAM
+Python 3.13.18; starlette 1.7.0, pydantic 2.13.5, uvicorn 0.54.0, SQLite 3.53.1
+Redis server v=7.0.15 sha=00000000:0 malloc=jemalloc-5.3.0 bits=64 build=d064f9f48c901a92
+App: python main.py (uvicorn, 1 process, access log on), database: SQLite file; measurement tool on the same machine (client and server share the CPUs)
+
+=== Scenario course: 2 rooms, 1 client: the course's workload; 1000 searches for 2026-11-12 to 2026-11-14 per run, 5 rounds, caches off, redis, memory
+--- course / cache off / round 1 (app CPU 0.71 s, redis CPU 0.0 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 0.8 ms
+p95: 1.2 ms
+Total: 0.8 s
+GET /stats difference: {"searches":1000,"databaseQueries":2000,"cacheHits":0,"cacheMisses":0,"cacheErrors":0}
+Clients: 1   Throughput: 1261 searches/s
+p50: 0.70 ms   p95: 1.25 ms   p99: 1.41 ms   max: 2.26 ms   average: 0.79 ms
+X-Cache answers: {"bypass":1000}
+--- course / cache redis / round 1 (app CPU 0.6 s, redis CPU 0.05 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 0.7 ms
+p95: 1.0 ms
+Total: 0.7 s
+GET /stats difference: {"searches":1000,"databaseQueries":2,"cacheHits":999,"cacheMisses":1,"cacheErrors":0}
+Clients: 1   Throughput: 1432 searches/s
+p50: 0.65 ms   p95: 0.97 ms   p99: 1.15 ms   max: 2.96 ms   average: 0.70 ms
+X-Cache answers: {"hit":999,"miss":1}
+--- course / cache memory / round 1 (app CPU 0.51 s, redis CPU 0.0 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 0.6 ms
+p95: 0.9 ms
+Total: 0.6 s
+GET /stats difference: {"searches":1000,"databaseQueries":2,"cacheHits":999,"cacheMisses":1,"cacheErrors":0}
+Clients: 1   Throughput: 1755 searches/s
+p50: 0.50 ms   p95: 0.89 ms   p99: 1.10 ms   max: 2.89 ms   average: 0.57 ms
+X-Cache answers: {"hit":999,"miss":1}
+--- course / cache off / round 2 (app CPU 0.79 s, redis CPU 0.0 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 0.9 ms
+p95: 1.4 ms
+Total: 0.9 s
+GET /stats difference: {"searches":1000,"databaseQueries":2000,"cacheHits":0,"cacheMisses":0,"cacheErrors":0}
+Clients: 1   Throughput: 1081 searches/s
+p50: 0.89 ms   p95: 1.35 ms   p99: 1.56 ms   max: 2.10 ms   average: 0.92 ms
+X-Cache answers: {"bypass":1000}
+--- course / cache redis / round 2 (app CPU 0.58 s, redis CPU 0.04 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 0.7 ms
+p95: 1.0 ms
+Total: 0.7 s
+GET /stats difference: {"searches":1000,"databaseQueries":2,"cacheHits":999,"cacheMisses":1,"cacheErrors":0}
+Clients: 1   Throughput: 1509 searches/s
+p50: 0.61 ms   p95: 1.01 ms   p99: 1.14 ms   max: 3.07 ms   average: 0.66 ms
+X-Cache answers: {"hit":999,"miss":1}
+--- course / cache memory / round 2 (app CPU 0.52 s, redis CPU 0.0 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 0.6 ms
+p95: 0.9 ms
+Total: 0.6 s
+GET /stats difference: {"searches":1000,"databaseQueries":2,"cacheHits":999,"cacheMisses":1,"cacheErrors":0}
+Clients: 1   Throughput: 1683 searches/s
+p50: 0.52 ms   p95: 0.89 ms   p99: 1.08 ms   max: 3.75 ms   average: 0.59 ms
+X-Cache answers: {"hit":999,"miss":1}
+--- course / cache off / round 3 (app CPU 0.88 s, redis CPU 0.0 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 1.0 ms
+p95: 1.4 ms
+Total: 1.0 s
+GET /stats difference: {"searches":1000,"databaseQueries":2000,"cacheHits":0,"cacheMisses":0,"cacheErrors":0}
+Clients: 1   Throughput: 961 searches/s
+p50: 1.09 ms   p95: 1.39 ms   p99: 1.70 ms   max: 2.77 ms   average: 1.04 ms
+X-Cache answers: {"bypass":1000}
+--- course / cache redis / round 3 (app CPU 0.62 s, redis CPU 0.05 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 0.7 ms
+p95: 1.1 ms
+Total: 0.7 s
+GET /stats difference: {"searches":1000,"databaseQueries":2,"cacheHits":999,"cacheMisses":1,"cacheErrors":0}
+Clients: 1   Throughput: 1385 searches/s
+p50: 0.62 ms   p95: 1.13 ms   p99: 1.32 ms   max: 3.68 ms   average: 0.72 ms
+X-Cache answers: {"hit":999,"miss":1}
+--- course / cache memory / round 3 (app CPU 0.47 s, redis CPU 0.0 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 0.5 ms
+p95: 0.6 ms
+Total: 0.5 s
+GET /stats difference: {"searches":1000,"databaseQueries":2,"cacheHits":999,"cacheMisses":1,"cacheErrors":0}
+Clients: 1   Throughput: 1960 searches/s
+p50: 0.49 ms   p95: 0.61 ms   p99: 0.70 ms   max: 2.41 ms   average: 0.51 ms
+X-Cache answers: {"hit":999,"miss":1}
+--- course / cache off / round 4 (app CPU 0.75 s, redis CPU 0.0 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 0.9 ms
+p95: 1.3 ms
+Total: 0.9 s
+GET /stats difference: {"searches":1000,"databaseQueries":2000,"cacheHits":0,"cacheMisses":0,"cacheErrors":0}
+Clients: 1   Throughput: 1068 searches/s
+p50: 0.82 ms   p95: 1.31 ms   p99: 1.47 ms   max: 35.88 ms   average: 0.93 ms
+X-Cache answers: {"bypass":1000}
+--- course / cache redis / round 4 (app CPU 0.6 s, redis CPU 0.05 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 0.7 ms
+p95: 1.2 ms
+Total: 0.7 s
+GET /stats difference: {"searches":1000,"databaseQueries":2,"cacheHits":999,"cacheMisses":1,"cacheErrors":0}
+Clients: 1   Throughput: 1389 searches/s
+p50: 0.62 ms   p95: 1.16 ms   p99: 1.35 ms   max: 2.62 ms   average: 0.72 ms
+X-Cache answers: {"hit":999,"miss":1}
+--- course / cache memory / round 4 (app CPU 0.5 s, redis CPU 0.0 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 0.5 ms
+p95: 0.7 ms
+Total: 0.5 s
+GET /stats difference: {"searches":1000,"databaseQueries":2,"cacheHits":999,"cacheMisses":1,"cacheErrors":0}
+Clients: 1   Throughput: 1838 searches/s
+p50: 0.51 ms   p95: 0.73 ms   p99: 0.97 ms   max: 2.10 ms   average: 0.54 ms
+X-Cache answers: {"hit":999,"miss":1}
+--- course / cache off / round 5 (app CPU 0.76 s, redis CPU 0.0 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 0.9 ms
+p95: 1.3 ms
+Total: 0.9 s
+GET /stats difference: {"searches":1000,"databaseQueries":2000,"cacheHits":0,"cacheMisses":0,"cacheErrors":0}
+Clients: 1   Throughput: 1133 searches/s
+p50: 0.78 ms   p95: 1.30 ms   p99: 1.43 ms   max: 1.78 ms   average: 0.88 ms
+X-Cache answers: {"bypass":1000}
+--- course / cache redis / round 5 (app CPU 0.64 s, redis CPU 0.05 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 0.8 ms
+p95: 1.2 ms
+Total: 0.8 s
+GET /stats difference: {"searches":1000,"databaseQueries":2,"cacheHits":999,"cacheMisses":1,"cacheErrors":0}
+Clients: 1   Throughput: 1319 searches/s
+p50: 0.64 ms   p95: 1.17 ms   p99: 1.31 ms   max: 3.15 ms   average: 0.76 ms
+X-Cache answers: {"hit":999,"miss":1}
+--- course / cache memory / round 5 (app CPU 0.55 s, redis CPU 0.0 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 0.6 ms
+p95: 1.0 ms
+Total: 0.6 s
+GET /stats difference: {"searches":1000,"databaseQueries":2,"cacheHits":999,"cacheMisses":1,"cacheErrors":0}
+Clients: 1   Throughput: 1540 searches/s
+p50: 0.60 ms   p95: 0.95 ms   p99: 1.09 ms   max: 6.92 ms   average: 0.65 ms
+X-Cache answers: {"hit":999,"miss":1}
+=== Scenario rooms40: 40 rooms (P07 estimate), 1 client; 1000 searches for 2026-11-12 to 2026-11-14 per run, 3 rounds, caches off, redis
+--- rooms40 / cache off / round 1 (app CPU 1.2 s, redis CPU 0.0 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 1.4 ms
+p95: 1.6 ms
+Total: 1.4 s
+GET /stats difference: {"searches":1000,"databaseQueries":40000,"cacheHits":0,"cacheMisses":0,"cacheErrors":0}
+Clients: 1   Throughput: 707 searches/s
+p50: 1.37 ms   p95: 1.65 ms   p99: 2.41 ms   max: 7.47 ms   average: 1.41 ms
+X-Cache answers: {"bypass":1000}
+--- rooms40 / cache redis / round 1 (app CPU 0.74 s, redis CPU 0.05 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 0.9 ms
+p95: 1.2 ms
+Total: 0.9 s
+GET /stats difference: {"searches":1000,"databaseQueries":40,"cacheHits":999,"cacheMisses":1,"cacheErrors":0}
+Clients: 1   Throughput: 1122 searches/s
+p50: 0.86 ms   p95: 1.25 ms   p99: 1.46 ms   max: 3.61 ms   average: 0.89 ms
+X-Cache answers: {"hit":999,"miss":1}
+--- rooms40 / cache off / round 2 (app CPU 1.33 s, redis CPU 0.01 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 1.5 ms
+p95: 1.9 ms
+Total: 1.5 s
+GET /stats difference: {"searches":1000,"databaseQueries":40000,"cacheHits":0,"cacheMisses":0,"cacheErrors":0}
+Clients: 1   Throughput: 651 searches/s
+p50: 1.47 ms   p95: 1.94 ms   p99: 2.10 ms   max: 3.29 ms   average: 1.53 ms
+X-Cache answers: {"bypass":1000}
+--- rooms40 / cache redis / round 2 (app CPU 0.66 s, redis CPU 0.04 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 0.8 ms
+p95: 1.1 ms
+Total: 0.8 s
+GET /stats difference: {"searches":1000,"databaseQueries":40,"cacheHits":999,"cacheMisses":1,"cacheErrors":0}
+Clients: 1   Throughput: 1284 searches/s
+p50: 0.72 ms   p95: 1.13 ms   p99: 1.33 ms   max: 2.85 ms   average: 0.78 ms
+X-Cache answers: {"hit":999,"miss":1}
+--- rooms40 / cache off / round 3 (app CPU 1.3 s, redis CPU 0.01 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 1.5 ms
+p95: 1.9 ms
+Total: 1.5 s
+GET /stats difference: {"searches":1000,"databaseQueries":40000,"cacheHits":0,"cacheMisses":0,"cacheErrors":0}
+Clients: 1   Throughput: 661 searches/s
+p50: 1.47 ms   p95: 1.86 ms   p99: 2.04 ms   max: 12.31 ms   average: 1.51 ms
+X-Cache answers: {"bypass":1000}
+--- rooms40 / cache redis / round 3 (app CPU 0.74 s, redis CPU 0.05 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 0.9 ms
+p95: 1.2 ms
+Total: 0.9 s
+GET /stats difference: {"searches":1000,"databaseQueries":40,"cacheHits":999,"cacheMisses":1,"cacheErrors":0}
+Clients: 1   Throughput: 1102 searches/s
+p50: 0.88 ms   p95: 1.22 ms   p99: 1.44 ms   max: 3.41 ms   average: 0.91 ms
+X-Cache answers: {"hit":999,"miss":1}
+=== Scenario clients8: 2 rooms, 8 clients at the same time; 1000 searches for 2026-11-12 to 2026-11-14 per run, 3 rounds, caches off, redis
+--- clients8 / cache off / round 1 (app CPU 0.97 s, redis CPU 0.01 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 6.9 ms
+p95: 11.0 ms
+Total: 0.9 s
+GET /stats difference: {"searches":1000,"databaseQueries":2000,"cacheHits":0,"cacheMisses":0,"cacheErrors":0}
+Clients: 8   Throughput: 1128 searches/s
+p50: 6.55 ms   p95: 11.03 ms   p99: 13.18 ms   max: 18.08 ms   average: 6.95 ms
+X-Cache answers: {"bypass":1000}
+--- clients8 / cache redis / round 1 (app CPU 0.68 s, redis CPU 0.02 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 5.4 ms
+p95: 8.0 ms
+Total: 0.7 s
+GET /stats difference: {"searches":1000,"databaseQueries":16,"cacheHits":992,"cacheMisses":8,"cacheErrors":0}
+Clients: 8   Throughput: 1481 searches/s
+p50: 5.09 ms   p95: 8.05 ms   p99: 9.99 ms   max: 21.63 ms   average: 5.35 ms
+X-Cache answers: {"hit":992,"miss":8}
+--- clients8 / cache off / round 2 (app CPU 0.87 s, redis CPU 0.0 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 6.4 ms
+p95: 10.0 ms
+Total: 0.8 s
+GET /stats difference: {"searches":1000,"databaseQueries":2000,"cacheHits":0,"cacheMisses":0,"cacheErrors":0}
+Clients: 8   Throughput: 1228 searches/s
+p50: 6.27 ms   p95: 10.04 ms   p99: 11.65 ms   max: 15.97 ms   average: 6.39 ms
+X-Cache answers: {"bypass":1000}
+--- clients8 / cache redis / round 2 (app CPU 0.61 s, redis CPU 0.02 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 4.8 ms
+p95: 7.2 ms
+Total: 0.6 s
+GET /stats difference: {"searches":1000,"databaseQueries":16,"cacheHits":992,"cacheMisses":8,"cacheErrors":0}
+Clients: 8   Throughput: 1652 searches/s
+p50: 4.59 ms   p95: 7.19 ms   p99: 10.10 ms   max: 18.29 ms   average: 4.79 ms
+X-Cache answers: {"hit":992,"miss":8}
+--- clients8 / cache off / round 3 (app CPU 0.87 s, redis CPU 0.0 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 6.0 ms
+p95: 9.0 ms
+Total: 0.8 s
+GET /stats difference: {"searches":1000,"databaseQueries":2000,"cacheHits":0,"cacheMisses":0,"cacheErrors":0}
+Clients: 8   Throughput: 1320 searches/s
+p50: 5.75 ms   p95: 8.99 ms   p99: 11.17 ms   max: 14.15 ms   average: 5.99 ms
+X-Cache answers: {"bypass":1000}
+--- clients8 / cache redis / round 3 (app CPU 0.61 s, redis CPU 0.01 s)
+1000 searches for 2026-11-12 to 2026-11-14
+Average: 4.8 ms
+p95: 7.0 ms
+Total: 0.6 s
+GET /stats difference: {"searches":1000,"databaseQueries":16,"cacheHits":992,"cacheMisses":8,"cacheErrors":0}
+Clients: 8   Throughput: 1647 searches/s
+p50: 4.64 ms   p95: 6.99 ms   p99: 8.98 ms   max: 15.35 ms   average: 4.83 ms
+X-Cache answers: {"hit":992,"miss":8}

@@ -1,0 +1,40 @@
+---
+title: Step 5 against Step 6 - the same four requests, without and with invalidation (observed with curl)
+---
+sequenceDiagram
+  actor Guest as Guests (curl)
+  participant API as HTTP API
+  participant Redis as Redis copy
+  participant DB as Database (truth)
+
+  rect rgb(255, 235, 238)
+  Note over Guest,DB: Step 5 - python main.py --no-invalidation
+  Guest->>API: 1. search 12-14 Nov
+  API->>Redis: miss -> SET v0 "R7,R8" EX 30
+  API-->>Guest: 200 R7, R8 (miss)
+  Guest->>API: 2. Maya books R7
+  API->>DB: has_overlap? no -> save R101, COMMIT
+  API-->>Guest: 201 R101 (the copy is not touched)
+  Guest->>API: 3. search again (within 30 s)
+  API->>Redis: GET v0 -> "R7,R8"
+  API-->>Guest: 200 R7, R8 (hit) - STALE: R7 is booked
+  Guest->>API: 4. Omar asks for R7, 13-15 Nov
+  API->>DB: has_overlap? yes (Maya)
+  API-->>Guest: 409 Unavailable - the rule holds, nobody double-booked
+  end
+
+  rect rgb(232, 245, 233)
+  Note over Guest,DB: Step 6 - python main.py (invalidation on)
+  Guest->>API: 1. search 12-14 Nov
+  API-->>Guest: 200 R7, R8 (miss, copy under v0)
+  Guest->>API: 2. Maya books R7
+  API->>DB: save R101, COMMIT
+  API->>Redis: INCR availability:version -> 1
+  API-->>Guest: 201 R101
+  Guest->>API: 3. search again
+  API->>Redis: GET v1:... -> nil (miss)
+  API->>DB: has_overlap(R7)? yes, (R8)? no
+  API-->>Guest: 200 R8 only (miss) - fresh
+  Guest->>API: 4. Omar asks for R7
+  API-->>Guest: 409 Unavailable
+  end

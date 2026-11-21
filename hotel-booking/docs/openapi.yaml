@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Hotel booking API
-  version: 1.0.0
-  summary: Search free rooms, book a room and cancel a reservation.
+  version: 1.1.0
+  summary: Search free rooms, book a room, cancel a reservation, and read what the searches cost.
   description: |
     The contract of the hotel booking app (P07). It was written before the code; the app serves
     this very file at GET /openapi.yaml and the tests check the code against it
@@ -24,7 +24,13 @@ info:
     the id; an Idempotency-Key header is planned for P11.
 
     Compatibility: new fields may be added to answers; existing fields are never renamed or
-    removed in version 1. Clients must ignore fields they do not know.
+    removed in version 1. Clients must ignore fields they do not know. Version 1.1.0 (P08) adds
+    GET /stats and the X-Cache header of the search - additions only, so no client breaks.
+
+    Caching (P08, docs/adr-002-cache-availability.md): search answers may come from a copy in the
+    cache. A successful booking or cancel makes every copy out of date at once, so the next search
+    reads the database; a copy is never older than 30 seconds. Booking and cancelling never read
+    the cache: the database decides, so a copy can mislead a search, never a booking.
 servers:
   - url: http://localhost:5080
     description: The app on the developer's laptop (python main.py)
@@ -32,13 +38,17 @@ tags:
   - name: availability
   - name: reservations
   - name: contract
+  - name: measurement
 paths:
   /rooms/availability:
     get:
       tags: [availability]
       operationId: findFreeRooms
       summary: Free rooms for a stay
-      description: Calls BookingService.find_free_rooms. Reads only; safe to repeat.
+      description: >-
+        Calls BookingService.find_free_rooms - or answers from the cache (P08): the key is the
+        cache version plus the stay, a copy lives 30 seconds, and paging (limit, after) is done on
+        the copy. Reads only; safe to repeat.
       parameters:
         - name: checkIn
           in: query
@@ -65,6 +75,14 @@ paths:
       responses:
         "200":
           description: The free rooms, in text order of the room number (R10 comes before R7).
+          headers:
+            X-Cache:
+              description: >-
+                How the answer was found: hit (a copy from the cache, the database was not asked),
+                miss (no copy: the database was asked and a copy kept for 30 s) or bypass (the app
+                runs without a cache, or the cache failed and the database answered).
+              schema: { type: string, enum: [hit, miss, bypass] }
+              example: miss
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Availability" }
@@ -179,6 +197,25 @@ paths:
                   value: { title: NotFound, status: 404, detail: "There is no confirmed reservation R101." }
         "500":
           $ref: "#/components/responses/InternalError"
+  /stats:
+    get:
+      tags: [measurement]
+      operationId: getStats
+      summary: What the searches cost since the app started
+      description: >-
+        Counters for measuring the search (P08). They start at 0 when the app starts and count this
+        running app only - every instance has its own. tools/measure.py reads them before and after
+        a run and prints the difference.
+      responses:
+        "200":
+          description: The counters.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Stats" }
+              examples:
+                twoSearches:
+                  summary: Two searches for the same stay - one miss (2 rooms, 2 queries), one hit
+                  value: { searches: 2, databaseQueries: 2, cacheHits: 1, cacheMisses: 1, cacheErrors: 0 }
   /openapi.yaml:
     get:
       tags: [contract]
@@ -233,6 +270,16 @@ components:
         notificationFailed:
           type: boolean
           description: True when the booking is saved but its confirmation could not be sent (R6).
+    Stats:
+      type: object
+      required: [searches, databaseQueries, cacheHits, cacheMisses, cacheErrors]
+      additionalProperties: false
+      properties:
+        searches: { type: integer, minimum: 0, description: Searches that passed the request checks and reached the search. }
+        databaseQueries: { type: integer, minimum: 0, description: Questions the reservation store sent to the database (searches and bookings). }
+        cacheHits: { type: integer, minimum: 0, description: Searches answered from a copy in the cache. }
+        cacheMisses: { type: integer, minimum: 0, description: Searches that found no copy, asked the database and kept a copy. }
+        cacheErrors: { type: integer, minimum: 0, description: Cache commands that failed; the request went on without the cache. }
     Problem:
       type: object
       required: [title, status, detail]

@@ -1,7 +1,10 @@
-# The hotel booking app's PostgreSQL database (P07), for the student's Mac.
-#   Start: docker compose up -d     Stop: docker compose down     Empty it: docker compose down -v
-# Then run the API on it:  python main.py --db postgres      (needs: pip install "psycopg[binary]")
-# If port 5432 is taken, publish "15432:5432" below and set HOTEL_DB_PORT=15432 before starting the app.
+# The hotel booking app's database and cache (P07 PostgreSQL, P08 Redis), for the student's Mac.
+#   Start: docker compose up -d     Stop: docker compose down     Empty both: docker compose down -v
+# Then run the API on them:  python main.py --db postgres      (needs: pip install "psycopg[binary]")
+#   (python main.py alone keeps the reservations in SQLite and the search cache in this Redis)
+# If port 5432 is taken, publish "15432:5432" below and set HOTEL_DB_PORT=15432 before starting the app;
+# if port 6379 is taken, publish "16379:6379" and set HOTEL_REDIS_PORT=16379.
+# Empty only the cache (P08 Step 4):  docker compose exec cache redis-cli FLUSHALL
 services:
   db:
     image: postgres:18
@@ -16,6 +19,17 @@ services:
       - hotel-data:/var/lib/postgresql                                    # the data survives a restart
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U hotel -d hotel"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  cache:
+    image: redis:8
+    ports:
+      - "6379:6379"                   # P08: copies of search answers, nothing that must survive
+    # No volume on purpose: Redis holds only copies. If they are lost, the next search asks the database.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 2s
       timeout: 3s
       retries: 15

@@ -1,0 +1,21 @@
+# The P09 race pins, unchanged in P08, run 10 times in a row
+$ python3 -m pytest -q -p no:cacheprovider -k 'race or numbering_r101' tests/test_demo_and_race.py tests/test_api_sqlite.py   # run 1
+7 passed, 6 deselected in 2.09s
+$ python3 -m pytest -q -p no:cacheprovider -k 'race or numbering_r101' tests/test_demo_and_race.py tests/test_api_sqlite.py   # run 2
+7 passed, 6 deselected in 2.08s
+$ python3 -m pytest -q -p no:cacheprovider -k 'race or numbering_r101' tests/test_demo_and_race.py tests/test_api_sqlite.py   # run 3
+7 passed, 6 deselected in 2.11s
+$ python3 -m pytest -q -p no:cacheprovider -k 'race or numbering_r101' tests/test_demo_and_race.py tests/test_api_sqlite.py   # run 4
+7 passed, 6 deselected in 2.04s
+$ python3 -m pytest -q -p no:cacheprovider -k 'race or numbering_r101' tests/test_demo_and_race.py tests/test_api_sqlite.py   # run 5
+7 passed, 6 deselected in 2.05s
+$ python3 -m pytest -q -p no:cacheprovider -k 'race or numbering_r101' tests/test_demo_and_race.py tests/test_api_sqlite.py   # run 6
+7 passed, 6 deselected in 2.13s
+$ python3 -m pytest -q -p no:cacheprovider -k 'race or numbering_r101' tests/test_demo_and_race.py tests/test_api_sqlite.py   # run 7
+7 passed, 6 deselected in 2.09s
+$ python3 -m pytest -q -p no:cacheprovider -k 'race or numbering_r101' tests/test_demo_and_race.py tests/test_api_sqlite.py   # run 8
+7 passed, 6 deselected in 2.03s
+$ python3 -m pytest -q -p no:cacheprovider -k 'race or numbering_r101' tests/test_demo_and_race.py tests/test_api_sqlite.py   # run 9
+7 passed, 6 deselected in 2.05s
+$ python3 -m pytest -q -p no:cacheprovider -k 'race or numbering_r101' tests/test_demo_and_race.py tests/test_api_sqlite.py   # run 10
+7 passed, 6 deselected in 2.04s

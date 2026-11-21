@@ -19,6 +19,13 @@ cover what those tests cannot see:
 
 Run from the portfolio root:
     python -m pytest -p no:cacheprovider practices/P07-capacity-api-design/checks -v
+
+P08 change (deliberate): the P07 as-built diagram is now a snapshot of version 4. P08 added three
+edge files (api_stats, api_cache, api_redis), so "the diagram equals the live imports" moved to
+the P08 check (practices/P08-cache-scale-experiment/checks/test_p08_docs.py, against the P08
+diagram); here every arrow drawn in P07 must still exist in the code, and the P07 edge still
+reaches only the two public contracts. The request file P08 added for the New Year hot key
+(maya-newyear.json) is not part of api-check.md.
 """
 from __future__ import annotations
 
@@ -56,10 +63,12 @@ def mermaid_edges(path: Path) -> list[tuple[str, str, str]]:
 NODE_OF_MODULE = {"rooms": "rooms", "reservations": "res", "payments": "pay", "notifications": "ntf"}
 
 
-def node(module: str) -> str:
+def node(module: str) -> str | None:
     parts = module.split(".")
     if parts[1] in ("demo", "api"):
         return parts[1]
+    if parts[1] not in NODE_OF_MODULE:
+        return None  # P08: an edge file the P07 snapshot does not draw
     return NODE_OF_MODULE[parts[1]] + ("_i" if len(parts) > 2 and parts[2] == "internal" else "_c")
 
 
@@ -69,12 +78,12 @@ def real_edges() -> set[tuple[str, str]]:
     for statement in ast.parse((PROJECT / "main.py").read_text(encoding="utf-8")).body:
         if isinstance(statement, ast.ImportFrom) and (statement.module or "").startswith("hotel_booking."):
             found.add(("main", node(statement.module or "")))
-    return {(a, b) for a, b in found if a != b}
+    return {(a, b) for a, b in found if a != b and a is not None and b is not None}
 
 
-def test_as_built_diagram_shows_exactly_the_real_imports() -> None:
+def test_every_arrow_of_the_p07_snapshot_still_exists() -> None:
     drawn = {(left, right) for left, _, right in mermaid_edges(DIAGRAMS / "module-dependencies.mmd")}
-    assert drawn == real_edges()
+    assert drawn <= real_edges()
 
 
 def test_the_api_reaches_only_contracts_on_the_diagram() -> None:
@@ -196,7 +205,9 @@ def test_api_check_uses_request_files_that_exist() -> None:
     text = (DOCS / "api-check.md").read_text(encoding="utf-8")
     used = set(re.findall(r'--data "@docs/requests/([\w-]+\.json)"', text))
     assert used and all((DOCS / "requests" / name).exists() for name in used)
-    assert used == {path.name for path in (DOCS / "requests").glob("*.json")}
+    # P08 change (deliberate): docs/requests/maya-newyear.json belongs to P08 Step 7 (the hot key),
+    # not to api-check.md; every other request file is still used by api-check.md.
+    assert used == {path.name for path in (DOCS / "requests").glob("*.json")} - {"maya-newyear.json"}
 
 
 def test_api_check_ticks_are_backed_by_the_observed_run() -> None:

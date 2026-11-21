@@ -18,6 +18,12 @@ The contract was written first; these checks keep code and contract from driftin
 
 The contract was not loaded into the Swagger editor here (no browser/network in the build
 container); that check is in the P07 README as "to do by the student".
+
+P08 change (deliberate): the contract is version 1.1.0 with GET /stats (operation getStats, schema
+Stats) and the search's X-Cache header. The probe app now has the counters and an in-memory cache,
+like the wiring; one new probe (two searches, then GET /stats) makes the getStats example real;
+the operation list, the pydantic-model check and the header check (now also: the value is one the
+contract allows) cover the new parts. Nothing else changed: the checks still run both directions.
 """
 from __future__ import annotations
 
@@ -33,6 +39,8 @@ from starlette.testclient import TestClient
 
 import hotel_booking.api as api_module
 from hotel_booking.api import DEFAULT_CONTRACT, create_app
+from hotel_booking.api_cache import AvailabilityCache, InMemoryKeyValueStore
+from hotel_booking.api_stats import CountingReservationStore, Stats
 from hotel_booking.demo import HOTEL_ROOMS
 from hotel_booking.notifications.internal import EmailNotificationSender
 from hotel_booking.reservations import BookingService
@@ -141,7 +149,9 @@ def every_title_in_code() -> set[str]:
 
 
 def new_client(broken: bool = False) -> TestClient:
-    service = BookingService(HOTEL_ROOMS, InMemoryReservationStore(), EmailNotificationSender())
+    stats = Stats()
+    service = BookingService(HOTEL_ROOMS, CountingReservationStore(InMemoryReservationStore(), stats),
+                             EmailNotificationSender())
 
     @contextmanager
     def unit_of_work() -> Iterator[BookingService]:
@@ -149,7 +159,8 @@ def new_client(broken: bool = False) -> TestClient:
             raise RuntimeError("database down")
         yield service
 
-    return TestClient(create_app(HOTEL_ROOMS, unit_of_work), raise_server_exceptions=False)
+    cache = AvailabilityCache(InMemoryKeyValueStore())
+    return TestClient(create_app(HOTEL_ROOMS, unit_of_work, stats, cache), raise_server_exceptions=False)
 
 
 APP_ROUTES = [route for route in new_client().app.routes if isinstance(route, Route)]  # type: ignore[attr-defined]
@@ -170,7 +181,7 @@ def test_every_route_is_in_the_contract_and_every_operation_is_served() -> None:
 
 def test_the_api_has_the_three_course_operations_and_the_contract_route() -> None:
     assert {operation["operationId"] for operation in operations().values()} == {
-        "findFreeRooms", "reserve", "cancel", "getContract"}
+        "findFreeRooms", "reserve", "cancel", "getContract", "getStats"}
 
 
 @pytest.mark.parametrize("key", sorted(operations()), ids=lambda key: f"{key[0]} {key[1]}")
@@ -216,15 +227,17 @@ PROBES: dict[tuple[str, str], Probe] = {
     ("cancel 404", "notConfirmed"): lambda: new_client().delete("/reservations/R101"),
     ("cancel 500", "serverFailed"): lambda: new_client(broken=True).delete("/reservations/R101"),
     ("getContract 200", "-"): lambda: new_client().get("/openapi.yaml"),
+    ("getStats 200", "twoSearches"): lambda: twice(lambda client: client.get(SEARCH), then="/stats"),
     ("UnknownPath", "noSuchPath"): lambda: new_client().get("/bookings"),
     ("MethodNotAllowed", "wrongMethod"): lambda: new_client().put("/reservations"),
 }
 
 
-def twice(request: Callable[[TestClient], Any]) -> Any:
+def twice(request: Callable[[TestClient], Any], then: str | None = None) -> Any:
     client = new_client()
     request(client)
-    return request(client)
+    second = request(client)
+    return second if then is None else client.get(then)
 
 
 def after_booking(request: Callable[[TestClient], Any]) -> Any:
@@ -273,8 +286,9 @@ def test_the_app_answers_exactly_the_documented_example(key: tuple[str, str]) ->
     if example is not None:
         assert body == example
     validate(body, response_object["content"][media_type]["schema"])
-    for header in response_object.get("headers", {}):
+    for header, declared in response_object.get("headers", {}).items():
         assert header.lower() in response.headers
+        validate(response.headers[header], declared["schema"])
 
 
 def validate(instance: Any, schema: dict[str, Any]) -> None:
@@ -339,6 +353,17 @@ def test_query_parameters_match_what_the_search_reads() -> None:
     assert documented == read == {"checkIn", "checkOut", "limit", "after"}
 
 
+def test_every_header_the_code_sets_is_documented() -> None:
+    """P08: the other direction for headers - a header the code adds must be in the contract."""
+    documented = {name for operation in operations().values() for _, response in responses_of(operation)
+                  for name in resolve(response).get("headers", {})}
+    set_by_code = {node.slice.id for node in ast.walk(api_tree())
+                   if isinstance(node, ast.Subscript) and isinstance(node.ctx, ast.Store)
+                   and ast.unparse(node.value).endswith(".headers") and isinstance(node.slice, ast.Name)}
+    assert set_by_code == {"CACHE_HEADER"}
+    assert {getattr(api_module, name) for name in set_by_code} <= documented
+
+
 def test_request_body_fields_match_the_pydantic_model() -> None:
     schema = CONTRACT["components"]["schemas"]["ReservationRequest"]
     aliases = {field.alias for field in api_module.ReservationRequest.model_fields.values()}
@@ -348,7 +373,8 @@ def test_request_body_fields_match_the_pydantic_model() -> None:
 def test_answer_fields_match_the_pydantic_models() -> None:
     schemas = CONTRACT["components"]["schemas"]
     for model, name in [(api_module.Availability, "Availability"), (api_module.RoomView, "Room"),
-                        (api_module.ReservationCreated, "Reservation"), (api_module.Problem, "Problem")]:
+                        (api_module.ReservationCreated, "Reservation"), (api_module.Problem, "Problem"),
+                        (api_module.StatsView, "Stats")]:
         aliases = [field.alias for field in model.model_fields.values()]
         assert aliases == list(schemas[name]["properties"]), name
         assert set(schemas[name]["required"]) == set(aliases), name

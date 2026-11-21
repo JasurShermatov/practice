@@ -1,0 +1,189 @@
+# P07's api-check (docs/api-check.md: 7 requests + restart + 11 more) re-run against the P08 app, which now
+# starts with the Redis cache by default (python main.py). redis-server v=7.0.15 on port 16391, HOTEL_REDIS_PORT=16391.
+$ redis-cli -p 16391 FLUSHALL
+OK
+$ HOTEL_REDIS_PORT=16391 python3 -I practices/P07-capacity-api-design/evidence/api_check.py hotel-booking --port 5087
+Project: hotel-booking/   database: <tmp>/hotel.sqlite3 (empty at the start)   port: 5087
+Python 3.13.18; curl 8.5.0 (x86_64-pc-linux-gnu) libcurl/8.5.0 OpenSSL/3.0.13 zlib/1.3.1.zlib-ng brotli/1.1.0 zstd/1.5.5 libidn2/2.3.7 libpsl/0.21.2 (+libidn2/2.3.7) libssh/0.10.6/openssl/zlib nghttp2/1.59.0 librtmp/2.3 OpenLDAP/2.6.10
+Server started in 0.32 s: python main.py --port 5087
+
+## 1. Search 12–14 Nov: R7 and R8 are free
+$ curl -s -w "\n%{http_code}\n" "http://localhost:5080/rooms/availability?checkIn=2026-11-12&checkOut=2026-11-14"
+{"checkIn":"2026-11-12","checkOut":"2026-11-14","rooms":[{"number":"R7","type":"Standard"},{"number":"R8","type":"Deluxe"}],"next":null}
+200
+✓ matches Expected
+
+## 2. Maya books R7 for 12–14 Nov
+$ curl -s -w "\n%{http_code}\n" -X POST -H "Content-Type: application/json" --data "@docs/requests/maya-r7.json" http://localhost:5080/reservations
+{"id":"R101","status":"Confirmed","notificationFailed":false}
+201
+✓ matches Expected
+
+## 3. Omar asks for R7 for 13–15 Nov: the night of the 13th is Maya’s
+$ curl -s -w "\n%{http_code}\n" -X POST -H "Content-Type: application/json" --data "@docs/requests/omar-r7.json" http://localhost:5080/reservations
+{"title":"Unavailable","status":409,"detail":"The room is booked for at least one night of this stay."}
+409
+✓ matches Expected
+
+## 4. Omar asks for R8 for 15–15 Nov: no night at all
+$ curl -s -w "\n%{http_code}\n" -X POST -H "Content-Type: application/json" --data "@docs/requests/omar-r8.json" http://localhost:5080/reservations
+{"title":"InvalidDates","status":400,"detail":"checkOut must be after checkIn."}
+400
+✓ matches Expected
+
+## 5. Search 12–14 Nov again: only R8 is free
+$ curl -s -w "\n%{http_code}\n" "http://localhost:5080/rooms/availability?checkIn=2026-11-12&checkOut=2026-11-14"
+{"checkIn":"2026-11-12","checkOut":"2026-11-14","rooms":[{"number":"R8","type":"Deluxe"}],"next":null}
+200
+✓ matches Expected
+
+## 6. Cancel R101
+$ curl -s -w "\n%{http_code}\n" -X DELETE http://localhost:5080/reservations/R101
+
+204
+✓ matches Expected
+
+## 7. Cancel R101 a second time
+$ curl -s -w "\n%{http_code}\n" -X DELETE http://localhost:5080/reservations/R101
+{"title":"NotFound","status":404,"detail":"There is no confirmed reservation R101."}
+404
+✓ matches Expected
+
+## 8. Maya books R7 for 12–14 Nov again
+$ curl -s -w "\n%{http_code}\n" -X POST -H "Content-Type: application/json" --data "@docs/requests/maya-r7.json" http://localhost:5080/reservations
+{"id":"R102","status":"Confirmed","notificationFailed":false}
+201
+✓ matches Expected
+
+## 9. Stop the app (Ctrl+C in its terminal) and start it again
+Server stopped with SIGINT (exit code 0); restarted in 0.30 s over the same database file.
+
+## 10. After the restart, search 12–14 Nov: R7 is still booked
+$ curl -s -w "\n%{http_code}\n" "http://localhost:5080/rooms/availability?checkIn=2026-11-12&checkOut=2026-11-14"
+{"checkIn":"2026-11-12","checkOut":"2026-11-14","rooms":[{"number":"R8","type":"Deluxe"}],"next":null}
+200
+✓ matches Expected
+
+## 11. The reservations table
+$ python3 -c "import sqlite3; [print(*row, sep=' | ') for row in sqlite3.connect('hotel.sqlite3').execute('SELECT id, guest_name, room, check_in, check_out, status FROM reservations ORDER BY id')]"
+R101 | Maya | R7 | 2026-11-12 | 2026-11-14 | Cancelled
+R102 | Maya | R7 | 2026-11-12 | 2026-11-14 | Confirmed
+✓ matches Expected
+
+## 12. A room the hotel does not have
+$ curl -s -w "\n%{http_code}\n" -X POST -H "Content-Type: application/json" --data "@docs/requests/nora-r99.json" http://localhost:5080/reservations
+{"title":"UnknownRoom","status":400,"detail":"There is no room R99."}
+400
+✓ matches Expected
+
+## 13. A body without guestEmail
+$ curl -s -w "\n%{http_code}\n" -X POST -H "Content-Type: application/json" --data "@docs/requests/maya-no-email.json" http://localhost:5080/reservations
+{"title":"InvalidRequest","status":400,"detail":"The body must be JSON with guestName, guestEmail, room, checkIn and checkOut."}
+400
+✓ matches Expected
+
+## 14. The right body, not sent as JSON
+$ curl -s -w "\n%{http_code}\n" -X POST -H "Content-Type: text/plain" --data "@docs/requests/maya-r7.json" http://localhost:5080/reservations
+{"title":"InvalidRequest","status":400,"detail":"The body must be JSON with guestName, guestEmail, room, checkIn and checkOut."}
+400
+✓ matches Expected
+
+## 15. Dates written the wrong way
+$ curl -s -w "\n%{http_code}\n" -X POST -H "Content-Type: application/json" --data "@docs/requests/maya-bad-date.json" http://localhost:5080/reservations
+{"title":"InvalidDates","status":400,"detail":"checkIn and checkOut must be dates such as 2026-11-12."}
+400
+✓ matches Expected
+
+## 16. A search without a check-out date
+$ curl -s -w "\n%{http_code}\n" "http://localhost:5080/rooms/availability?checkIn=2026-11-12"
+{"title":"InvalidDates","status":400,"detail":"checkIn and checkOut must be dates such as 2026-11-12."}
+400
+✓ matches Expected
+
+## 17. Pages of one room (20–22 Nov, both rooms free): limit=1 gives R7 and "next":"R7"
+$ curl -s -w "\n%{http_code}\n" "http://localhost:5080/rooms/availability?checkIn=2026-11-20&checkOut=2026-11-22&limit=1"
+{"checkIn":"2026-11-20","checkOut":"2026-11-22","rooms":[{"number":"R7","type":"Standard"}],"next":"R7"}
+200
+✓ matches Expected
+
+## 18. The next page: after=R7
+$ curl -s -w "\n%{http_code}\n" "http://localhost:5080/rooms/availability?checkIn=2026-11-20&checkOut=2026-11-22&limit=1&after=R7"
+{"checkIn":"2026-11-20","checkOut":"2026-11-22","rooms":[{"number":"R8","type":"Deluxe"}],"next":null}
+200
+✓ matches Expected
+
+## 19. A limit outside 1–100
+$ curl -s -w "\n%{http_code}\n" "http://localhost:5080/rooms/availability?checkIn=2026-11-20&checkOut=2026-11-22&limit=0"
+{"title":"InvalidRequest","status":400,"detail":"limit must be a whole number from 1 to 100."}
+400
+✓ matches Expected
+
+## 20. A path the API does not have
+$ curl -s -w "\n%{http_code}\n" http://localhost:5080/bookings
+{"title":"NotFound","status":404,"detail":"There is no resource at /bookings."}
+404
+✓ matches Expected
+
+## 21. A method the path does not support (the Allow header names the right one)
+$ curl -s -D - -o /dev/null -X PUT http://localhost:5080/reservations | grep -i -E "^(HTTP|allow|content-type)" | tr -d "\r"
+HTTP/1.1 405 Method Not Allowed
+allow: POST
+content-type: application/problem+json
+✓ matches Expected
+
+## 22. The contract, from the running app
+$ curl -s -o /dev/null -w "%{http_code} %{content_type}\n" http://localhost:5080/openapi.yaml
+200 application/yaml
+✓ matches Expected
+
+Server stopped with SIGINT (exit code 0).
+Result: 21 of 21 answers exactly as expected, 1 restart.
+
+---- server log (uvicorn) ----
+INFO:     Started server process [4047]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://localhost:5087 (Press CTRL+C to quit)
+INFO:     127.0.0.1:41792 - "GET /openapi.yaml HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41794 - "GET /rooms/availability?checkIn=2026-11-12&checkOut=2026-11-14 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41802 - "POST /reservations HTTP/1.1" 201 Created
+INFO:     127.0.0.1:41804 - "POST /reservations HTTP/1.1" 409 Conflict
+INFO:     127.0.0.1:41818 - "POST /reservations HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:41826 - "GET /rooms/availability?checkIn=2026-11-12&checkOut=2026-11-14 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41838 - "DELETE /reservations/R101 HTTP/1.1" 204 No Content
+INFO:     127.0.0.1:41852 - "DELETE /reservations/R101 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:41856 - "POST /reservations HTTP/1.1" 201 Created
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [4047]
+INFO:     Started server process [4059]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://localhost:5087 (Press CTRL+C to quit)
+INFO:     127.0.0.1:41888 - "GET /openapi.yaml HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41900 - "GET /rooms/availability?checkIn=2026-11-12&checkOut=2026-11-14 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41910 - "POST /reservations HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:41912 - "POST /reservations HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:41918 - "POST /reservations HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:41924 - "POST /reservations HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:41940 - "GET /rooms/availability?checkIn=2026-11-12 HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:41944 - "GET /rooms/availability?checkIn=2026-11-20&checkOut=2026-11-22&limit=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41952 - "GET /rooms/availability?checkIn=2026-11-20&checkOut=2026-11-22&limit=1&after=R7 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41958 - "GET /rooms/availability?checkIn=2026-11-20&checkOut=2026-11-22&limit=0 HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:41964 - "GET /bookings HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:41980 - "PUT /reservations HTTP/1.1" 405 Method Not Allowed
+INFO:     127.0.0.1:41984 - "GET /openapi.yaml HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [4059]
+exit 0
+$ redis-cli -p 16391 KEYS 'availability:*'
+availability:v3:2026-11-20:2026-11-22
+availability:v3:2026-11-12:2026-11-14
+availability:version
+availability:v1:2026-11-12:2026-11-14
+availability:v0:2026-11-12:2026-11-14
+$ redis-cli -p 16391 GET availability:version
+3

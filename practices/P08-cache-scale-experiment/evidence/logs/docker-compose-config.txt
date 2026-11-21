@@ -1,0 +1,24 @@
+$ docker compose config --services
+cache
+db
+$ docker compose config  (cache service)
+  cache:
+    image: redis:8
+    networks:
+      default: null
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - ping
+      timeout: 3s
+      interval: 2s
+      retries: 15
+    ports:
+      - mode: ingress
+        target: 6379
+        published: "6379"
+        protocol: tcp
+$ docker compose up -d
+failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+exit 1   (no Docker daemon in the build container: to do on the Mac)

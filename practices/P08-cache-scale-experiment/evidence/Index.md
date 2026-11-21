@@ -1,0 +1,35 @@
+# Evidence index — P08
+
+Labels as agreed in L01/P01: **Proposed** (planned, not run), **Simulated** (model / thought
+experiment), **Observed** (actually run; command, environment and real output recorded).
+Environment for every Observed row: Linux container (kernel 6.18), 2 vCPU Intel Xeon 2.1 GHz,
+8 GiB RAM, Python 3.13.18, pytest 9.1.1, mypy (strict), Starlette 1.7.0, pydantic 2.13.5,
+uvicorn 0.54.0, SQLite 3.53.1, **redis-server / redis-cli 7.0.15** (local, no persistence),
+curl 8.5.0, Docker client + Compose (no daemon), Mermaid CLI 11.16.0 with headless Chromium;
+portfolio build of 2026-11-21. Outputs: [observed-runs.md](observed-runs.md) and [logs/](logs/).
+Scripts: [run_experiment.py](run_experiment.py), [cache_behaviour.py](cache_behaviour.py),
+[break_the_cache.py](break_the_cache.py).
+
+| ID | Label | Requirement | Action | Expected | Actual | Limitation |
+|---|---|---|---|---|---|---|
+| E1 | **Observed** | Start: P07 checks green before any change | unittest, contracts, pytest, document checks | 12 OK; 5 kept; 335; 95 | as expected ([b0-baseline](logs/b0-baseline.txt)) | — |
+| E2 | **Observed** | Old tests after the code change (before updating any) | pytest, unittest, contracts on the changed code | some red, each explained | 4 failed / 331 passed; unittest 12 OK; 5 kept ([b1](logs/b1-old-tests-after-the-code-change.txt)) — all four updated deliberately (README table) | — |
+| E3 | **Observed** | Step 1: GET /stats counts searches and real database questions | `test_api_cache.py`, `test_cache_wiring.py::test_stats_count_real_sql_queries` (SQLite trace) | 2 queries per miss, 0 per hit; counter = real SELECTs | green ([f-pytest](logs/f-pytest.txt)) | SQLite trace, not PostgreSQL |
+| E4 | **Observed** | Step 1 + 4: the measurement, no cache vs cache, repeated | `run_experiment.py`: 5 interleaved runs × 3 configurations, 1,000 searches each | 2,000 → 2 queries; 999 hits / 1 miss | exactly that in every run; avg 0.92 → 0.72 ms, p95 1.31 → 1.13 ms (median) ([summary](logs/experiment-summary.md), [raw](logs/experiment-raw.txt), [json](logs/experiment-results.json)) | SQLite, one machine, sequential client (cache-experiment.md § Limitations) |
+| E5 | **Observed** | Scale: 40 rooms; 8 concurrent clients | same script, 3 runs each | 40,000 → 40 queries; cache helps more with more rooms | 40,000 → 40; p95 1.86 → 1.22 ms; 8 clients: 8 misses (stampede), p95 10.04 → 7.19 ms | 2 vCPU shared by client and server |
+| E6 | **Observed** | S6 (energy) proxy | CPU time of app + redis-server from /proc around each run | ≥ 20 % less (S6, *to agree*) | −14 % (2 rooms, Redis), −33 % (in memory), −40 % (40 rooms) | CPU ≠ energy; 10 ms resolution |
+| E7 | **Observed** | Step 2/3: Redis answers; one key after two searches; TTL ≤ 30 s | `cache_behaviour.py` § A, B (curl + redis-cli) | PONG; one key `availability:v0:…`, value `R7,R8`, TTL 30 | as expected ([cache-behaviour](logs/cache-behaviour.txt)) | redis-server 7 instead of `redis:8` in Docker |
+| E8 | **Observed** | Step 5: the stale result | § C: `--no-invalidation`, four curl requests | 200 R7+R8, 201, 200 R7+R8 (stale), 409 | as expected, `X-Cache: hit` on the stale answer | — |
+| E9 | **Observed** | Step 6: invalidation fixes it | § D: same four requests; cancel | third answer R8 only; version 1, then 2 | as expected | — |
+| E10 | **Observed** | Step 6 item 3: removing the invalidate line makes a test fail | `break_the_cache.py`: 9 mutations on copies | each caught | 9/9 caught; mutation 1 fails the course's `test_a_booking_and_a_cancel_make_the_next_search_fresh` ([break-the-cache](logs/break-the-cache.txt)) | — |
+| E11 | **Observed** | Step 7: hot key, versions side by side, expiry; busy sale | § E, F | 999 hits; v0+v1 keys, v0 gone after 31 s; 1 miss per booking | as expected; busy sale 980/20, 860 queries | — |
+| E12 | **Observed** | Step 8 (ADR-002 consequence): Redis stops and starts | § G | requests keep working, `cacheErrors` counts | 200 bypass, 201, 409 on retry, cacheErrors 3; after restart miss → hit | Our fail-open design, not the course's |
+| E13 | **Observed** | Cache tests: hit, miss, expiry, invalidation, stale, fail-open, Redis protocol | `tests/test_cache.py`, `test_api_cache.py`, `test_redis_store.py`, `test_cache_wiring.py`, `test_measure.py` (83 tests) | green | green, inside 427 passed ([f-pytest](logs/f-pytest.txt)) | Redis tests skip where redis-server is missing |
+| E14 | **Observed** | Contract kept equal to the code, both directions (1.1.0, GET /stats, X-Cache) | `tests/test_openapi_contract.py` + mutation 8 | green; red when /stats is removed | green; mutation caught | Swagger editor not opened (E20) |
+| E15 | **Observed** | Borders: the cache at the edge, knowing no module | `python -m tests.test_architecture`; mutation 9 | 6 kept; red when the cache imports Rooms | "Contracts: 6 kept, 0 broken." ([f-contracts](logs/f-contracts.txt)); caught | `lint-imports` not installable |
+| E16 | **Observed** | No regression: P07's api-check against the P08 app with the Redis cache | `HOTEL_REDIS_PORT=… api_check.py` | 21 of 21 | 21 of 21, 1 restart ([api-check-with-redis-cache](logs/api-check-with-redis-cache.txt)) | SQLite |
+| E17 | **Observed** | Race still there (P09) | `main.py --race`; race pins ×10 | 2 Confirmed; pins green | as expected ([f-race](logs/f-race.txt), [f-race-pins-10](logs/f-race-pins-10.txt)) | Timing-based |
+| E18 | **Observed** | Everything at the end | unittest, pytest, mypy, contracts, demo, document checks, mmdc | all green | 14 OK; 427 passed; mypy clean; P05–P08 document checks passed; 6 diagrams exit 0 ([f-unittest](logs/f-unittest.txt), [f-mypy](logs/f-mypy.txt), [f-demo](logs/f-demo.txt), [f-doc-checks](logs/f-doc-checks.txt), [mmdc](logs/mmdc.txt)) | — |
+| E19 | **Observed** | Tool availability (honesty) | `import redis/fakeredis/psycopg`; `pip download redis`; `docker compose up -d` | — | none installed; PyPI unreachable; no Docker daemon; compose file valid ([f-tools](logs/f-tools.txt), [docker-compose-config](logs/docker-compose-config.txt)) | Reason for the substitutions |
+| E20 | **Proposed** | Steps 2, 4–7 on the Mac with Docker (PostgreSQL 18 + Redis 8) | `docker compose up -d`; `python main.py --db postgres` (psycopg); FLUSHALL; `tools/measure.py` with and without `--cache off`; the four curl requests; Swagger editor for 1.1.0 | 2,000 → 2 queries; stale then fresh; larger time gain than on SQLite | Not run — **to do by the student** | — |
+| E21 | **Simulated** | What the hit rate would be at the hotel's peak | Arithmetic on P07's peak (3.33 searches/s, 40 rooms, 1 booking per 1,440 searches) and the TTL: a copy serves at most 30 s of searches for one stay | all searches for one stay: ~1 miss per 30 s (+1 per booking) of ~100 searches → ~99 % hits, ~1.4 queries/s instead of 133; searches spread over 50 different stays: ~2 searches per stay per 30 s → ~50 % hits, ~67 queries/s | — | A model: the spread of dates guests search is *to agree*/measure (P23); the TTL, not only bookings, limits the hit rate |

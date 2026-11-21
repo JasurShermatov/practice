@@ -7,6 +7,12 @@
   does not stop a double booking; when both requests number their booking R101, the primary key
   refuses the second (500) - one booking, but not the 409 the guest should get.
 - ``python main.py`` without a flag starts the web app (P07 change), ``--demo`` the demo.
+
+P08 change (deliberate): ``main(serve=...)`` now hands the server one ``ServerOptions`` value
+(database, port, cache, invalidation) instead of ``(database, port)``, because the cache options
+joined. The two command-line tests compare that value; the defaults are the course's (SQLite here,
+port 5080, Redis, invalidation on). ``client_over`` keeps building the app without a cache, so every
+P07 check here runs exactly as before (the cache through the wiring: tests/test_cache_wiring.py).
 """
 from __future__ import annotations
 
@@ -164,13 +170,13 @@ def test_two_requests_numbering_r101_the_primary_key_refuses_the_second(tmp_path
 
 
 def test_main_without_a_flag_starts_the_web_app(capsys: pytest.CaptureFixture[str]) -> None:
-    started: list[tuple[str, int]] = []
-    main.main([], serve=lambda database, port: started.append((database, port)))
-    assert started == [("sqlite", 5080)]
+    started: list[main.ServerOptions] = []
+    main.main([], serve=started.append)
+    assert started == [main.ServerOptions("sqlite", 5080, "redis", True)]
     assert capsys.readouterr().out == ""
 
 
 def test_main_db_and_port_options_reach_the_server() -> None:
-    started: list[tuple[str, int]] = []
-    main.main(["--db", "postgres", "--port", "5081"], serve=lambda database, port: started.append((database, port)))
-    assert started == [("postgres", 5081)]
+    started: list[main.ServerOptions] = []
+    main.main(["--db", "postgres", "--port", "5081"], serve=started.append)
+    assert started == [main.ServerOptions("postgres", 5081, "redis", True)]

@@ -1,0 +1,22 @@
+# Old tests, unchanged, after the P08 code change (api.py + api_stats.py + api_cache.py + api_redis.py + main.py), before any test or contract update
+$ python3 -m pytest -q -p no:cacheprovider
+E           TypeError: test_main_without_a_flag_starts_the_web_app.<locals>.<lambda>() missing 1 required positional argument: 'port'
+E           TypeError: test_main_db_and_port_options_reach_the_server.<locals>.<lambda>() missing 1 required positional argument: 'port'
+E       AssertionError: ["hotel_booking/api_cache.py: ['CacheError', 'KeyValueStore', 'AvailabilityCache', 'InMemoryKeyValueStore']", "hotel_b...eplyError', '_Connection', 'RedisKeyValueStore']", "hotel_booking/api_stats.py: ['Stats', 'CountingReservationStore']"]
+E       assert not ["hotel_booking/api_cache.py: ['CacheError', 'KeyValueStore', 'AvailabilityCache', 'InMemoryKeyValueStore']", "hotel_b...eplyError', '_Connection', 'RedisKeyValueStore']", "hotel_booking/api_stats.py: ['Stats', 'CountingReservationStore']"]
+E       AssertionError: assert {('DELETE', '...eservations')} == {('DELETE', '...eservations')}
+E         
+E         Extra items in the left set:
+E         ('GET', '/stats')
+E         Use -v to get more diff
+FAILED tests/test_api_sqlite.py::test_main_without_a_flag_starts_the_web_app
+FAILED tests/test_api_sqlite.py::test_main_db_and_port_options_reach_the_server
+FAILED tests/test_architecture.py::test_every_class_lives_in_one_of_the_four_modules_or_the_api_edge
+FAILED tests/test_openapi_contract.py::test_every_route_is_in_the_contract_and_every_operation_is_served
+4 failed, 331 passed in 4.18s
+$ python3 -m unittest
+Ran 12 tests in 0.055s
+
+OK
+$ python3 -m tests.test_architecture
+Contracts: 5 kept, 0 broken.

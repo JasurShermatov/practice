@@ -1,0 +1,91 @@
+$ python3 -I practices/P08-cache-scale-experiment/evidence/break_the_cache.py hotel-booking
+Unchanged copy: unittest Ran 14 tests in 0.051s / OK; P08 pytest files: 116 passed in 3.15s
+
+1. Step 6 item 3: the invalidate line (and its if) is removed from POST
+   changed hotel_booking/api.py
+   unittest: Ran 14 tests in 0.042s / FAILED (failures=1)
+   pytest:   8 failed, 108 passed in 3.35s
+   FAILED unittest test_a_booking_and_a_cancel_make_the_next_search_fresh
+   FAILED tests/test_api_cache.py::test_with_invalidation_the_same_four_requests_give_a_fresh_third_answer
+   FAILED tests/test_api_cache.py::test_a_cancel_invalidates_too
+   FAILED tests/test_api_cache.py::test_a_409_keeps_the_version
+   FAILED tests/test_api_cache.py::test_versions_leave_old_copies_to_expire_by_themselves
+   FAILED tests/test_api_cache.py::test_cache_down_a_booking_is_still_answered_201_and_saved
+   FAILED tests/test_api_cache.py::test_booking_and_cancelling_never_read_the_cache[reserve]
+   FAILED tests/test_api_cache.py::test_the_version_is_raised_after_the_unit_of_work[reserve]
+   FAILED tests/test_cache_wiring.py::test_step6_after_invalidation_the_third_answer_is_fresh
+
+2. the invalidate line is removed from DELETE
+   changed hotel_booking/api.py
+   unittest: Ran 14 tests in 0.061s / FAILED (failures=1)
+   pytest:   3 failed, 113 passed in 3.25s
+   FAILED unittest test_a_booking_and_a_cancel_make_the_next_search_fresh
+   FAILED tests/test_api_cache.py::test_a_cancel_invalidates_too
+   FAILED tests/test_api_cache.py::test_booking_and_cancelling_never_read_the_cache[cancel]
+   FAILED tests/test_api_cache.py::test_the_version_is_raised_after_the_unit_of_work[cancel]
+
+3. the version is raised BEFORE the booking is saved
+   changed hotel_booking/api.py
+   unittest: Ran 14 tests in 0.056s / OK
+   pytest:   5 failed, 111 passed in 3.23s
+   FAILED tests/test_api_cache.py::test_with_invalidation_the_same_four_requests_give_a_fresh_third_answer
+   FAILED tests/test_api_cache.py::test_a_request_that_changes_nothing_keeps_the_version[invalid-dates]
+   FAILED tests/test_api_cache.py::test_a_409_keeps_the_version
+   FAILED tests/test_api_cache.py::test_the_version_is_raised_after_the_unit_of_work[reserve]
+   FAILED tests/test_cache_wiring.py::test_step6_after_invalidation_the_third_answer_is_fresh
+
+4. booking reads the cache (it asks the cached search whether the room is free)
+   changed hotel_booking/api.py
+   unittest: Ran 14 tests in 0.051s / OK
+   pytest:   3 failed, 113 passed in 3.41s
+   FAILED tests/test_api_cache.py::test_a_booking_costs_three_questions
+   FAILED tests/test_api_cache.py::test_cache_down_a_booking_is_still_answered_201_and_saved
+   FAILED tests/test_api_cache.py::test_booking_and_cancelling_never_read_the_cache[reserve]
+
+5. the TTL becomes 300 seconds
+   changed hotel_booking/api_cache.py
+   unittest: Ran 14 tests in 0.047s / OK
+   pytest:   2 failed, 114 passed in 3.07s
+   FAILED tests/test_cache.py::test_a_copy_is_kept_for_30_seconds
+   FAILED tests/test_cache.py::test_the_copy_expires_after_the_ttl
+
+6. the key forgets the version
+   changed hotel_booking/api_cache.py
+   unittest: Ran 14 tests in 0.049s / FAILED (failures=1)
+   pytest:   6 failed, 110 passed in 3.18s
+   FAILED unittest test_a_booking_and_a_cancel_make_the_next_search_fresh
+   FAILED tests/test_cache.py::test_invalidate_raises_the_version_and_older_copies_are_no_longer_read
+   FAILED tests/test_cache.py::test_an_answer_read_before_a_booking_is_stored_under_the_old_version
+   FAILED tests/test_api_cache.py::test_with_invalidation_the_same_four_requests_give_a_fresh_third_answer
+   FAILED tests/test_api_cache.py::test_a_cancel_invalidates_too
+   FAILED tests/test_api_cache.py::test_versions_leave_old_copies_to_expire_by_themselves
+   FAILED tests/test_cache_wiring.py::test_step6_after_invalidation_the_third_answer_is_fresh
+
+7. a hit is not counted
+   changed hotel_booking/api.py
+   unittest: Ran 14 tests in 0.047s / FAILED (failures=1)
+   pytest:   7 failed, 109 passed in 2.91s
+   FAILED unittest test_the_second_search_is_answered_by_the_cache
+   FAILED tests/test_api_cache.py::test_first_search_misses_second_hits_and_asks_nobody
+   FAILED tests/test_api_cache.py::test_1000_searches_cost_2_queries
+   FAILED tests/test_api_cache.py::test_paging_is_done_on_the_copy
+   FAILED tests/test_api_cache.py::test_a_full_hotel_is_cached_too
+   FAILED tests/test_api_cache.py::test_after_30_seconds_the_copy_is_gone_and_the_search_asks_again
+   FAILED tests/test_openapi_contract.py::test_the_app_answers_exactly_the_documented_example[getStats 200:twoSearches]
+   FAILED tests/test_cache_wiring.py::test_stats_count_real_sql_queries
+
+8. the contract forgets GET /stats
+   changed docs/openapi.yaml
+   unittest: Ran 14 tests in 0.056s / OK
+   pytest:   2 failed, 114 passed in 3.08s
+   FAILED tests/test_openapi_contract.py::test_every_route_is_in_the_contract_and_every_operation_is_served
+   FAILED tests/test_openapi_contract.py::test_statuses_and_titles_in_the_code_equal_the_contract[GET /x-stats-removed]
+
+9. the cache imports a module (Rooms)
+   changed hotel_booking/api_cache.py
+   unittest: Ran 14 tests in 0.047s / OK
+   pytest:   1 failed, 115 passed in 2.98s
+   FAILED tests/test_architecture.py::test_contract_is_kept[cache-knows-no-module]
+
+Every mutation was caught; the project itself was not changed.
+exit 0

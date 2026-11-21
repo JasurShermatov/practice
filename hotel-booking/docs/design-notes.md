@@ -263,3 +263,65 @@ code in both directions by `tests/test_openapi_contract.py`.
 - **The race is still there.** Through HTTP and SQLite, two simultaneous bookings of R7 either
   both succeed (R101 and R102: double booking) or — when both number theirs R101 — the second is
   refused by the primary key with a 500. Both outcomes are pinned by tests until P09.
+
+# P08 design notes
+
+Session: Saturday 7 November 2026 (P08 — cache and scale experiment). Start state: the P07
+project with every check green (12 unittest tests, 5 border contracts, 335 pytest tests, 95
+document checks — [b0-baseline](../../practices/P08-cache-scale-experiment/evidence/logs/b0-baseline.txt)).
+`capacity.md` "To measure later" had two open P08 lines; both are answered in
+[cache-experiment.md](cache-experiment.md).
+
+## Measure first
+
+`GET /stats` (counters: searches, databaseQueries, cacheHits, cacheMisses, cacheErrors) and a
+`CountingReservationStore` that the wiring puts around the SQL store; `tools/measure.py` sends
+1,000 searches and prints average, p95, total and the counter difference. Without a cache:
+**2,000 queries for 1,000 searches** — one per room per search, exactly as P07 estimated.
+
+## Cache rule
+
+Booking never reads the cache.
+
+- Only `GET /rooms/availability` reads it (cache-aside); `POST` and `DELETE` decide from the
+  database and only *raise the version* after their unit of work has committed.
+- Key `availability:v{version}:{checkIn}:{checkOut}`, value `R7,R8`, TTL 30 s; the key is built
+  before the database is asked.
+- The cache lives at the HTTP edge (`api_cache.py`, `api_redis.py`) and knows no module; the
+  borders say so (`.importlinter`, 6 contracts) and an `ast` test proves that `reserve` and
+  `cancel` never call the cache's lookup.
+
+## Invalidation
+
+A successful `POST` (201) or `DELETE` (204) runs `INCR availability:version` after the unit of
+work; 400, 404 and 409 change nothing and leave the version alone. The course's two cache tests
+are in `test_api.py`; removing the invalidate line makes the second one fail (seen:
+[break-the-cache](../../practices/P08-cache-scale-experiment/evidence/logs/break-the-cache.txt)).
+
+## After
+
+- Checks: `python -m unittest` → **Ran 14 tests … OK** (8 behaviour + 6 API); border contracts
+  **6 kept**; the full pytest suite and every document check green — numbers in the P08 README.
+- Measurements (median of 5 runs, 1,000 searches): no cache **2,000 queries, avg 0.92 ms, p95
+  1.31 ms**; Redis cache **2 queries, 999 hits, avg 0.72 ms, p95 1.13 ms**; with 40 rooms
+  40,000 → 40 queries and p95 1.86 → 1.22 ms.
+- Stale result: without invalidation the third search still listed R7 after Maya booked it, and
+  Omar got 409 (booking reads the database); with invalidation the third search showed R8 only.
+
+## Decisions made while building
+
+- **No redis-py.** It could not be installed in the build environment, so `api_redis.py` speaks
+  Redis's protocol (RESP2) with the standard library: five commands, a connection pool, a 0.5 s
+  timeout. It keeps the same `KeyValueStore` promise; swapping in redis-py would change one file.
+- **Edge files, not new modules.** Stats, the counting store and the cache measure or speed up the
+  HTTP edge; they hold no hotel rule. They sit next to `api.py`, and `api.py` itself still defines
+  only pydantic shapes (architecture test).
+- **Fail-open cache** (differs from the course reference): when Redis does not answer, searches go
+  to the database and bookings are still answered 201; `cacheErrors` and the log show the outage.
+  The app still refuses to *start* without Redis, so a wrong address is noticed at once.
+- **`X-Cache` header** (`hit`, `miss`, `bypass`) on every search answer, documented in the contract:
+  it made the stale result visible with plain `curl`.
+- **A fifth counter** (`cacheErrors`) next to the course's four; the course's `/stats` text in the
+  cache test therefore ends with `"cacheErrors":0`.
+- **`--cache off|memory|redis` and `--no-invalidation`** in `main.py`: the "No cache" row and the
+  Step 5 stale result can be reproduced with the final code instead of editing it back and forth.

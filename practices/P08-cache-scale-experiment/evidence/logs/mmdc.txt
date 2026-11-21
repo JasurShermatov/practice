@@ -1,0 +1,19 @@
+# Mermaid CLI 11.16.0 with the container's headless Chromium (puppeteer-config.json: --no-sandbox)
+$ mmdc -p puppeteer-config.json -i bottleneck-moves.mmd -o bottleneck-moves.svg
+Generating single mermaid chart
+exit 0
+$ mmdc -p puppeteer-config.json -i cache-classes.mmd -o cache-classes.svg
+Generating single mermaid chart
+exit 0
+$ mmdc -p puppeteer-config.json -i deployment-and-scale.mmd -o deployment-and-scale.svg
+Generating single mermaid chart
+exit 0
+$ mmdc -p puppeteer-config.json -i module-dependencies.mmd -o module-dependencies.svg
+Generating single mermaid chart
+exit 0
+$ mmdc -p puppeteer-config.json -i search-through-cache.mmd -o search-through-cache.svg
+Generating single mermaid chart
+exit 0
+$ mmdc -p puppeteer-config.json -i stale-result.mmd -o stale-result.svg
+Generating single mermaid chart
+exit 0

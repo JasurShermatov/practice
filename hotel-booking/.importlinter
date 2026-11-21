@@ -1,12 +1,15 @@
 # The borders of the app, in import-linter's INI format.
 #   - three borders between the four modules (P06 Step 6, the course's contracts);
 #   - two borders around the HTTP API edge, hotel_booking/api.py (P07, portfolio addition): the API
-#     may use only the modules' public contracts, and no module may depend on the API.
+#     may use only the modules' public contracts, and no module may depend on the API;
+#   - P08: the edge grew three files (api_stats.py: counters + counting store, api_cache.py: the
+#     search cache, api_redis.py: the Redis adapter); the two API borders cover them too, and one
+#     new border keeps the cache free of the hotel's modules: it stores text, it knows no rule.
 #
 #   pip install import-linter      # dev tool, listed in requirements.txt
 #   lint-imports                   # run from the hotel-booking folder
 #
-# Expected:  Contracts: 5 kept, 0 broken.   (the course's P07 reference expects 3; see the P07 README)
+# Expected:  Contracts: 6 kept, 0 broken.   (the course's P08 reference expects 3; see the P08 README)
 #
 # The same file is read by tests/test_architecture.py (standard library only:
 # configparser + ast), so the borders are also checked by `python -m pytest`
@@ -49,6 +52,9 @@ name = The HTTP API uses only the public contracts of the modules
 type = forbidden
 source_modules =
     hotel_booking.api
+    hotel_booking.api_stats
+    hotel_booking.api_cache
+    hotel_booking.api_redis
 forbidden_modules =
     hotel_booking.rooms.internal
     hotel_booking.reservations.internal
@@ -66,3 +72,18 @@ source_modules =
     hotel_booking.demo
 forbidden_modules =
     hotel_booking.api
+    hotel_booking.api_stats
+    hotel_booking.api_cache
+    hotel_booking.api_redis
+
+[importlinter:contract:cache-knows-no-module]
+name = The availability cache depends on no module
+type = forbidden
+source_modules =
+    hotel_booking.api_cache
+    hotel_booking.api_redis
+forbidden_modules =
+    hotel_booking.rooms
+    hotel_booking.reservations
+    hotel_booking.payments
+    hotel_booking.notifications

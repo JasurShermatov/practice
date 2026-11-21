@@ -1,0 +1,37 @@
+---
+title: Where the cache runs - the laptop today, and what scaling out needs (P08)
+---
+flowchart LR
+  subgraph mac["Student's Mac (docker compose up -d)"]
+    tool["tools/measure.py / curl<br/>terminal 2"]
+    app["python main.py<br/>uvicorn :5080, one process<br/>(stateless: no booking in memory)"]
+    subgraph docker["Docker Desktop"]
+      pg[("db: postgres:18 :5432<br/>volume hotel-data<br/>SOURCE OF TRUTH")]
+      redis[["cache: redis:8 :6379<br/>no volume - copies only<br/>TTL 30 s, availability:version"]]
+    end
+    sqlite[("hotel.sqlite3<br/>default database")]
+  end
+  tool -->|HTTP GET /rooms/availability, /stats| app
+  app -->|search: GET version, GET copy, SET EX 30<br/>booking: INCR after COMMIT| redis
+  app -->|unit of work per request<br/>--db postgres| pg
+  app -.->|default --db sqlite| sqlite
+
+  subgraph out["Scale out (L04, Proposed - not built): any instance answers any request"]
+    lb["load balancer"]
+    a1["app instance A"]
+    a2["app instance B"]
+    shared[["ONE shared Redis<br/>(a booking on A invalidates B's searches)<br/>hot key: one node holds 31 Dec-2 Jan"]]
+    truth[("ONE shared PostgreSQL<br/>bookings: 3 queries each - the next bottleneck (P09)")]
+  end
+  lb --> a1 & a2
+  a1 & a2 --> shared
+  a1 & a2 --> truth
+
+  classDef truthc fill:#eeeeee,stroke:#424242,stroke-width:2px,color:#1b1b1b
+  classDef cachec fill:#fff3e0,stroke:#e65100,stroke-width:2px,stroke-dasharray:6 3,color:#1b1b1b
+  classDef ours fill:#ffffff,stroke:#424242,color:#1b1b1b
+  classDef outside fill:#fff9c4,stroke:#f9a825,color:#1b1b1b
+  class pg,sqlite,truth truthc
+  class redis,shared cachec
+  class app,a1,a2,lb ours
+  class tool outside

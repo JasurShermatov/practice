@@ -1,0 +1,804 @@
+{
+ "environment": "Date (UTC): 2026-11-21 07:50:46\nMachine: Linux container, kernel 6.18.44-fc-v726, 2 vCPU (Intel(R) Xeon(R) Processor @ 2.10GHz), 8024 MiB RAM\nPython 3.13.18; starlette 1.7.0, pydantic 2.13.5, uvicorn 0.54.0, SQLite 3.53.1\nRedis server v=7.0.15 sha=00000000:0 malloc=jemalloc-5.3.0 bits=64 build=d064f9f48c901a92\nApp: python main.py (uvicorn, 1 process, access log on), database: SQLite file; measurement tool on the same machine (client and server share the CPUs)",
+ "results": [
+  {
+   "searches": 1000,
+   "clients": 1,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 0.7913179819934157,
+   "p50_ms": 0.696318999871437,
+   "p95_ms": 1.2462750000850065,
+   "p99_ms": 1.4131449997876189,
+   "max_ms": 2.259715000036522,
+   "total_s": 0.7929779030000645,
+   "throughput_per_s": 1261.0691876995702,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 2000,
+    "cacheHits": 0,
+    "cacheMisses": 0,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "bypass": 1000
+   },
+   "scenario": "course",
+   "cache": "off",
+   "round": 1,
+   "rooms": 2,
+   "app_cpu_s": 0.71,
+   "redis_cpu_s": 0.0
+  },
+  {
+   "searches": 1000,
+   "clients": 1,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 0.6967450580004879,
+   "p50_ms": 0.6468700003097183,
+   "p95_ms": 0.9679539998614928,
+   "p99_ms": 1.1549700002433383,
+   "max_ms": 2.9649710004377994,
+   "total_s": 0.6981069170005867,
+   "throughput_per_s": 1432.4453398864684,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 2,
+    "cacheHits": 999,
+    "cacheMisses": 1,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "hit": 999,
+    "miss": 1
+   },
+   "scenario": "course",
+   "cache": "redis",
+   "round": 1,
+   "rooms": 2,
+   "app_cpu_s": 0.6,
+   "redis_cpu_s": 0.05
+  },
+  {
+   "searches": 1000,
+   "clients": 1,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 0.5682862249932441,
+   "p50_ms": 0.4988209993825876,
+   "p95_ms": 0.8900200000425684,
+   "p99_ms": 1.1049939994336455,
+   "max_ms": 2.8938650002601207,
+   "total_s": 0.5696642270004304,
+   "throughput_per_s": 1755.4200397407865,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 2,
+    "cacheHits": 999,
+    "cacheMisses": 1,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "hit": 999,
+    "miss": 1
+   },
+   "scenario": "course",
+   "cache": "memory",
+   "round": 1,
+   "rooms": 2,
+   "app_cpu_s": 0.51,
+   "redis_cpu_s": 0.0
+  },
+  {
+   "searches": 1000,
+   "clients": 1,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 0.9233641979935783,
+   "p50_ms": 0.8872340004018042,
+   "p95_ms": 1.3514749998648767,
+   "p99_ms": 1.5572090005662176,
+   "max_ms": 2.1029089994044625,
+   "total_s": 0.925222754999595,
+   "throughput_per_s": 1080.8208019056315,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 2000,
+    "cacheHits": 0,
+    "cacheMisses": 0,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "bypass": 1000
+   },
+   "scenario": "course",
+   "cache": "off",
+   "round": 2,
+   "rooms": 2,
+   "app_cpu_s": 0.79,
+   "redis_cpu_s": 0.0
+  },
+  {
+   "searches": 1000,
+   "clients": 1,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 0.6612451329956457,
+   "p50_ms": 0.6062149996068911,
+   "p95_ms": 1.0145189999093418,
+   "p99_ms": 1.1354460002621636,
+   "max_ms": 3.0725280003025546,
+   "total_s": 0.6625759049993576,
+   "throughput_per_s": 1509.2610408176095,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 2,
+    "cacheHits": 999,
+    "cacheMisses": 1,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "hit": 999,
+    "miss": 1
+   },
+   "scenario": "course",
+   "cache": "redis",
+   "round": 2,
+   "rooms": 2,
+   "app_cpu_s": 0.58,
+   "redis_cpu_s": 0.04
+  },
+  {
+   "searches": 1000,
+   "clients": 1,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 0.5926123660201483,
+   "p50_ms": 0.5207029998928192,
+   "p95_ms": 0.8850320000419742,
+   "p99_ms": 1.0809919995153905,
+   "max_ms": 3.7502069999391097,
+   "total_s": 0.5940425729995695,
+   "throughput_per_s": 1683.381032693636,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 2,
+    "cacheHits": 999,
+    "cacheMisses": 1,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "hit": 999,
+    "miss": 1
+   },
+   "scenario": "course",
+   "cache": "memory",
+   "round": 2,
+   "rooms": 2,
+   "app_cpu_s": 0.52,
+   "redis_cpu_s": 0.0
+  },
+  {
+   "searches": 1000,
+   "clients": 1,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 1.037918815987723,
+   "p50_ms": 1.0930219996225787,
+   "p95_ms": 1.3852249994670274,
+   "p99_ms": 1.699921000181348,
+   "max_ms": 2.771059999759018,
+   "total_s": 1.0400870849998682,
+   "throughput_per_s": 961.4579533021763,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 2000,
+    "cacheHits": 0,
+    "cacheMisses": 0,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "bypass": 1000
+   },
+   "scenario": "course",
+   "cache": "off",
+   "round": 3,
+   "rooms": 2,
+   "app_cpu_s": 0.88,
+   "redis_cpu_s": 0.0
+  },
+  {
+   "searches": 1000,
+   "clients": 1,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 0.7208115680050469,
+   "p50_ms": 0.6183280002005631,
+   "p95_ms": 1.125558999774512,
+   "p99_ms": 1.3171769996915828,
+   "max_ms": 3.681717999825196,
+   "total_s": 0.7222357070004364,
+   "throughput_per_s": 1384.5895326238638,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 2,
+    "cacheHits": 999,
+    "cacheMisses": 1,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "hit": 999,
+    "miss": 1
+   },
+   "scenario": "course",
+   "cache": "redis",
+   "round": 3,
+   "rooms": 2,
+   "app_cpu_s": 0.62,
+   "redis_cpu_s": 0.05
+  },
+  {
+   "searches": 1000,
+   "clients": 1,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 0.5090958610026064,
+   "p50_ms": 0.494705999699363,
+   "p95_ms": 0.607266999395506,
+   "p99_ms": 0.6985019999774522,
+   "max_ms": 2.4092749999908847,
+   "total_s": 0.5102887109997027,
+   "throughput_per_s": 1959.6749417421122,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 2,
+    "cacheHits": 999,
+    "cacheMisses": 1,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "hit": 999,
+    "miss": 1
+   },
+   "scenario": "course",
+   "cache": "memory",
+   "round": 3,
+   "rooms": 2,
+   "app_cpu_s": 0.47,
+   "redis_cpu_s": 0.0
+  },
+  {
+   "searches": 1000,
+   "clients": 1,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 0.9345717979995243,
+   "p50_ms": 0.8245629996963544,
+   "p95_ms": 1.3080160006211372,
+   "p99_ms": 1.467002000026696,
+   "max_ms": 35.883178999938536,
+   "total_s": 0.9364473480000015,
+   "throughput_per_s": 1067.8656970258176,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 2000,
+    "cacheHits": 0,
+    "cacheMisses": 0,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "bypass": 1000
+   },
+   "scenario": "course",
+   "cache": "off",
+   "round": 4,
+   "rooms": 2,
+   "app_cpu_s": 0.75,
+   "redis_cpu_s": 0.0
+  },
+  {
+   "searches": 1000,
+   "clients": 1,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 0.7183435900124095,
+   "p50_ms": 0.6216279998625396,
+   "p95_ms": 1.1596430003919522,
+   "p99_ms": 1.3469559999066405,
+   "max_ms": 2.6155269997616415,
+   "total_s": 0.7197951269999976,
+   "throughput_per_s": 1389.284203920435,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 2,
+    "cacheHits": 999,
+    "cacheMisses": 1,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "hit": 999,
+    "miss": 1
+   },
+   "scenario": "course",
+   "cache": "redis",
+   "round": 4,
+   "rooms": 2,
+   "app_cpu_s": 0.6,
+   "redis_cpu_s": 0.05
+  },
+  {
+   "searches": 1000,
+   "clients": 1,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 0.5428076869993674,
+   "p50_ms": 0.5074450000392972,
+   "p95_ms": 0.7334909996643546,
+   "p99_ms": 0.9652930002630455,
+   "max_ms": 2.100059000440524,
+   "total_s": 0.544132888000604,
+   "throughput_per_s": 1837.7863607444547,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 2,
+    "cacheHits": 999,
+    "cacheMisses": 1,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "hit": 999,
+    "miss": 1
+   },
+   "scenario": "course",
+   "cache": "memory",
+   "round": 4,
+   "rooms": 2,
+   "app_cpu_s": 0.5,
+   "redis_cpu_s": 0.0
+  },
+  {
+   "searches": 1000,
+   "clients": 1,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 0.8806786199875205,
+   "p50_ms": 0.7805660006852122,
+   "p95_ms": 1.2988560001758742,
+   "p99_ms": 1.426716999958444,
+   "max_ms": 1.780218000021705,
+   "total_s": 0.8825166469996475,
+   "throughput_per_s": 1133.1231013032657,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 2000,
+    "cacheHits": 0,
+    "cacheMisses": 0,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "bypass": 1000
+   },
+   "scenario": "course",
+   "cache": "off",
+   "round": 5,
+   "rooms": 2,
+   "app_cpu_s": 0.76,
+   "redis_cpu_s": 0.0
+  },
+  {
+   "searches": 1000,
+   "clients": 1,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 0.7562839780139257,
+   "p50_ms": 0.6415369998649112,
+   "p95_ms": 1.1654750005618553,
+   "p99_ms": 1.3095510003040545,
+   "max_ms": 3.1517930001427885,
+   "total_s": 0.7579410680000365,
+   "throughput_per_s": 1319.3637899034545,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 2,
+    "cacheHits": 999,
+    "cacheMisses": 1,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "hit": 999,
+    "miss": 1
+   },
+   "scenario": "course",
+   "cache": "redis",
+   "round": 5,
+   "rooms": 2,
+   "app_cpu_s": 0.64,
+   "redis_cpu_s": 0.05
+  },
+  {
+   "searches": 1000,
+   "clients": 1,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 0.6477098380019015,
+   "p50_ms": 0.5964989995845826,
+   "p95_ms": 0.9540990004097694,
+   "p99_ms": 1.088141999389336,
+   "max_ms": 6.92150099985156,
+   "total_s": 0.6495004640000843,
+   "throughput_per_s": 1539.6447815314727,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 2,
+    "cacheHits": 999,
+    "cacheMisses": 1,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "hit": 999,
+    "miss": 1
+   },
+   "scenario": "course",
+   "cache": "memory",
+   "round": 5,
+   "rooms": 2,
+   "app_cpu_s": 0.55,
+   "redis_cpu_s": 0.0
+  },
+  {
+   "searches": 1000,
+   "clients": 1,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 1.41203893200327,
+   "p50_ms": 1.3684870000361116,
+   "p95_ms": 1.6480490003232262,
+   "p99_ms": 2.4111330003506737,
+   "max_ms": 7.472585999494186,
+   "total_s": 1.4142434430004869,
+   "throughput_per_s": 707.0918411885158,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 40000,
+    "cacheHits": 0,
+    "cacheMisses": 0,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "bypass": 1000
+   },
+   "scenario": "rooms40",
+   "cache": "off",
+   "round": 1,
+   "rooms": 40,
+   "app_cpu_s": 1.2,
+   "redis_cpu_s": 0.0
+  },
+  {
+   "searches": 1000,
+   "clients": 1,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 0.8893139470155802,
+   "p50_ms": 0.8552979998057708,
+   "p95_ms": 1.2496370000008028,
+   "p99_ms": 1.4604830003008828,
+   "max_ms": 3.605228000196803,
+   "total_s": 0.8912394150002001,
+   "throughput_per_s": 1122.0329612551702,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 40,
+    "cacheHits": 999,
+    "cacheMisses": 1,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "hit": 999,
+    "miss": 1
+   },
+   "scenario": "rooms40",
+   "cache": "redis",
+   "round": 1,
+   "rooms": 40,
+   "app_cpu_s": 0.74,
+   "redis_cpu_s": 0.05
+  },
+  {
+   "searches": 1000,
+   "clients": 1,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 1.5343198740083608,
+   "p50_ms": 1.4727309999216232,
+   "p95_ms": 1.9442519997028285,
+   "p99_ms": 2.0987590005461243,
+   "max_ms": 3.285766000772128,
+   "total_s": 1.5369418850004877,
+   "throughput_per_s": 650.6426884186858,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 40000,
+    "cacheHits": 0,
+    "cacheMisses": 0,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "bypass": 1000
+   },
+   "scenario": "rooms40",
+   "cache": "off",
+   "round": 2,
+   "rooms": 40,
+   "app_cpu_s": 1.33,
+   "redis_cpu_s": 0.01
+  },
+  {
+   "searches": 1000,
+   "clients": 1,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 0.7773553250199257,
+   "p50_ms": 0.7155409994084039,
+   "p95_ms": 1.1262420002822182,
+   "p99_ms": 1.333330000306887,
+   "max_ms": 2.849042999514495,
+   "total_s": 0.7790060959996481,
+   "throughput_per_s": 1283.6870021110228,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 40,
+    "cacheHits": 999,
+    "cacheMisses": 1,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "hit": 999,
+    "miss": 1
+   },
+   "scenario": "rooms40",
+   "cache": "redis",
+   "round": 2,
+   "rooms": 40,
+   "app_cpu_s": 0.66,
+   "redis_cpu_s": 0.04
+  },
+  {
+   "searches": 1000,
+   "clients": 1,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 1.509568971006047,
+   "p50_ms": 1.4720369999849936,
+   "p95_ms": 1.855752000665234,
+   "p99_ms": 2.0417379992068163,
+   "max_ms": 12.309499999901163,
+   "total_s": 1.5117792760001976,
+   "throughput_per_s": 661.4722240708037,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 40000,
+    "cacheHits": 0,
+    "cacheMisses": 0,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "bypass": 1000
+   },
+   "scenario": "rooms40",
+   "cache": "off",
+   "round": 3,
+   "rooms": 40,
+   "app_cpu_s": 1.3,
+   "redis_cpu_s": 0.01
+  },
+  {
+   "searches": 1000,
+   "clients": 1,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 0.9056155920079618,
+   "p50_ms": 0.8815310002319166,
+   "p95_ms": 1.2177240005257772,
+   "p99_ms": 1.4425109993680962,
+   "max_ms": 3.4148309996453463,
+   "total_s": 0.9074842039999567,
+   "throughput_per_s": 1101.9475552216309,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 40,
+    "cacheHits": 999,
+    "cacheMisses": 1,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "hit": 999,
+    "miss": 1
+   },
+   "scenario": "rooms40",
+   "cache": "redis",
+   "round": 3,
+   "rooms": 40,
+   "app_cpu_s": 0.74,
+   "redis_cpu_s": 0.05
+  },
+  {
+   "searches": 1000,
+   "clients": 8,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 6.946557157004463,
+   "p50_ms": 6.549284000357147,
+   "p95_ms": 11.027126999579195,
+   "p99_ms": 13.176860999919882,
+   "max_ms": 18.083816000398656,
+   "total_s": 0.8868020720001368,
+   "throughput_per_s": 1127.6473427092374,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 2000,
+    "cacheHits": 0,
+    "cacheMisses": 0,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "bypass": 1000
+   },
+   "scenario": "clients8",
+   "cache": "off",
+   "round": 1,
+   "rooms": 2,
+   "app_cpu_s": 0.97,
+   "redis_cpu_s": 0.01
+  },
+  {
+   "searches": 1000,
+   "clients": 8,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 5.351556481016814,
+   "p50_ms": 5.093685999781883,
+   "p95_ms": 8.049973000197497,
+   "p99_ms": 9.98812700072449,
+   "max_ms": 21.634751000419783,
+   "total_s": 0.6752326590003577,
+   "throughput_per_s": 1480.971020389389,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 16,
+    "cacheHits": 992,
+    "cacheMisses": 8,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "hit": 992,
+    "miss": 8
+   },
+   "scenario": "clients8",
+   "cache": "redis",
+   "round": 1,
+   "rooms": 2,
+   "app_cpu_s": 0.68,
+   "redis_cpu_s": 0.02
+  },
+  {
+   "searches": 1000,
+   "clients": 8,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 6.393348694000451,
+   "p50_ms": 6.265333000555984,
+   "p95_ms": 10.038981000434433,
+   "p99_ms": 11.647463000372227,
+   "max_ms": 15.969487999427656,
+   "total_s": 0.8142593370002942,
+   "throughput_per_s": 1228.1099577979278,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 2000,
+    "cacheHits": 0,
+    "cacheMisses": 0,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "bypass": 1000
+   },
+   "scenario": "clients8",
+   "cache": "off",
+   "round": 2,
+   "rooms": 2,
+   "app_cpu_s": 0.87,
+   "redis_cpu_s": 0.0
+  },
+  {
+   "searches": 1000,
+   "clients": 8,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 4.793237406976004,
+   "p50_ms": 4.588646000229346,
+   "p95_ms": 7.19118899996829,
+   "p99_ms": 10.096355999849038,
+   "max_ms": 18.294463000529504,
+   "total_s": 0.6051536309996663,
+   "throughput_per_s": 1652.4729403805748,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 16,
+    "cacheHits": 992,
+    "cacheMisses": 8,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "hit": 992,
+    "miss": 8
+   },
+   "scenario": "clients8",
+   "cache": "redis",
+   "round": 2,
+   "rooms": 2,
+   "app_cpu_s": 0.61,
+   "redis_cpu_s": 0.02
+  },
+  {
+   "searches": 1000,
+   "clients": 8,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 5.994534156003283,
+   "p50_ms": 5.745172000388266,
+   "p95_ms": 8.987606999653508,
+   "p99_ms": 11.165609999807202,
+   "max_ms": 14.151139000205148,
+   "total_s": 0.7575024130001111,
+   "throughput_per_s": 1320.1278079623137,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 2000,
+    "cacheHits": 0,
+    "cacheMisses": 0,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "bypass": 1000
+   },
+   "scenario": "clients8",
+   "cache": "off",
+   "round": 3,
+   "rooms": 2,
+   "app_cpu_s": 0.87,
+   "redis_cpu_s": 0.0
+  },
+  {
+   "searches": 1000,
+   "clients": 8,
+   "check_in": "2026-11-12",
+   "check_out": "2026-11-14",
+   "average_ms": 4.825213520013676,
+   "p50_ms": 4.641913999876124,
+   "p95_ms": 6.988121000176761,
+   "p99_ms": 8.983314999568393,
+   "max_ms": 15.346775000580237,
+   "total_s": 0.6070560829994065,
+   "throughput_per_s": 1647.2942583148083,
+   "stats_difference": {
+    "searches": 1000,
+    "databaseQueries": 16,
+    "cacheHits": 992,
+    "cacheMisses": 8,
+    "cacheErrors": 0
+   },
+   "x_cache": {
+    "hit": 992,
+    "miss": 8
+   },
+   "scenario": "clients8",
+   "cache": "redis",
+   "round": 3,
+   "rooms": 2,
+   "app_cpu_s": 0.61,
+   "redis_cpu_s": 0.01
+  }
+ ]
+}

@@ -1,0 +1,76 @@
+---
+title: The cache edge as built (P08) - classes next to api.py, not inside a module
+---
+classDiagram
+  direction LR
+  class ReservationStore {
+    <<interface>>
+    +count() int
+    +has_overlap(room, stay) bool
+    +save(reservation) None
+    +find(reservation_id) Reservation
+    +count_confirmed(room, stay) int
+  }
+  class CountingReservationStore {
+    -_store ReservationStore
+    -_stats Stats
+    +count() int
+    +has_overlap(room, stay) bool
+    +save(reservation) None
+    +find(reservation_id) Reservation
+    +count_confirmed(room, stay) int
+  }
+  class Stats {
+    -_lock Lock
+    -_counts dict
+    +add(counter) None
+    +snapshot() dict
+  }
+  class KeyValueStore {
+    <<interface>>
+    +get(key) str
+    +set(key, value, ttl_seconds) None
+    +increment(key) int
+  }
+  class AvailabilityCache {
+    -_store KeyValueStore
+    +ttl_seconds int
+    +invalidate_on_change bool
+    +version() int
+    +key(check_in, check_out) str
+    +lookup(check_in, check_out) tuple
+    +put(key, room_numbers) None
+    +invalidate() None
+  }
+  class InMemoryKeyValueStore {
+    -_clock Callable
+    -_lock Lock
+    -_values dict
+    +get(key) str
+    +set(key, value, ttl_seconds) None
+    +increment(key) int
+    +keys() list
+  }
+  class RedisKeyValueStore {
+    +host str
+    +port int
+    -_timeout float
+    -_idle LifoQueue
+    +get(key) str
+    +set(key, value, ttl_seconds) None
+    +increment(key) int
+    +ping() None
+    +flush() None
+    +close() None
+  }
+  class CacheError {
+    <<exception>>
+  }
+  CountingReservationStore ..|> ReservationStore : implements
+  CountingReservationStore --> ReservationStore : wraps the SQL store
+  CountingReservationStore --> Stats : databaseQueries
+  AvailabilityCache --> KeyValueStore : GET / SET EX / INCR
+  InMemoryKeyValueStore ..|> KeyValueStore : implements
+  RedisKeyValueStore ..|> KeyValueStore : implements
+  RedisKeyValueStore ..> CacheError : raises
+  AvailabilityCache ..> CacheError : passes on

@@ -1,0 +1,55 @@
+---
+title: One search through the cache - a miss, then a hit; a booking raises the version (as built, P08)
+---
+sequenceDiagram
+  autonumber
+  actor Tool as tools/measure.py or curl
+  participant API as api.find_free_rooms<br/>+ search_free_rooms
+  participant Stats as Stats (GET /stats)
+  participant Cache as AvailabilityCache<br/>-> RedisKeyValueStore
+  participant Redis as Redis (copies, TTL 30 s)
+  participant UoW as unit_of_work (main.py)
+  participant BS as BookingService.find_free_rooms
+  participant Count as CountingReservationStore
+  participant DB as SqlReservationStore -> database (truth)
+
+  rect rgb(255, 243, 224)
+  Note over Tool,DB: Search 1 - a miss
+  Tool->>API: GET /rooms/availability?checkIn=2026-11-12&checkOut=2026-11-14
+  API->>Stats: add("searches")
+  API->>Cache: lookup(2026-11-12, 2026-11-14) [thread pool]
+  Cache->>Redis: GET availability:version
+  Redis-->>Cache: nil -> version 0
+  Cache->>Redis: GET availability:v0:2026-11-12:2026-11-14
+  Redis-->>Cache: nil (miss)
+  API->>Stats: add("cacheMisses")
+  API->>UoW: in_unit_of_work (one connection)
+  UoW->>BS: find_free_rooms(stay)
+  BS->>Count: has_overlap(R7), has_overlap(R8)
+  Count->>Stats: add("databaseQueries") x 2
+  Count->>DB: 2 x SELECT EXISTS (SELECT 1 FROM reservations WHERE room = ? AND status = Confirmed AND nights overlap)
+  DB-->>BS: free: R7, R8
+  API->>Cache: put(key, [R7, R8])
+  Cache->>Redis: SET availability:v0:2026-11-12:2026-11-14 "R7,R8" EX 30
+  API-->>Tool: 200 rooms R7, R8 - X-Cache: miss
+  end
+
+  rect rgb(232, 245, 233)
+  Note over Tool,DB: Search 2 within 30 s - a hit: no unit of work, no database connection
+  Tool->>API: GET /rooms/availability (same stay)
+  API->>Cache: lookup(...)
+  Cache->>Redis: GET availability:version, GET availability:v0:...
+  Redis-->>Cache: "R7,R8"
+  API->>Stats: add("cacheHits")
+  API-->>Tool: 200 the same bytes - X-Cache: hit
+  end
+
+  rect rgb(227, 242, 253)
+  Note over Tool,DB: A booking - decided by the database, never by the cache
+  Tool->>API: POST /reservations (Maya, R7, 12-14 Nov)
+  API->>UoW: in_unit_of_work: BookingService.reserve -> has_overlap, count, save (3 queries), then COMMIT
+  API->>Cache: invalidate() - only after the commit, only for 201 (and 204 on DELETE)
+  Cache->>Redis: INCR availability:version -> 1
+  API-->>Tool: 201 R101
+  Note over Tool,Redis: the next search builds availability:v1:... - a miss - and reads the truth
+  end

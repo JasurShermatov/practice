@@ -1,8 +1,10 @@
-"""The HTTP API (P07): three endpoints that turn HTTP requests into BookingService calls and back.
+"""The HTTP API (P07, P08): three endpoints that turn HTTP requests into BookingService calls and back,
+what the searches cost, and the cache for the search.
 
     GET    /rooms/availability?checkIn=&checkOut=[&limit=&after=]  -> find_free_rooms   200 | 400
     POST   /reservations           (JSON body, five text fields)     -> reserve           201 | 400 | 409
     DELETE /reservations/{id}                                         -> cancel            204 | 404
+    GET    /stats                  P08: the counters (searches, database queries, cache hits ...)
     GET    /openapi.yaml           the contract itself (docs/openapi.yaml, written first, by hand)
 
 The API is an *edge*, not a module: it lives outside the four module folders and uses only their
@@ -18,6 +20,14 @@ Each endpoint does four things, in this order (P07 Step 5):
 3. call   - exactly one BookingService method, inside the unit of work, in a worker thread
             (database I/O must not block the event loop);
 4. answer - ``to_http`` turns the booking answer into a status code and a body.
+
+P08 - cache-aside for the search only (ADR-002): the search builds the versioned key, looks in
+the cache, and only on a miss asks the database through the unit of work and keeps a copy.
+POST and DELETE never read the cache; after a *committed* booking or cancel they raise the cache
+version, so the next search misses and reads the truth. A failing cache never fails a request:
+the search falls back to the database, a booking is still answered 201 (the 30 s TTL bounds any
+copy that could not be invalidated), and ``cacheErrors`` counts it. Every search answer says how
+it was found in the ``X-Cache`` header: ``hit``, ``miss`` or ``bypass`` (no cache, or it failed).
 
 The booking rule itself (dates in order, no shared night) stays in Reservations. Every error,
 including an unknown path, a wrong method and an unexpected failure, has the one shape of
@@ -46,6 +56,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
+from hotel_booking.api_cache import AvailabilityCache, CacheError
+from hotel_booking.api_stats import Stats
 from hotel_booking.reservations import BookingOutcome, BookingResult, BookingService, DateRange, Guest
 from hotel_booking.rooms import Room
 
@@ -58,6 +70,7 @@ UnitOfWork = Callable[[], AbstractContextManager[BookingService]]
 DEFAULT_CONTRACT = Path(__file__).resolve().parents[1] / "docs" / "openapi.yaml"
 
 PROBLEM_MEDIA_TYPE = "application/problem+json"
+CACHE_HEADER = "X-Cache"  # P08: hit | miss | bypass
 DEFAULT_LIMIT = 20
 MAX_LIMIT = 100
 
@@ -117,6 +130,16 @@ class ReservationCreated(AnswerModel):
     id: str
     status: Literal["Confirmed"]
     notification_failed: bool
+
+
+class StatsView(AnswerModel):
+    """The body of GET /stats (P08): what the searches cost since the app started."""
+
+    searches: int
+    database_queries: int
+    cache_hits: int
+    cache_misses: int
+    cache_errors: int
 
 
 class Problem(AnswerModel):
@@ -189,12 +212,71 @@ async def read_json(request: Request) -> object | None:
     return decoded
 
 
+# --------------------------------------------------------------------------- the cache (P08)
+
+
+async def search_free_rooms(stay: DateRange, rooms_by_number: Mapping[str, Room], unit_of_work: UnitOfWork,
+                            cache: AvailabilityCache | None, stats: Stats) -> tuple[list[Room], str]:
+    """The free rooms for ``stay`` and how they were found: ``hit``, ``miss`` or ``bypass``.
+
+    Cache-aside (L04 T12): look in the cache first; on a hit the database is not asked and no
+    unit of work is opened; on a miss ask the database once (one question per room) and keep a
+    copy. Cache commands are blocking I/O, so they run in the thread pool like the database work.
+    """
+    if cache is None:
+        return await in_unit_of_work(unit_of_work, lambda service: service.find_free_rooms(stay)), "bypass"
+    key: str | None
+    try:
+        key, numbers = await run_in_threadpool(cache.lookup, stay.check_in, stay.check_out)
+    except CacheError as error:
+        cache_failed(stats, "lookup", error)
+        key, numbers = None, None
+    if numbers is not None:
+        stats.add("cacheHits")
+        return [rooms_by_number[number] for number in numbers if number in rooms_by_number], "hit"
+
+    free = await in_unit_of_work(unit_of_work, lambda service: service.find_free_rooms(stay))
+    if key is None:
+        return free, "bypass"
+    stats.add("cacheMisses")
+    try:
+        await run_in_threadpool(cache.put, key, [room.number for room in free])
+    except CacheError as error:
+        cache_failed(stats, "put", error)
+    return free, "miss"
+
+
+async def invalidate_cache(cache: AvailabilityCache | None, stats: Stats) -> None:
+    """After a committed booking or cancel: raise the version so no older copy is read again.
+
+    If the cache cannot be reached the change is still saved and answered as such: the copies
+    then live for at most ``ttl_seconds`` (the TTL is the safety net for a missed invalidation).
+    """
+    if cache is None:
+        return
+    try:
+        await run_in_threadpool(cache.invalidate)
+    except CacheError as error:
+        cache_failed(stats, "invalidate", error)
+
+
+def cache_failed(stats: Stats, step: str, error: CacheError) -> None:
+    stats.add("cacheErrors")
+    logger.warning("cache %s failed, going on without the cache: %s", step, error)
+
+
 # --------------------------------------------------------------------------- the app
 
 
-def create_app(rooms: Iterable[Room], unit_of_work: UnitOfWork, contract: Path = DEFAULT_CONTRACT) -> Starlette:
-    """The web app over the rooms on sale and the unit of work the wiring chose."""
+def create_app(rooms: Iterable[Room], unit_of_work: UnitOfWork, stats: Stats | None = None,
+               cache: AvailabilityCache | None = None, *, contract: Path = DEFAULT_CONTRACT) -> Starlette:
+    """The web app over the rooms on sale and the unit of work the wiring chose.
+
+    ``stats`` are the counters GET /stats shows (the wiring shares them with the counting store);
+    ``cache`` is the search cache, or None for no cache (P07 behaviour, the "No cache" run).
+    """
     rooms_by_number = {room.number: room for room in rooms}
+    stats = stats if stats is not None else Stats()
     contract_text = contract.read_text(encoding="utf-8")  # fail at start-up, not at the first request
 
     async def serve_contract(request: Request) -> Response:
@@ -214,7 +296,8 @@ def create_app(rooms: Iterable[Room], unit_of_work: UnitOfWork, contract: Path =
             return problem(400, "InvalidRequest", LIMIT_DETAIL)
         after = query.get("after", "")
 
-        free = await in_unit_of_work(unit_of_work, lambda service: service.find_free_rooms(stay))
+        stats.add("searches")
+        free, found = await search_free_rooms(stay, rooms_by_number, unit_of_work, cache, stats)
         # Cursor pagination (L04): the rooms after the last one the client has seen, in text order.
         rest = sorted((room for room in free if room.number > after), key=lambda room: room.number)
         page = rest[:int(limit)]
@@ -223,7 +306,9 @@ def create_app(rooms: Iterable[Room], unit_of_work: UnitOfWork, contract: Path =
             rooms=[RoomView(number=room.number, type=room.type) for room in page],
             next=page[-1].number if len(rest) > len(page) else None,
         )
-        return answer(body, status_code=200)
+        response = answer(body, status_code=200)
+        response.headers[CACHE_HEADER] = found
+        return response
 
     async def reserve(request: Request) -> Response:
         try:
@@ -239,6 +324,8 @@ def create_app(rooms: Iterable[Room], unit_of_work: UnitOfWork, contract: Path =
 
         guest, stay = Guest(body.guest_name, body.guest_email), DateRange(check_in, check_out)
         result = await in_unit_of_work(unit_of_work, lambda service: service.reserve(guest, room, stay))
+        if result.outcome is BookingOutcome.ACCEPTED:
+            await invalidate_cache(cache, stats)  # after the unit of work: the booking is committed
         return to_http(result)
 
     async def cancel(request: Request) -> Response:
@@ -246,7 +333,11 @@ def create_app(rooms: Iterable[Room], unit_of_work: UnitOfWork, contract: Path =
         cancelled = await in_unit_of_work(unit_of_work, lambda service: service.cancel(reservation_id))
         if not cancelled:
             return problem(404, "NotFound", f"There is no confirmed reservation {reservation_id}.")
+        await invalidate_cache(cache, stats)  # after the unit of work: the cancel is committed
         return Response(status_code=204)
+
+    async def read_stats(request: Request) -> Response:
+        return answer(StatsView.model_validate(stats.snapshot()), status_code=200)
 
     async def http_error(request: Request, error: Exception) -> Response:
         """Starlette's own 404 (no such path) and 405 (method not allowed), as problem details."""
@@ -267,6 +358,7 @@ def create_app(rooms: Iterable[Room], unit_of_work: UnitOfWork, contract: Path =
             Route("/rooms/availability", find_free_rooms, methods=["GET"]),
             Route("/reservations", reserve, methods=["POST"]),
             Route("/reservations/{id}", cancel, methods=["DELETE"]),
+            Route("/stats", read_stats, methods=["GET"]),
         ],
         exception_handlers={HTTPException: http_error, Exception: server_error},
     )

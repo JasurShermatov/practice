@@ -33,6 +33,14 @@ course's three rules plus these two and the CLI prints "Contracts: 5 kept".
 "Every class lives in one of the four modules" now allows the API file too: its
 pydantic models are the HTTP shapes of the edge, not domain classes. The
 checker's self-tests got one case per new rule.
+
+P08 change (deliberate): the edge grew three files - ``api_stats.py`` (the GET /stats counters and
+the counting store), ``api_cache.py`` (the search cache) and ``api_redis.py`` (the Redis adapter).
+They join ``EDGE_FILES``; the two API contracts list them; a sixth contract keeps the cache free of
+the hotel's modules ("The availability cache depends on no module"), so the CLI prints
+"Contracts: 6 kept". ``api.py`` itself still defines pydantic shapes only. Three new self-test
+cases (stats reaching internal code, cache reaching a module, a module reaching the cache) and the
+new design arrows (api -> api_cache, api_stats -> reservations) are checked.
 """
 from __future__ import annotations
 
@@ -58,7 +66,10 @@ API_CONTRACTS = {  # P07
     "The HTTP API uses only the public contracts of the modules",
     "No module depends on the HTTP API",
 }
-EDGE_FILES = {"api.py"}  # P07: the HTTP edge lives outside the four module folders
+CACHE_CONTRACTS = {  # P08
+    "The availability cache depends on no module",
+}
+EDGE_FILES = {"api.py", "api_stats.py", "api_cache.py", "api_redis.py"}  # P07 + P08: the HTTP edge
 
 
 # --------------------------------------------------------------------------- the import graph
@@ -226,11 +237,11 @@ def graph() -> tuple[set[str], list[Import]]:
 # --------------------------------------------------------------------------- the three course rules
 
 
-def test_contracts_file_holds_the_three_course_rules_and_the_two_api_rules() -> None:
+def test_contracts_file_holds_the_three_course_rules_the_two_api_rules_and_the_cache_rule() -> None:
     parser = configparser.ConfigParser()
     parser.read(CONTRACTS_FILE, encoding="utf-8")
     assert parser["importlinter"]["root_package"] == "hotel_booking"
-    assert {contract.name for contract in CONTRACTS} == COURSE_CONTRACTS | API_CONTRACTS
+    assert {contract.name for contract in CONTRACTS} == COURSE_CONTRACTS | API_CONTRACTS | CACHE_CONTRACTS
 
 
 @pytest.mark.parametrize("contract", CONTRACTS, ids=[contract.key for contract in CONTRACTS])
@@ -251,6 +262,8 @@ def test_the_checker_sees_the_allowed_dependencies(graph: tuple[set[str], list[I
     assert ("hotel_booking.notifications.internal", "hotel_booking.notifications") in pairs
     assert ("hotel_booking.api", "hotel_booking.reservations") in pairs  # P07: the edge uses the contracts
     assert ("hotel_booking.api", "hotel_booking.rooms") in pairs
+    assert ("hotel_booking.api", "hotel_booking.api_cache") in pairs  # P08: the search uses the cache
+    assert ("hotel_booking.api_stats", "hotel_booking.reservations") in pairs  # the counting store keeps the promise
 
 
 # --------------------------------------------------------------------------- portfolio extras
@@ -317,7 +330,10 @@ MINI_APP = {
     "reservations/__init__.py": "",
     "reservations/internal.py": "",
     "reservations/booking.py": "from hotel_booking.notifications import Confirmation\n",
-    "api.py": "from hotel_booking.reservations import BookingService\n",
+    "api.py": "from hotel_booking.reservations import BookingService\nfrom hotel_booking.api_cache import AvailabilityCache\n",
+    "api_stats.py": "from hotel_booking.reservations import ReservationStore\n",
+    "api_cache.py": "",
+    "api_redis.py": "from hotel_booking.api_cache import CacheError\n",
 }
 
 
@@ -336,8 +352,15 @@ MINI_APP = {
          "The HTTP API uses only the public contracts of the modules"),
         ("reservations/booking.py", "from hotel_booking import api\n",
          "No module depends on the HTTP API"),
+        ("api_stats.py", "from hotel_booking.reservations.internal import SqlReservationStore\n",
+         "The HTTP API uses only the public contracts of the modules"),
+        ("api_cache.py", "from hotel_booking.rooms import Room\n",
+         "The availability cache depends on no module"),
+        ("reservations/booking.py", "from hotel_booking.api_cache import AvailabilityCache\n",
+         "No module depends on the HTTP API"),
     ],
-    ids=["rule1-direct", "rule1-relative", "rule2", "rule3", "api-reaches-internal", "module-uses-api"],
+    ids=["rule1-direct", "rule1-relative", "rule2", "rule3", "api-reaches-internal", "module-uses-api",
+         "stats-reaches-internal", "cache-reaches-module", "module-reads-cache"],
 )
 def test_checker_catches_each_kind_of_bad_import(
     tmp_path: Path, bad_file: str, bad_line: str, broken: str

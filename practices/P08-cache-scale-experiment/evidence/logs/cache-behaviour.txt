@@ -1,0 +1,184 @@
+$ python3 -I practices/P08-cache-scale-experiment/evidence/cache_behaviour.py hotel-booking
+Date (UTC): 2026-11-21 07:51:44; Linux container; Python 3.13.18; v=7.0.15; 8.5.0 (curl)
+Ports: the app runs on a free port and Redis on another; both are shown as 5080 / the default port.
+
+====================================================================================================
+A  Step 2 - Redis answers (here: redis-server started by this script; on the Mac: docker compose exec cache redis-cli ping)
+====================================================================================================
+$ redis-cli ping
+PONG
+
+====================================================================================================
+B  Step 3 - search 12-14 Nov twice: one key in Redis, kept for at most 30 s
+====================================================================================================
+$ redis-cli FLUSHALL
+OK
+
+(app started: python main.py, fresh database, 2 rooms)
+$ curl -s -w "\n%{http_code}  X-Cache: %header{x-cache}\n" "http://localhost:5080/rooms/availability?checkIn=2026-11-12&checkOut=2026-11-14"
+{"checkIn":"2026-11-12","checkOut":"2026-11-14","rooms":[{"number":"R7","type":"Standard"},{"number":"R8","type":"Deluxe"}],"next":null}
+200  X-Cache: miss
+$ curl -s -w "\n%{http_code}  X-Cache: %header{x-cache}\n" "http://localhost:5080/rooms/availability?checkIn=2026-11-12&checkOut=2026-11-14"
+{"checkIn":"2026-11-12","checkOut":"2026-11-14","rooms":[{"number":"R7","type":"Standard"},{"number":"R8","type":"Deluxe"}],"next":null}
+200  X-Cache: hit
+$ redis-cli KEYS 'availability:*'
+availability:v0:2026-11-12:2026-11-14
+$ redis-cli GET availability:v0:2026-11-12:2026-11-14
+R7,R8
+$ redis-cli TTL availability:v0:2026-11-12:2026-11-14
+30
+$ curl -s http://localhost:5080/stats
+{"searches":2,"databaseQueries":2,"cacheHits":1,"cacheMisses":1,"cacheErrors":0}
+
+====================================================================================================
+C  Step 5 - the stale result: empty database, empty cache, app WITHOUT invalidation
+====================================================================================================
+$ redis-cli FLUSHALL
+OK
+
+(app started: python main.py --no-invalidation, fresh database, 2 rooms)
+$ curl -s -w "\n%{http_code}  X-Cache: %header{x-cache}\n" "http://localhost:5080/rooms/availability?checkIn=2026-11-12&checkOut=2026-11-14"
+{"checkIn":"2026-11-12","checkOut":"2026-11-14","rooms":[{"number":"R7","type":"Standard"},{"number":"R8","type":"Deluxe"}],"next":null}
+200  X-Cache: miss
+$ curl -s -w "\n%{http_code}\n" -X POST -H "Content-Type: application/json" --data "@docs/requests/maya-r7.json" "http://localhost:5080/reservations"
+{"id":"R101","status":"Confirmed","notificationFailed":false}
+201
+$ curl -s -w "\n%{http_code}  X-Cache: %header{x-cache}\n" "http://localhost:5080/rooms/availability?checkIn=2026-11-12&checkOut=2026-11-14"
+{"checkIn":"2026-11-12","checkOut":"2026-11-14","rooms":[{"number":"R7","type":"Standard"},{"number":"R8","type":"Deluxe"}],"next":null}
+200  X-Cache: hit
+$ curl -s -w "\n%{http_code}\n" -X POST -H "Content-Type: application/json" --data "@docs/requests/omar-r7.json" "http://localhost:5080/reservations"
+{"title":"Unavailable","status":409,"detail":"The room is booked for at least one night of this stay."}
+409
+$ redis-cli KEYS 'availability:*'
+availability:v0:2026-11-12:2026-11-14
+
+====================================================================================================
+D  Step 6 - the same four requests with invalidation (empty database, empty cache)
+====================================================================================================
+$ redis-cli FLUSHALL
+OK
+
+(app started: python main.py, fresh database, 2 rooms)
+$ curl -s -w "\n%{http_code}  X-Cache: %header{x-cache}\n" "http://localhost:5080/rooms/availability?checkIn=2026-11-12&checkOut=2026-11-14"
+{"checkIn":"2026-11-12","checkOut":"2026-11-14","rooms":[{"number":"R7","type":"Standard"},{"number":"R8","type":"Deluxe"}],"next":null}
+200  X-Cache: miss
+$ curl -s -w "\n%{http_code}\n" -X POST -H "Content-Type: application/json" --data "@docs/requests/maya-r7.json" "http://localhost:5080/reservations"
+{"id":"R101","status":"Confirmed","notificationFailed":false}
+201
+$ curl -s -w "\n%{http_code}  X-Cache: %header{x-cache}\n" "http://localhost:5080/rooms/availability?checkIn=2026-11-12&checkOut=2026-11-14"
+{"checkIn":"2026-11-12","checkOut":"2026-11-14","rooms":[{"number":"R8","type":"Deluxe"}],"next":null}
+200  X-Cache: miss
+$ curl -s -w "\n%{http_code}\n" -X POST -H "Content-Type: application/json" --data "@docs/requests/omar-r7.json" "http://localhost:5080/reservations"
+{"title":"Unavailable","status":409,"detail":"The room is booked for at least one night of this stay."}
+409
+$ redis-cli KEYS 'availability:*'
+availability:v1:2026-11-12:2026-11-14
+availability:version
+availability:v0:2026-11-12:2026-11-14
+$ redis-cli GET availability:version
+1
+$ curl -s -w "\n%{http_code}\n" -X DELETE "http://localhost:5080/reservations/R101"
+
+204
+$ curl -s -w "\n%{http_code}  X-Cache: %header{x-cache}\n" "http://localhost:5080/rooms/availability?checkIn=2026-11-12&checkOut=2026-11-14"
+{"checkIn":"2026-11-12","checkOut":"2026-11-14","rooms":[{"number":"R7","type":"Standard"},{"number":"R8","type":"Deluxe"}],"next":null}
+200  X-Cache: miss
+$ redis-cli GET availability:version
+2
+
+====================================================================================================
+E  Step 7 - the New Year hot key: 1,000 searches, a booking, the versions side by side, expiry
+====================================================================================================
+$ redis-cli FLUSHALL
+OK
+
+(app started: python main.py, fresh database, 2 rooms)
+$ python3 tools/measure.py 2026-12-31 2027-01-02
+1000 searches for 2026-12-31 to 2027-01-02
+Average: 0.7 ms
+p95: 0.9 ms
+Total: 0.7 s
+GET /stats difference: {"searches":1000,"databaseQueries":2,"cacheHits":999,"cacheMisses":1,"cacheErrors":0}
+Clients: 1   Throughput: 1516 searches/s
+p50: 0.60 ms   p95: 0.88 ms   p99: 1.02 ms   max: 22.60 ms   average: 0.66 ms
+X-Cache answers: {"hit":999,"miss":1}
+$ redis-cli KEYS 'availability:*'
+availability:v0:2026-12-31:2027-01-02
+$ curl -s -w "\n%{http_code}\n" -X POST -H "Content-Type: application/json" --data "@docs/requests/maya-newyear.json" "http://localhost:5080/reservations"
+{"id":"R101","status":"Confirmed","notificationFailed":false}
+201
+$ curl -s -w "\n%{http_code}  X-Cache: %header{x-cache}\n" "http://localhost:5080/rooms/availability?checkIn=2026-12-31&checkOut=2027-01-02"
+{"checkIn":"2026-12-31","checkOut":"2027-01-02","rooms":[{"number":"R8","type":"Deluxe"}],"next":null}
+200  X-Cache: miss
+$ redis-cli KEYS 'availability:*'
+availability:v0:2026-12-31:2027-01-02
+availability:version
+availability:v1:2026-12-31:2027-01-02
+$ redis-cli TTL availability:v0:2026-12-31:2027-01-02
+29
+(waiting 31 seconds: longer than the TTL)
+$ redis-cli KEYS 'availability:*'
+availability:version
+$ curl -s -w "\n%{http_code}  X-Cache: %header{x-cache}\n" "http://localhost:5080/rooms/availability?checkIn=2026-12-31&checkOut=2027-01-02"
+{"checkIn":"2026-12-31","checkOut":"2027-01-02","rooms":[{"number":"R8","type":"Deluxe"}],"next":null}
+200  X-Cache: miss
+$ curl -s http://localhost:5080/stats
+{"searches":1002,"databaseQueries":9,"cacheHits":999,"cacheMisses":3,"cacheErrors":0}
+
+====================================================================================================
+F  Step 7 - a busy New Year sale: 40 rooms, 1,000 searches, a booking after every 50th search
+====================================================================================================
+$ redis-cli FLUSHALL
+OK
+
+(app started: python main.py, fresh database, 40 rooms)
+1000 New Year searches and 20 bookings in 1.4 s
+GET /stats difference: {"searches":1000,"databaseQueries":860,"cacheHits":980,"cacheMisses":20,"cacheErrors":0}
+Hit rate: 980/1000 = 98.0%; database queries: 860 (searches 20 misses x 40 rooms = 800, bookings 20 x 3 = 60)
+Without the cache the same 1,000 searches would ask 1000 x 40 = 40000 questions.
+$ redis-cli GET availability:version
+20
+
+====================================================================================================
+G  Step 8 - Redis stops while the app runs, then starts again
+====================================================================================================
+$ redis-cli FLUSHALL
+OK
+
+(app started: python main.py, fresh database, 2 rooms)
+$ curl -s -w "\n%{http_code}  X-Cache: %header{x-cache}\n" "http://localhost:5080/rooms/availability?checkIn=2026-11-12&checkOut=2026-11-14"
+{"checkIn":"2026-11-12","checkOut":"2026-11-14","rooms":[{"number":"R7","type":"Standard"},{"number":"R8","type":"Deluxe"}],"next":null}
+200  X-Cache: miss
+$ curl -s -w "\n%{http_code}  X-Cache: %header{x-cache}\n" "http://localhost:5080/rooms/availability?checkIn=2026-11-12&checkOut=2026-11-14"
+{"checkIn":"2026-11-12","checkOut":"2026-11-14","rooms":[{"number":"R7","type":"Standard"},{"number":"R8","type":"Deluxe"}],"next":null}
+200  X-Cache: hit
+(redis-server stopped - on the Mac: docker compose stop cache)
+$ curl -s -w "\n%{http_code}  X-Cache: %header{x-cache}\n" "http://localhost:5080/rooms/availability?checkIn=2026-11-12&checkOut=2026-11-14"
+{"checkIn":"2026-11-12","checkOut":"2026-11-14","rooms":[{"number":"R7","type":"Standard"},{"number":"R8","type":"Deluxe"}],"next":null}
+200  X-Cache: bypass
+$ curl -s -w "\n%{http_code}\n" -X POST -H "Content-Type: application/json" --data "@docs/requests/maya-r7.json" "http://localhost:5080/reservations"
+{"id":"R101","status":"Confirmed","notificationFailed":false}
+201
+$ curl -s -w "\n%{http_code}  X-Cache: %header{x-cache}\n" "http://localhost:5080/rooms/availability?checkIn=2026-11-12&checkOut=2026-11-14"
+{"checkIn":"2026-11-12","checkOut":"2026-11-14","rooms":[{"number":"R8","type":"Deluxe"}],"next":null}
+200  X-Cache: bypass
+$ curl -s -w "\n%{http_code}\n" -X POST -H "Content-Type: application/json" --data "@docs/requests/maya-r7.json" "http://localhost:5080/reservations"
+{"title":"Unavailable","status":409,"detail":"The room is booked for at least one night of this stay."}
+409
+$ curl -s http://localhost:5080/stats
+{"searches":4,"databaseQueries":10,"cacheHits":1,"cacheMisses":1,"cacheErrors":3}
+(redis-server started again, empty - on the Mac: docker compose start cache)
+$ curl -s -w "\n%{http_code}  X-Cache: %header{x-cache}\n" "http://localhost:5080/rooms/availability?checkIn=2026-11-12&checkOut=2026-11-14"
+{"checkIn":"2026-11-12","checkOut":"2026-11-14","rooms":[{"number":"R8","type":"Deluxe"}],"next":null}
+200  X-Cache: miss
+$ curl -s -w "\n%{http_code}  X-Cache: %header{x-cache}\n" "http://localhost:5080/rooms/availability?checkIn=2026-11-12&checkOut=2026-11-14"
+{"checkIn":"2026-11-12","checkOut":"2026-11-14","rooms":[{"number":"R8","type":"Deluxe"}],"next":null}
+200  X-Cache: hit
+$ redis-cli KEYS 'availability:*'
+availability:v0:2026-11-12:2026-11-14
+$ curl -s http://localhost:5080/stats
+{"searches":6,"databaseQueries":12,"cacheHits":2,"cacheMisses":2,"cacheErrors":3}
+(app log) cache lookup failed, going on without the cache: Redis closed the connection
+(app log) cache invalidate failed, going on without the cache: cannot connect to Redis at localhost:51775: [Errno 111] Connection refused
+(app log) cache lookup failed, going on without the cache: cannot connect to Redis at localhost:51775: [Errno 111] Connection refused
+exit 0

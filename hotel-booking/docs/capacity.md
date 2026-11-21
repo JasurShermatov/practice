@@ -108,8 +108,12 @@ The same arithmetic as exact fractions, so it can be checked without a calculato
 
 ## To measure later
 
-- p95 of 1,000 searches for 12–14 Nov, target ≤ 1 s (S1): P08.
-- Database queries per search (GET /stats): P08.
+- p95 of 1,000 searches for 12–14 Nov, target ≤ 1 s (S1): P08. **Measured in P08:** 1.31 ms
+  without a cache, 1.13 ms with the Redis cache (median of 5 runs, SQLite, one client) — S1 met
+  for one guest at a time ([cache-experiment.md](cache-experiment.md)).
+- Database queries per search (GET /stats): P08. **Measured in P08:** exactly one per room —
+  2,000 for 1,000 searches with 2 rooms, 40,000 with 40 rooms — so the assumption "one query per
+  room per search" holds; with the cache 2 (and 40) for the same 1,000 searches.
 - p95 under the 200-a-minute load with a load-test tool: P23.
 - The size of the reservations table against 4.38 MB a year: P24.
 
