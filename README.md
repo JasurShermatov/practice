@@ -11,6 +11,7 @@ payment in version one).
 | Practice | Topic | Folder | Status |
 |---|---|---|---|
 | P01 | Course introduction workshop and project baseline | [practices/P01-project-baseline](practices/P01-project-baseline) | Done |
+| P02 | OS introduction, kernels and process lifecycle | [practices/P02-os-process-lifecycle](practices/P02-os-process-lifecycle) | Done (Linux observed; macOS rerun, pair review and online submission to do) |
 
 ## How to read the evidence
 

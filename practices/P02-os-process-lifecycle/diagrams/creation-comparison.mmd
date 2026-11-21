@@ -1,0 +1,25 @@
+%% P02 Windows vs POSIX process creation, with what this lab observed on Linux
+flowchart LR
+    subgraph POSIX["POSIX (Linux / macOS) - fork_exec_wait.py"]
+        direction TB
+        A1["parent PID 917<br/>os.fork()"] -->|"returns 919 in parent"| A3["parent: os.waitpid(919)<br/>(wait4, blocked 5.1 s)"]
+        A1 -->|"returns 0 in child<br/>(copy of parent, copy-on-write)"| A2["child PID 919<br/>still runs fork_exec_wait.py code"]
+        A2 -->|"os.execv(python3 -u child.py)<br/>replaces the program image"| A4["PID 919 now runs child.py<br/>getpid() = 919 (same PID)"]
+        A4 -->|"exit_group(7)"| A5["exited -> zombie until reaped"]
+        A5 -->|"status 7"| A3
+    end
+    subgraph WIN["Windows - CreateProcess (not run here)"]
+        direction TB
+        W1["parent calls CreateProcessW(<br/>application, command line, ...)"] --> W2["NEW process + its initial thread<br/>built from the named program<br/>(no copy of the parent image)"]
+        W1 --> W3["parent receives process + thread HANDLES and IDs"]
+        W3 --> W4["WaitForSingleObject(hProcess)<br/>GetExitCodeProcess -> 7<br/>CloseHandle(...)"]
+        W2 -->|"ExitProcess(7)"| W4
+    end
+    subgraph PY["Portable route used by parent.py"]
+        direction TB
+        P1["subprocess.Popen([sys.executable, -u, child.py])"]
+        P1 -->|"Linux run observed: vfork + execve"| P2["POSIX: fork / vfork / posix_spawn,<br/>chosen by Python - not always fork"]
+        P1 -->|"on Windows"| P3["CreateProcess internally"]
+        P2 --> P4["child.wait() -> waitpid / wait4"]
+        P3 --> P5["child.wait() -> WaitForSingleObject"]
+    end

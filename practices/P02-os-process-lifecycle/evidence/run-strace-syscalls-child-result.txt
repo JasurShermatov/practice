@@ -1,0 +1,6 @@
+P02 synthetic lab output
+child_pid=714
+parent_pid=712
+platform=Linux
+cpu_iterations=8122315
+requested_exit_code=7
