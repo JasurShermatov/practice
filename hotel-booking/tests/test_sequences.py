@@ -13,6 +13,14 @@ unchanged, which is part of the proof that the refactoring kept behaviour.
 P06 change (deliberate): imports come from the modules, and the senders now
 receive Notifications' own ``Confirmation`` instead of the ``Reservation``, so
 the spies log ``confirmation.reservation_id``. Every expected log is unchanged.
+
+P09 change (deliberate): the id now comes from the store (``next_reservation_id``) instead of
+``count()``, so in every expected log the line ``store.count() -> 0`` became
+``store.next_reservation_id() -> R101`` at the same position - the message order did not move.
+The race diagram's log changed on purpose: both checks still happen before either save (the race
+is still there), but the second ``save`` is now refused by the store (``OverlapRejected``) and no
+confirmation is sent for it. The P09 sequence diagrams (practices/P09-protect-the-last-seat/
+diagrams) draw these orders; the P03/P04 diagrams are kept as the history they were.
 """
 from __future__ import annotations
 
@@ -22,7 +30,7 @@ from dataclasses import dataclass
 
 from hotel_booking.notifications import Confirmation
 from hotel_booking.notifications.internal import EmailNotificationSender
-from hotel_booking.reservations import BookingService, DateRange, Reservation
+from hotel_booking.reservations import BookingService, DateRange, OverlapRejected, Reservation
 from hotel_booking.reservations.internal import InMemoryReservationStore
 from hotel_booking.demo import HOTEL_ROOMS, MAYA, OMAR, R7, nov
 
@@ -50,14 +58,18 @@ class SpyStore(InMemoryReservationStore):
         self.log.append(f"store.has_overlap({room.number}) -> {answer}")
         return answer
 
-    def count(self) -> int:
-        answer = super().count()
-        self.log.append(f"store.count() -> {answer}")
+    def next_reservation_id(self) -> str:
+        answer = super().next_reservation_id()
+        self.log.append(f"store.next_reservation_id() -> {answer}")
         return answer
 
     def save(self, reservation: Reservation) -> None:
         self.log.append(f"store.save({reservation.id})")
-        super().save(reservation)
+        try:
+            super().save(reservation)
+        except OverlapRejected:
+            self.log.append(f"store.save({reservation.id}) raised OverlapRejected")
+            raise
 
     def find(self, reservation_id: str):  # type: ignore[no-untyped-def]
         answer = super().find(reservation_id)
@@ -93,7 +105,7 @@ def test_sequence_book_maya_r7() -> None:
     assert log == [
         "stay.is_valid() -> True",
         "store.has_overlap(R7) -> False",
-        "store.count() -> 0",
+        "store.next_reservation_id() -> R101",
         "store.save(R101)",
         "email.send_confirmation(R101)",
         "reply -> Accepted R101",
@@ -144,7 +156,7 @@ def test_sequence_cancel_r101() -> None:
 
 
 def test_sequence_race_both_checks_before_either_save() -> None:
-    """The message order of uml/sequence-race: check, check, save, save (R3 broken, fixed in P09)."""
+    """The race-then-fix order (P09 diagram race-fixed-in-the-store): check, check, save, refused save."""
     log: Log = []
     store = SpyStore(log)
     service = BookingService(HOTEL_ROOMS, store, SpyEmail(log), slow_step_seconds=0.3)
@@ -157,14 +169,14 @@ def test_sequence_race_both_checks_before_either_save() -> None:
     omar.join()
     assert log == [
         "store.has_overlap(R7) -> False",  # Maya checks
-        "store.has_overlap(R7) -> False",  # Omar checks before Maya saved
-        "store.count() -> 0",
+        "store.has_overlap(R7) -> False",  # Omar checks before Maya saved: the race is still there
+        "store.next_reservation_id() -> R101",
         "store.save(R101)",
         "email.send_confirmation(R101)",
-        "store.count() -> 1",
+        "store.next_reservation_id() -> R102",
         "store.save(R102)",
-        "email.send_confirmation(R102)",
-    ]
+        "store.save(R102) raised OverlapRejected",  # ... but the store refuses the second save (P09)
+    ]  # no confirmation for R102: Omar is answered Unavailable
 
 
 class FailingSpySender:
@@ -187,7 +199,7 @@ def test_sequence_r6_failed_confirmation() -> None:
     log.append(f"reply -> {result} (notification_failed={result.notification_failed})")
     assert log == [
         "store.has_overlap(R7) -> False",
-        "store.count() -> 0",
+        "store.next_reservation_id() -> R101",
         "store.save(R101)",
         "sender.send_confirmation(R101) -> error",
         "reply -> Accepted R101 (notification_failed=True)",

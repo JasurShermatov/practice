@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Hotel booking API
-  version: 1.1.0
+  version: 1.2.0
   summary: Search free rooms, book a room, cancel a reservation, and read what the searches cost.
   description: |
     The contract of the hotel booking app (P07). It was written before the code; the app serves
@@ -26,6 +26,15 @@ info:
     Compatibility: new fields may be added to answers; existing fields are never renamed or
     removed in version 1. Clients must ignore fields they do not know. Version 1.1.0 (P08) adds
     GET /stats and the X-Cache header of the search - additions only, so no client breaks.
+    Version 1.2.0 (P09) adds a promise and no shape: simultaneous bookings (below).
+
+    Simultaneous bookings (P09, docs/adr-003-booking-concurrency.md): a room never has two
+    Confirmed reservations for the same night, however many requests arrive at the same moment
+    and however many instances of the app serve them - the database itself refuses the second
+    reservation. Of two simultaneous bookings that share a night, exactly one is answered 201 and
+    the other 409 Unavailable, the same answer as for a booking made later. Which one wins is not
+    promised. Reservation ids are never given to two bookings (they come from the database), so a
+    simultaneous booking no longer fails with 500; an id may be skipped.
 
     Caching (P08, docs/adr-002-cache-availability.md): search answers may come from a copy in the
     cache. A successful booking or cancel makes every copy out of date at once, so the next search
@@ -127,7 +136,8 @@ paths:
       summary: Book a room for a stay
       description: >-
         Calls BookingService.reserve. Not idempotent: sent twice, the second answer is 409 for
-        the guest's own stay (an Idempotency-Key header is planned for P11).
+        the guest's own stay (an Idempotency-Key header is planned for P11). Safe to send at the
+        same moment as another booking for the same room: at most one of them is accepted (P09).
       requestBody:
         required: true
         content:
@@ -161,12 +171,18 @@ paths:
                 unknownRoom:
                   value: { title: UnknownRoom, status: 400, detail: "There is no room R99." }
         "409":
-          description: Unavailable when the room is booked for at least one night of the stay.
+          description: >-
+            Unavailable when the room is booked for at least one night of the stay - including
+            by a booking that arrived at the same moment and was saved first (the database
+            refused this one; P09). Nothing was saved. The body is the same in both cases.
           content:
             application/problem+json:
               schema: { $ref: "#/components/schemas/Problem" }
               examples:
                 sharedNight:
+                  value: { title: Unavailable, status: 409, detail: "The room is booked for at least one night of this stay." }
+                lostTheRace:
+                  summary: Two bookings for R7, 12-14 Nov, at the same moment - this one was refused
                   value: { title: Unavailable, status: 409, detail: "The room is booked for at least one night of this stay." }
         "500":
           $ref: "#/components/responses/InternalError"
@@ -296,9 +312,10 @@ components:
   responses:
     InternalError:
       description: >-
-        InternalError when the server failed, for example when the database refused a row
-        (two app instances both numbering a booking R101 - the race P09 fixes). The request's
-        database changes are rolled back; a client may retry later.
+        InternalError when the server failed, for example when the database could not be
+        reached. The request's database changes are rolled back; a client may retry later.
+        (Until 1.1.0 two simultaneous bookings could both be numbered R101 and the second got
+        this answer; since 1.2.0 the database hands out the ids and that case is a 409.)
       content:
         application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }

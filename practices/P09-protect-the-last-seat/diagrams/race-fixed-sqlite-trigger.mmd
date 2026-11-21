@@ -1,0 +1,27 @@
+---
+title: P09 Step 7 on SQLite - the same race, refused by the triggers of db/sqlite/init.sql (observed through the app)
+---
+sequenceDiagram
+  autonumber
+  actor Tool as tools/race_http.py
+  participant M as Maya's request (connection 1)
+  participant DB as SQLite file: ONE writer at a time
+  participant O as Omar's request (connection 2, any instance)
+
+  Tool->>M: POST /reservations
+  M->>DB: SELECT EXISTS overlap (no transaction yet)
+  DB-->>M: false
+  Tool->>O: POST /reservations
+  O->>DB: SELECT EXISTS overlap
+  DB-->>O: false
+  M->>DB: UPDATE reservation_ids ... RETURNING -> 101 (takes the write lock)
+  M->>DB: INSERT R101 - trigger reservations_no_overlap_insert looks: nothing, row written
+  O->>DB: UPDATE reservation_ids ... (waits: Maya holds the write lock, busy timeout 5 s)
+  M->>DB: COMMIT (lock released)
+  DB-->>O: 102 (the lock is now Omar's, he sees Maya's committed row)
+  O->>DB: INSERT R102
+  DB--xO: trigger RAISE(ABORT) "reservations_no_overlap: ..." (SQLITE_CONSTRAINT_TRIGGER)
+  Note over O: only the INSERT is backed out, SqlReservationStore -> OverlapRejected,<br/>COMMIT keeps number 102 used
+  M-->>Tool: 201 Created R101
+  O-->>Tool: 409 Conflict Unavailable
+  Note over DB: The trigger's look-then-write is atomic only because SQLite lets one<br/>connection write at a time. The same trigger in PostgreSQL let both<br/>rows in (observed) - there the constraint is needed.

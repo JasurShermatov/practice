@@ -1,0 +1,16 @@
+$ python3 -c "import psycopg"
+ModuleNotFoundError: No module named 'psycopg'
+$ python3 -c "import sqlalchemy"
+ModuleNotFoundError: No module named 'sqlalchemy'
+$ docker info --format {{.ServerVersion}}
+
+failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+$ /usr/lib/postgresql/16/bin/postgres --version; psql --version
+postgres (PostgreSQL) 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
+psql (PostgreSQL) 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
+$ ls /usr/share/postgresql/16/extension/btree_gist.control
+/usr/share/postgresql/16/extension/btree_gist.control
+$ redis-server --version
+Redis server v=7.0.15 sha=00000000:0 malloc=jemalloc-5.3.0 bits=64 build=d064f9f48c901a92
+$ mmdc --version
+11.16.0

@@ -13,12 +13,25 @@ without a flag now starts the web app, so the demo is ``--demo``. The test
 "main without flags runs the demo" became "main --demo runs the demo"; that
 no flag starts the server is checked in ``test_api_sqlite.py``. The race keeps
 its lists and its output (still double-booked; P09).
+
+P09 change (deliberate - the fix): the two race pins asserted the defect and
+now assert the correct behaviour. ``test_main_race_flag_still_double_books``
+-> ``test_main_race_flag_gives_r7_to_one_guest`` and
+``test_race_double_books_r7_known_defect`` ->
+``test_race_gives_r7_to_exactly_one_guest_regression``: same race, same
+timing, now "Omar: Unavailable", one Confirmed reservation, "Only one guest
+has R7." (the list store checks under its lock). The control case is unchanged.
+New: the race repeated 20 times never double-books, and a lock-free store
+(the version-5 save) still does - so the test can tell the two apart.
 """
 from __future__ import annotations
 
 import pytest
 
-from hotel_booking.demo import run_demo, run_race
+from hotel_booking.demo import HOTEL_ROOMS, run_demo, run_race
+from hotel_booking.notifications.internal import EmailNotificationSender
+from hotel_booking.reservations import BookingService, Reservation
+from hotel_booking.reservations.internal import InMemoryReservationStore
 from main import build_app, main
 
 EXPECTED_DEMO = """\
@@ -45,34 +58,53 @@ def test_main_demo_flag_runs_the_demo(capsys: pytest.CaptureFixture[str]) -> Non
     assert capsys.readouterr().out == EXPECTED_DEMO
 
 
-def test_main_race_flag_still_double_books(capsys: pytest.CaptureFixture[str]) -> None:
-    """P04 Step 6: the composition root wires the race exactly as P03 did (0.5 s slow step)."""
+def test_main_race_flag_gives_r7_to_one_guest(capsys: pytest.CaptureFixture[str]) -> None:
+    """P04 Step 6 wiring (0.5 s slow step); since P09 the activity sheet's Step 3 output."""
     main(["--race"])
-    assert capsys.readouterr().out.splitlines()[-2:] == [
-        "Confirmed reservations for R7 on 12-14 Nov: 2",
-        "Double booking! Both requests checked before either one saved.",
+    assert capsys.readouterr().out.splitlines() == [
+        "Maya and Omar both book R7 for 12-14 Nov at the same moment...",
+        "Maya: Accepted R101",
+        "Omar: Unavailable",
+        "Confirmed reservations for R7 on 12-14 Nov: 1",
+        "Only one guest has R7.",
     ]
 
 
-def test_race_double_books_r7_known_defect(capsys: pytest.CaptureFixture[str]) -> None:
-    """KNOWN DEFECT, kept on purpose until P09.
+def test_race_gives_r7_to_exactly_one_guest_regression(capsys: pytest.CaptureFixture[str]) -> None:
+    """REGRESSION (R3 under concurrency; a known defect from P03 to P08, fixed in P09).
 
-    Two requests that both check before either saves are both accepted, so R7
-    has two Confirmed reservations for the same nights and R3 is broken.
-    This characterisation test pins today's behaviour; P09 must flip it to
-    ``confirmed == 1``.
+    Both requests still pass the pre-check before either saves - the race still happens - but the
+    list store's ``save`` checks again under its lock and refuses Omar's reservation.
     """
     service, store, _ = build_app(slow_step_seconds=0.3)
     confirmed = run_race(service, store, stagger_seconds=0.05)
     out = capsys.readouterr().out
-    assert confirmed == 2
+    assert confirmed == 1
     assert out.splitlines() == [
         "Maya and Omar both book R7 for 12-14 Nov at the same moment...",
         "Maya: Accepted R101",
-        "Omar: Accepted R102",
-        "Confirmed reservations for R7 on 12-14 Nov: 2",
-        "Double booking! Both requests checked before either one saved.",
+        "Omar: Unavailable",
+        "Confirmed reservations for R7 on 12-14 Nov: 1",
+        "Only one guest has R7.",
     ]
+
+
+class LockFreeStore(InMemoryReservationStore):
+    """The version-5 ``save`` (append, no check): proves the race test can still see a double booking."""
+
+    def save(self, reservation: Reservation) -> None:
+        self._rows.append(reservation)
+
+
+@pytest.mark.parametrize(("store_class", "expected"), [(InMemoryReservationStore, 1), (LockFreeStore, 2)])
+def test_twenty_races_never_double_book_and_the_test_would_notice(
+    capsys: pytest.CaptureFixture[str], store_class: type[InMemoryReservationStore], expected: int,
+) -> None:
+    for _ in range(20):
+        store = store_class()
+        service = BookingService(HOTEL_ROOMS, store, EmailNotificationSender(), slow_step_seconds=0.02)
+        assert run_race(service, store, stagger_seconds=0.005) == expected
+    capsys.readouterr()
 
 
 def test_without_overlap_in_time_the_second_request_is_refused(

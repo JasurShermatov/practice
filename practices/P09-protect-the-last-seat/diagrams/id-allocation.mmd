@@ -1,0 +1,24 @@
+---
+title: P09 Step 1 - why the reservation id moved into the database (observed on PostgreSQL 16 and SQLite)
+---
+sequenceDiagram
+  autonumber
+  participant M as Maya's transaction
+  participant DB as Database
+  participant O as Omar's transaction
+
+  rect rgb(255, 235, 238)
+  Note over M,O: Version 5: id = 'R' || (101 + count(*))
+  M->>DB: count(*) -> 0, INSERT R101 (not committed yet)
+  O->>DB: count(*) -> 0 (R101 is invisible) - INSERT R101
+  Note over O,DB: Omar's INSERT waits for Maya's transaction, then the primary key<br/>refuses it
+  DB--xO: 23505 duplicate key reservations_pkey - the app answered 500 InternalError (P07)
+  end
+
+  rect rgb(232, 245, 233)
+  Note over M,O: Version 6: next_reservation_id() asks the database
+  M->>DB: nextval('reservation_ids') -> 101 (PostgreSQL, SQLite: UPDATE reservation_ids RETURNING)
+  O->>DB: nextval -> 102 - no wait, never the same number
+  M->>DB: ROLLBACK
+  O->>DB: nextval -> 103 - 101 is not handed out again (a gap, never a duplicate)
+  end

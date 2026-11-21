@@ -1,0 +1,33 @@
+---
+title: P09 Steps 3-4 - a lock inside the app protects one process only (observed through two uvicorn instances)
+---
+sequenceDiagram
+  autonumber
+  actor Tool as tools/race_http.py
+  participant A as Instance :5080 with its own threading.Lock
+  participant DB as One shared database
+  participant B as Instance :5081 with its own threading.Lock
+
+  rect rgb(232, 245, 233)
+  Note over Tool,B: One instance (Step 3): both requests queue for the SAME lock
+  Tool->>A: Maya POST
+  A->>A: take lock, check (free), slow step, save R101, COMMIT, release
+  Tool->>A: Omar POST (waits for the lock)
+  A->>A: take lock, check -> taken
+  A-->>Tool: 201 for Maya, 409 for Omar
+  end
+
+  rect rgb(255, 235, 238)
+  Note over Tool,B: Two instances (Step 4): two locks, in two processes' memory, that know<br/>nothing of each other
+  Tool->>A: Maya POST
+  A->>A: take lock A (free)
+  A->>DB: check -> free
+  Tool->>B: Omar POST
+  B->>B: take lock B (free - it is a different lock)
+  B->>DB: check -> free
+  A->>DB: save R101, COMMIT
+  B->>DB: save R102, COMMIT
+  A-->>Tool: 201
+  B--xTool: 201 - DOUBLE BOOKED
+  end
+  Note over A,B: A rule several processes must obey has to live in the thing they<br/>share: the database.

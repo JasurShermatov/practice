@@ -16,6 +16,14 @@ given) cannot be written any more: since P06 a sender receives a frozen
 shows that such a sender is *contained* (R6 keeps the booking and the records
 stay identical), and a store that breaks its promise is the new counter-example
 showing that the scenario still catches a bad substitute.
+
+P09 change (deliberate): the ``ReservationStore`` promise grew (``next_reservation_id``; ``save``
+refuses an overlap with ``OverlapRejected``), so the tests-only ``DictReservationStore`` keeps the
+new promise too - a substitute must keep the whole promise, including the part that only matters
+under concurrency. ``scenario`` reports a missing record as text instead of failing inside the
+helper, so the counter-example (``ForgetfulStore``) is still told apart by comparison. New: a store
+that forgets the overlap promise (the version-5 ``save``) gives the same one-at-a-time answers -
+which is exactly why the P09 concurrency tests exist.
 """
 from __future__ import annotations
 
@@ -25,7 +33,7 @@ import pytest
 
 from hotel_booking.notifications import Confirmation, NotificationSender
 from hotel_booking.notifications.internal import EmailNotificationSender, SmsNotificationSender
-from hotel_booking.reservations import BookingService, DateRange, Reservation, ReservationStore
+from hotel_booking.reservations import BookingService, DateRange, OverlapRejected, Reservation, ReservationStore
 from hotel_booking.reservations.internal import InMemoryReservationStore
 from hotel_booking.rooms import Room
 from hotel_booking.demo import HOTEL_ROOMS, MAYA, NORA, OMAR, R7, R8, nov
@@ -37,6 +45,7 @@ class DictReservationStore:
 
     def __init__(self) -> None:
         self._by_id: dict[str, Reservation] = {}
+        self._issued = 100
 
     def count(self) -> int:
         return len(self._by_id)
@@ -44,7 +53,13 @@ class DictReservationStore:
     def has_overlap(self, room: Room, stay: DateRange) -> bool:
         return any(row.blocks(room, stay) for row in self._by_id.values())
 
+    def next_reservation_id(self) -> str:
+        self._issued += 1  # single-threaded tests only: no lock needed here
+        return f"R{self._issued}"
+
     def save(self, reservation: Reservation) -> None:
+        if self.has_overlap(reservation.room, reservation.stay):
+            raise OverlapRejected(f"{reservation.room.number} is taken")
         self._by_id[reservation.id] = reservation
 
     def find(self, reservation_id: str) -> Reservation | None:
@@ -105,8 +120,8 @@ def scenario(store: ReservationStore, sender: NotificationSender) -> list[str]:
     records = []
     for number in range(101, 101 + store.count()):
         row = store.find(f"R{number}")
-        assert row is not None
-        records.append(f"{row.id} {row.guest.name} {row.room.number} {row.stay} {row.status.value}")
+        records.append(f"R{number} missing" if row is None else
+                       f"{row.id} {row.guest.name} {row.room.number} {row.stay} {row.status.value}")
     return answers + records
 
 
@@ -142,6 +157,25 @@ def test_a_sender_can_no_longer_change_the_booking() -> None:
 def test_a_store_that_breaks_the_promise_is_caught() -> None:
     """Liskov: same method names, but saves are lost - the scenario no longer matches."""
     assert scenario(ForgetfulStore(), FakeNotificationSender()) != EXPECTED
+
+
+class PromiseForgettingStore(InMemoryReservationStore):
+    """A BAD store under concurrency only: the version-5 ``save`` (append, no check, no lock)."""
+
+    def save(self, reservation: Reservation) -> None:
+        self._rows.append(reservation)
+
+
+def test_a_store_that_forgets_the_overlap_promise_passes_one_at_a_time_and_fails_under_pressure() -> None:
+    """Why P09 needs its own tests: one request at a time, this bad store is indistinguishable."""
+    assert scenario(PromiseForgettingStore(), FakeNotificationSender()) == EXPECTED
+    bad, good = PromiseForgettingStore(), InMemoryReservationStore()
+    bad.save(Reservation("R101", MAYA, R7, nov(12, 14)))
+    good.save(Reservation("R101", MAYA, R7, nov(12, 14)))
+    bad.save(Reservation("R102", OMAR, R7, nov(13, 15)))  # what a request that lost the race would do
+    with pytest.raises(OverlapRejected):
+        good.save(Reservation("R102", OMAR, R7, nov(13, 15)))
+    assert (bad.count_confirmed(R7, nov(12, 15)), good.count_confirmed(R7, nov(12, 15))) == (2, 1)
 
 
 def test_after_a_failed_confirmation_the_room_stays_taken() -> None:

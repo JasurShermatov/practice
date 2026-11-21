@@ -1,0 +1,28 @@
+$ python3 main.py --race   # P09 Step 3: the list store checks under its lock
+Maya and Omar both book R7 for 12-14 Nov at the same moment...
+Maya: Accepted R101
+Omar: Unavailable
+Confirmed reservations for R7 on 12-14 Nov: 1
+Only one guest has R7.
+
+$ for i in $(seq 20); do python3 -m pytest -q -p no:cacheprovider tests/test_demo_and_race.py tests/test_api_sqlite.py -k 'race or uncommitted' | tail -1; done
+9 passed, 10 deselected in 3.15s
+9 passed, 10 deselected in 3.10s
+9 passed, 10 deselected in 3.15s
+9 passed, 10 deselected in 3.13s
+9 passed, 10 deselected in 3.09s
+9 passed, 10 deselected in 3.09s
+9 passed, 10 deselected in 3.08s
+9 passed, 10 deselected in 3.09s
+9 passed, 10 deselected in 3.10s
+9 passed, 10 deselected in 3.11s
+9 passed, 10 deselected in 3.11s
+9 passed, 10 deselected in 3.09s
+9 passed, 10 deselected in 3.09s
+9 passed, 10 deselected in 3.09s
+9 passed, 10 deselected in 3.09s
+9 passed, 10 deselected in 3.09s
+9 passed, 10 deselected in 3.10s
+9 passed, 10 deselected in 3.13s
+9 passed, 10 deselected in 3.10s
+9 passed, 10 deselected in 3.11s

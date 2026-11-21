@@ -24,13 +24,22 @@ Stats) and the search's X-Cache header. The probe app now has the counters and a
 like the wiring; one new probe (two searches, then GET /stats) makes the getStats example real;
 the operation list, the pydantic-model check and the header check (now also: the value is one the
 contract allows) cover the new parts. Nothing else changed: the checks still run both directions.
+
+P09 change (deliberate): the contract is version 1.2.0. The 409 answer of POST /reservations has a
+second example, ``lostTheRace``, and its probe really runs the race: two simultaneous bookings for
+R7 through the real wiring on SQLite (``main.build_api`` with a slow step), and the answer of the
+request the database refused must be exactly that example. The 500 description no longer names the
+duplicate-id case (it cannot happen any more). Everything else is unchanged, in both directions.
 """
 from __future__ import annotations
 
 import ast
 import inspect
+import tempfile
+import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -222,6 +231,7 @@ PROBES: dict[tuple[str, str], Probe] = {
     ("reserve 400", "noNight"): lambda: new_client().post("/reservations", json={**MAYA, "checkOut": "2026-11-12"}),
     ("reserve 400", "unknownRoom"): lambda: new_client().post("/reservations", json={**MAYA, "room": "R99"}),
     ("reserve 409", "sharedNight"): lambda: twice(lambda client: client.post("/reservations", json=MAYA)),
+    ("reserve 409", "lostTheRace"): lambda: race_loser(),
     ("reserve 500", "serverFailed"): lambda: new_client(broken=True).post("/reservations", json=MAYA),
     ("cancel 204", "-"): lambda: after_booking(lambda client: client.delete("/reservations/R101")),
     ("cancel 404", "notConfirmed"): lambda: new_client().delete("/reservations/R101"),
@@ -231,6 +241,25 @@ PROBES: dict[tuple[str, str], Probe] = {
     ("UnknownPath", "noSuchPath"): lambda: new_client().get("/bookings"),
     ("MethodNotAllowed", "wrongMethod"): lambda: new_client().put("/reservations"),
 }
+
+
+def race_loser() -> Any:
+    """P09: two bookings for R7 at the same moment through the real SQLite wiring; the refused one's answer."""
+    import main  # the wiring: SQLite file, unit of work, the store whose INSERT the trigger refuses
+
+    with tempfile.TemporaryDirectory() as folder:
+        app, _ = main.build_api(main.sqlite_connector(Path(folder) / "hotel.sqlite3"), slow_step_seconds=0.3)
+        client = TestClient(app, raise_server_exceptions=False)
+        answers: list[Any] = []
+        guests = [MAYA, {**MAYA, "guestName": "Omar", "guestEmail": "omar@example.com"}]
+        threads = [threading.Thread(target=lambda body=body: answers.append(client.post("/reservations", json=body)))
+                   for body in guests]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+    assert sorted(answer.status_code for answer in answers) == [201, 409]
+    return next(answer for answer in answers if answer.status_code == 409)
 
 
 def twice(request: Callable[[TestClient], Any], then: str | None = None) -> Any:

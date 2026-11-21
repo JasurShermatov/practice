@@ -15,7 +15,7 @@ What the hotel's web app is asked to do, per request type (the three operations 
 | Request | Share | What it costs in the database today |
 |---|---|---|
 | `GET /rooms/availability` (search) | almost all: 1,440 per booking | one `SELECT EXISTS …` per room on sale (`BookingService.find_free_rooms` asks the store once per room) |
-| `POST /reservations` (book) | 20 a day | 3 statements: overlap check, `count(*)` for the next id, `INSERT`; then `COMMIT` |
+| `POST /reservations` (book) | 20 a day | 3 statements: overlap check, the next id (`nextval` since P09; `count(*)` before), `INSERT`; then `COMMIT` |
 | `DELETE /reservations/{id}` (cancel) | rare; not modelled | `SELECT` by id + one `UPDATE` at the end of the request |
 
 Room photos are served with the booking page, not by this API; they are in the bandwidth line

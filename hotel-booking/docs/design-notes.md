@@ -325,3 +325,55 @@ are in `test_api.py`; removing the invalidate line makes the second one fail (se
   cache test therefore ends with `"cacheErrors":0`.
 - **`--cache off|memory|redis` and `--no-invalidation`** in `main.py`: the "No cache" row and the
   Step 5 stale result can be reproduced with the final code instead of editing it back and forth.
+
+# P09 design notes
+
+Session: Tuesday 10 November 2026 (P09 — Protect the last seat). Start state: the P08 project with
+every check green (14 unittest tests, 6 border contracts, 427 pytest tests —
+[b0-baseline](../../practices/P09-protect-the-last-seat/evidence/logs/b0-baseline.txt)), and the race
+of P03 still pinned as a known defect. [l05-notes.md](l05-notes.md) had already chosen the repair:
+put the rule in the database.
+
+## The race, reproduced
+
+`tools/race_http.py` with `HOTEL_SLOW_STEP=1` sends Maya's and Omar's bookings for R7 (12–14 Nov)
+0.5 s apart. Against version 5 both were told 201 in **20 of 20** rounds, and the table held
+R101 and R102. Without the slow step, the same version mostly answered the second guest **500**
+(both counted 0 rows and called their booking R101). The trace, the anomaly (write skew) and the
+measured cost of each repair are in [interleaving.md](interleaving.md).
+
+## Where the rule lives
+
+The table refuses a double booking. The code only translates the refusal.
+
+- PostgreSQL: the exclusion constraint `reservations_no_overlap` (btree_gist), plus the sequence
+  `reservation_ids`. SQLite: two triggers with the same name, plus a one-row id table, in its own
+  schema file (`db/sqlite/init.sql`). The list store: a check under its lock.
+- `ReservationStore.save` promises to raise `OverlapRejected`. `reserve` answers it with the same
+  Unavailable as the pre-check, and the API answers 409. Any other database error stays an error.
+- The pre-check stays in front: it is the ordinary, readable refusal, not the guarantee.
+
+## After
+
+- Checks: `python -m unittest` ran **16 tests … OK** (8 behaviour + 8 API); border contracts:
+  **6 kept**; the full pytest suite, mypy and every document check are green (numbers in the P09 README).
+- Race tool, 20 rounds each: before, **20 of 20 rounds double-booked**; after, **0 of 20, and 0 double bookings in 100-300 simultaneous pairs**, for one and two
+  instances, on SQLite and on PostgreSQL 16. `--race` now prints "Only one guest has R7.".
+- A direct `INSERT` in psql is refused with 23P01. The constraint would not switch on until R102
+  was cancelled.
+
+## Decisions made while building
+
+- **Two schema files instead of one.** P07 had SQLite run the PostgreSQL file. The exclusion
+  constraint and the sequence do not exist in SQLite, so SQLite now runs its translation, and a test
+  keeps tables, columns, CHECKs, index and rooms identical in both files.
+- **Triggers in SQLite, not in PostgreSQL.** A trigger's "look, then write" is safe only with one
+  writer at a time. I ran the same trigger logic in PostgreSQL and it let both bookings in.
+- **Only the named refusal becomes 409.** A duplicate id (23505 / SQLITE_CONSTRAINT_PRIMARYKEY) or a
+  lost connection stays a 500, because calling it "the room is taken" would hide a bug.
+- **Savepoint around the INSERT on PostgreSQL.** A failed statement aborts the whole transaction
+  there, and the request still has to commit. SQLite backs out only the statement.
+- **Upgrades refuse dirty data.** `p09-upgrade.sql` (PostgreSQL) and `main.py` (version-5 SQLite file)
+  will not switch the rule on while `db/find-double-bookings.sql` returns a pair.
+- **A refused booking uses up its id**, as a sequence does. This makes gaps, never duplicates. The
+  list store and SQLite behave the same way, so all three stores agree.

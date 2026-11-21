@@ -1,4 +1,4 @@
-"""Entry point of the hotel booking app (version 5, P08: the P07 API with a cache for the search).
+"""Entry point of the hotel booking app (version 6, P09: the booking rule protected by the database).
 
     python main.py                  -> the HTTP API on http://localhost:5080, reservations in SQLite
                                        (file hotel.sqlite3 next to this file; HOTEL_DB_PATH changes it),
@@ -10,7 +10,11 @@
     python main.py --cache off      -> no cache: every search asks the database (the "No cache" run)
     python main.py --no-invalidation   P08 Step 5 experiment only: bookings do not invalidate the cache
     python main.py --demo           -> the P03-P06 demo (nine lines), data in lists
-    python main.py --race           -> two guests book the same room at the same moment (lists)
+    python main.py --race           -> two guests book the same room at the same moment (lists):
+                                       since P09 one gets it, the other is refused
+    HOTEL_PORT=5081 python main.py  -> P09: a second instance on another port (or --port 5081)
+    HOTEL_SLOW_STEP=1 python main.py   P09: every booking waits 1 s between its check and its save,
+                                       so tools/race_http.py lands in the gap on every run
 
 This file is the *wiring* (composition root): the only application file that names internal
 classes of the modules. P07 adds the web app's wiring: it reads the rooms once from the rooms
@@ -25,6 +29,13 @@ P08 change: the wiring counts the database questions (a ``CountingReservationSto
 SQL store, sharing one ``Stats`` with GET /stats) and connects the search cache - Redis by
 default, as the course does; the app stops at start-up if Redis does not answer PING. The server
 options travel in one ``ServerOptions`` value (``main(serve=...)`` receives it).
+
+P09 change: SQLite runs its own schema, ``db/sqlite/init.sql`` (the translation of the PostgreSQL
+file, which gained an exclusion constraint and a sequence SQLite does not have). A file made by
+version 5 is upgraded when it is opened - after checking that no room is already double-booked,
+because the rule cannot honestly be switched on over data that breaks it. ``HOTEL_SLOW_STEP`` and
+``HOTEL_PORT`` (or ``--slow-step`` / ``--port``) set the experiment's gap and the second
+instance's port.
 """
 from __future__ import annotations
 
@@ -52,7 +63,10 @@ from hotel_booking.rooms import Room
 from hotel_booking.rooms.internal import InMemoryRoomCatalog, SqlRoomCatalog
 
 PROJECT = Path(__file__).resolve().parent
-SCHEMA = PROJECT / "db" / "postgres" / "init.sql"
+SCHEMA = PROJECT / "db" / "sqlite" / "init.sql"                # what SQLite runs for a new file (P09)
+SQLITE_UPGRADE = PROJECT / "db" / "sqlite" / "p09-upgrade.sql"  # version-5 file -> version 6
+POSTGRES_SCHEMA = PROJECT / "db" / "postgres" / "init.sql"     # what docker-compose mounts
+FIND_DOUBLE_BOOKINGS = PROJECT / "db" / "find-double-bookings.sql"
 DEFAULT_SQLITE_PATH = PROJECT / "hotel.sqlite3"
 HOST, PORT = "localhost", 5080
 RACE_SLOW_STEP_SECONDS = 0.5  # widens the check-then-save gap so the race shows (demo only)
@@ -70,6 +84,7 @@ class ServerOptions:
     port: int = PORT
     cache: CacheKind = "redis"
     invalidation: bool = True
+    slow_step_seconds: float = 0.0  # P09: HOTEL_SLOW_STEP, the widened check-then-save gap
 
 
 # --------------------------------------------------------------------------- console demo and race (lists)
@@ -92,18 +107,43 @@ def build_app(
 # --------------------------------------------------------------------------- the web app (a database)
 
 
+class UpgradeRefused(RuntimeError):
+    """A version-5 database still holds double bookings, so the no-overlap rule cannot be switched on."""
+
+
 def sqlite_connector(path: Path) -> Connect:
-    """Connections to one SQLite file; the first one creates the tables from db/postgres/init.sql."""
+    """Connections to one SQLite file; the first one creates the tables (db/sqlite/init.sql) or upgrades a v5 file."""
     def connect() -> sqlite3.Connection:
         # timeout: a writer waits up to 5 s for another request's write lock instead of failing.
         return sqlite3.connect(path, timeout=5.0)
 
     with closing(connect()) as connection:
-        exists = connection.execute(
-            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'reservations'").fetchone()
-        if exists is None:
-            connection.executescript(SCHEMA.read_text(encoding="utf-8"))  # the same file PostgreSQL runs
+        tables = {name for (name,) in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        if "reservations" not in tables:
+            connection.executescript(SCHEMA.read_text(encoding="utf-8"))
+        elif "reservation_ids" not in tables:
+            upgrade_sqlite(connection)
     return connect
+
+
+def upgrade_sqlite(connection: sqlite3.Connection) -> None:
+    """Version 5 -> 6: add the no-overlap triggers and the id table, in one transaction.
+
+    Refused, with every offending pair named, while a room has two Confirmed reservations sharing a
+    night - the same refusal PostgreSQL gives for ALTER TABLE ... EXCLUDE (P09 Step 7.1). A person
+    decides which booking to cancel; the program does not guess.
+    """
+    pairs = connection.execute(FIND_DOUBLE_BOOKINGS.read_text(encoding="utf-8")).fetchall()
+    if pairs:
+        listed = "; ".join(f"{first} and {second} both have {room} for {in1}..{out1} / {in2}..{out2}"
+                           for first, second, room, in1, out1, in2, out2 in pairs)
+        raise UpgradeRefused(f"Cannot switch on reservations_no_overlap: {listed}. "
+                             "Cancel one reservation of each pair, then start the app again.")
+    try:
+        connection.executescript(f"BEGIN;\n{SQLITE_UPGRADE.read_text(encoding='utf-8')}\nCOMMIT;")
+    except sqlite3.Error:
+        connection.rollback()
+        raise
 
 
 def postgres_connector(port: int) -> Connect:  # pragma: no cover - needs psycopg and a running PostgreSQL
@@ -195,7 +235,7 @@ def run_api(options: ServerOptions) -> None:  # pragma: no cover - starts a serv
         connect = postgres_connector(int(os.getenv("HOTEL_DB_PORT", "5432")))
     else:
         connect = sqlite_connector(Path(os.getenv("HOTEL_DB_PATH", str(DEFAULT_SQLITE_PATH))))
-    app, _ = build_api(connect, cache=build_cache(options.cache, options.invalidation))
+    app, _ = build_api(connect, options.slow_step_seconds, cache=build_cache(options.cache, options.invalidation))
     uvicorn.run(app, host=HOST, port=options.port)
 
 
@@ -203,14 +243,20 @@ def run_api(options: ServerOptions) -> None:  # pragma: no cover - starts a serv
 
 
 def main(argv: list[str] | None = None, serve: Callable[[ServerOptions], None] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Hotel booking app, version 5 (P08: HTTP API + database + search cache).")
+    parser = argparse.ArgumentParser(
+        description="Hotel booking app, version 6 (P09: HTTP API + database that keeps the booking rule + search cache).")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--demo", action="store_true", help="print the nine demo lines (data in lists)")
     mode.add_argument("--race", action="store_true",
-                      help="run two simultaneous bookings of R7 and show the double booking (data in lists)")
+                      help="run two simultaneous bookings of R7: one is accepted, one refused (data in lists)")
     parser.add_argument("--db", choices=("sqlite", "postgres"), default="sqlite",
                         help="the web app's database (default: sqlite)")
-    parser.add_argument("--port", type=int, default=PORT, help=f"the web app's port (default: {PORT})")
+    parser.add_argument("--port", type=int, default=int(os.getenv("HOTEL_PORT", str(PORT))),
+                        help=f"the web app's port (default: HOTEL_PORT, else {PORT})")
+    parser.add_argument("--slow-step", dest="slow_step_seconds", type=float,
+                        default=float(os.getenv("HOTEL_SLOW_STEP", "0")),
+                        help="P09 experiment: seconds every booking waits between its check and its save "
+                             "(default: HOTEL_SLOW_STEP, else 0)")
     parser.add_argument("--cache", choices=CACHE_KINDS, default="redis",
                         help="the search cache: redis (default, docker compose), memory (this process only) or off")
     parser.add_argument("--no-invalidation", dest="invalidation", action="store_false",
@@ -223,7 +269,7 @@ def main(argv: list[str] | None = None, serve: Callable[[ServerOptions], None] |
         service, _, email = build_app()
         run_demo(service, lambda: email.sent)
     else:
-        (serve or run_api)(ServerOptions(args.db, args.port, args.cache, args.invalidation))
+        (serve or run_api)(ServerOptions(args.db, args.port, args.cache, args.invalidation, args.slow_step_seconds))
 
 
 if __name__ == "__main__":

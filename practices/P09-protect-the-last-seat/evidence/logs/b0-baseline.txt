@@ -1,0 +1,19 @@
+$ cd hotel-booking   # version 5 = the P08 end state, copied before any P09 change
+$ python3 -m pytest -q -p no:cacheprovider
+# Linux container, Python 3.13.18, SQLite 3.53.1, 2026-11-21
+427 passed in 7.33s
+
+$ python3 -m unittest 2>&1 | tail -3
+Ran 14 tests in 0.044s
+
+OK
+
+$ python3 -m tests.test_architecture | tail -1
+Contracts: 6 kept, 0 broken.
+
+$ python3 main.py --race
+Maya and Omar both book R7 for 12-14 Nov at the same moment...
+Maya: Accepted R101
+Omar: Accepted R102
+Confirmed reservations for R7 on 12-14 Nov: 2
+Double booking! Both requests checked before either one saved.

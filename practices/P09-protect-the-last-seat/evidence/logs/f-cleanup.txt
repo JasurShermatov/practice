@@ -1,0 +1,4 @@
+$ pgrep -af "postgres -D|redis-server|uvicorn|serve.py|main.py" | grep -v defunct   # after every experiment
+(no process found)
+$ ls /tmp | grep p09   # temporary cluster / database folders
+(none left)

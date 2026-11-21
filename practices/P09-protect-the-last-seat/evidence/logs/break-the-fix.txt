@@ -1,0 +1,22 @@
+$ python3 -I practices/P09-protect-the-last-seat/evidence/break_the_fix.py hotel-booking
+Unchanged copy: 479 passed in 11.27s
+Mutation 1: list store saves without its check (version 5's save)
+    -> 1 failed, 225 passed in 4.91s (first: test_save_refuses_an_overlap_even_without_the_pre_check[list-stay0])  CAUGHT
+Mutation 2: SQLite without the no-overlap insert trigger
+    -> 1 failed, 125 passed in 3.78s (first: test_race_through_the_database_gives_the_room_to_one_guest)  CAUGHT
+Mutation 3: reserve no longer turns OverlapRejected into Unavailable
+    -> 1 failed, 125 passed in 3.80s (first: test_race_through_the_database_gives_the_room_to_one_guest)  CAUGHT
+Mutation 4: every integrity error is called a full room
+    -> 1 failed, 242 passed in 4.57s (first: test_a_duplicate_id_is_a_fault_not_a_full_room[sql])  CAUGHT
+Mutation 5: ids from counting rows again
+    -> 1 failed, 125 passed in 3.81s (first: test_race_through_the_database_gives_the_room_to_one_guest)  CAUGHT
+Mutation 6: PostgreSQL INSERT without the savepoint
+    -> 1 failed, 254 passed in 5.79s (first: test_postgres_insert_runs_inside_a_savepoint)  CAUGHT
+Mutation 7: no retry after a PostgreSQL deadlock
+    -> 1 failed, 259 passed in 5.39s (first: test_postgres_deadlock_between_two_inserts_is_retried_and_ends_as_a_409)  CAUGHT
+Mutation 8: the exclusion constraint left out of db/postgres/init.sql
+    -> 1 failed, 414 passed in 11.05s (first: test_each_postgresql_only_statement_has_its_sqlite_counterpart)  CAUGHT
+Mutation 9: the list store's id counter outside its lock
+    -> 1 failed, 248 passed in 5.33s (first: test_fifty_threads_on_the_list_store_one_reservation)  CAUGHT
+
+9 of 9 mutations caught by the test suite.

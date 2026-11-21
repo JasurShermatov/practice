@@ -1,0 +1,835 @@
+$ python3 -I practices/P09-protect-the-last-seat/evidence/postgres_repairs.py hotel-booking --repeat 5
+# run 2026-11-21, Linux container, throw-away PostgreSQL 16 cluster on 127.0.0.1
+PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit
+
+====================================================================================================
+ids-from-count - version 5's ids (count(*) + 101) while Maya's INSERT is not committed yet
+====================================================================================================
+
+Both terminals, in time order (server clock_timestamp(), relative to the first step):
+  0.00s  Maya   BEGIN
+  0.00s  Maya   overlap check sees 0
+  0.51s  Omar   BEGIN
+  0.51s  Omar   overlap check sees 0
+  1.00s  Maya   INSERT asked
+  1.00s  Maya   INSERT R101 done
+  1.51s  Omar   INSERT asked
+  2.01s  Maya   COMMIT done
+  2.01s  Omar   INSERT refused: 23505 duplicate key value violates unique constraint "reservations_pkey"
+  2.01s  Omar   COMMIT done
+
+The table afterwards:
+  id  | room |  check_in  | check_out  |  status   
+------+------+------------+------------+-----------
+ R101 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+(1 row)
+
+--- psql transcript: Maya (statements echoed, results unaligned) ---
+BEGIN;
+SELECT mark('Maya', 'BEGIN');
+@@13:43:04.545508|Maya|BEGIN
+SELECT mark('Maya', 'overlap check sees ' || (SELECT count(*) FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out));
+@@13:43:04.546533|Maya|overlap check sees 0
+SELECT pg_sleep(1.0);
+SAVEPOINT reservation_insert;
+SELECT mark('Maya', 'INSERT asked');
+@@13:43:05.548805|Maya|INSERT asked
+INSERT INTO reservations (id, guest_name, guest_email, room, check_in, check_out, status) VALUES ('R' || (101 + (SELECT count(*) FROM reservations)), 'Maya', 'maya@example.com', 'R7', '2026-11-12', '2026-11-14', 'Confirmed') RETURNING mark('Maya', 'INSERT ' || id || ' done');
+@@13:43:05.549681|Maya|INSERT R101 done
+\if :ERROR
+  ROLLBACK TO SAVEPOINT reservation_insert;
+  SELECT mark('Maya', 'INSERT refused: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  RELEASE SAVEPOINT reservation_insert;
+  SELECT pg_sleep(1.0);
+\endif
+COMMIT;
+\if :ERROR
+  SELECT mark('Maya', 'COMMIT failed: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  SELECT mark('Maya', 'COMMIT done');
+@@13:43:06.553092|Maya|COMMIT done
+\endif
+
+--- psql transcript: Omar (statements echoed, results unaligned) ---
+BEGIN;
+SELECT mark('Omar', 'BEGIN');
+@@13:43:05.056751|Omar|BEGIN
+SELECT mark('Omar', 'overlap check sees ' || (SELECT count(*) FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out));
+@@13:43:05.057821|Omar|overlap check sees 0
+SELECT pg_sleep(1.0);
+SAVEPOINT reservation_insert;
+SELECT mark('Omar', 'INSERT asked');
+@@13:43:06.059884|Omar|INSERT asked
+INSERT INTO reservations (id, guest_name, guest_email, room, check_in, check_out, status) VALUES ('R' || (101 + (SELECT count(*) FROM reservations)), 'Omar', 'omar@example.com', 'R7', '2026-11-12', '2026-11-14', 'Confirmed') RETURNING mark('Omar', 'INSERT ' || id || ' done');
+ERROR:  duplicate key value violates unique constraint "reservations_pkey"
+\if :ERROR
+  ROLLBACK TO SAVEPOINT reservation_insert;
+  SELECT mark('Omar', 'INSERT refused: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+@@13:43:06.553379|Omar|INSERT refused: 23505 duplicate key value violates unique constraint "reservations_pkey"
+\else
+  RELEASE SAVEPOINT reservation_insert;
+  SELECT pg_sleep(1.0);
+\endif
+COMMIT;
+\if :ERROR
+  SELECT mark('Omar', 'COMMIT failed: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  SELECT mark('Omar', 'COMMIT done');
+@@13:43:06.557084|Omar|COMMIT done
+\endif
+
+====================================================================================================
+ids-from-sequence - Step 1: nextval in two open transactions
+====================================================================================================
+  0.00s  Maya   nextval -> 101
+  0.31s  Omar   nextval -> 102 (Maya has not committed)
+  1.00s  Maya   ROLLBACK
+  1.31s  Omar   after Maya's ROLLBACK: nextval -> 103 (101 is not reused)
+
+====================================================================================================
+race-no-rule - Steps 1-2: the app's statements, no rule in the database (init.sql without the constraint)
+====================================================================================================
+
+Both terminals, in time order (server clock_timestamp(), relative to the first step):
+  0.00s  Maya   BEGIN
+  0.00s  Maya   overlap check sees 0
+  0.50s  Omar   BEGIN
+  0.50s  Omar   overlap check sees 0
+  1.00s  Maya   INSERT asked
+  1.00s  Maya   INSERT R101 done
+  1.50s  Omar   INSERT asked
+  1.50s  Omar   INSERT R102 done
+  2.01s  Maya   COMMIT done
+  2.51s  Omar   COMMIT done
+
+The table afterwards:
+  id  | room |  check_in  | check_out  |  status   
+------+------+------------+------------+-----------
+ R101 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+ R102 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+(2 rows)
+
+--- psql transcript: Maya (statements echoed, results unaligned) ---
+BEGIN;
+SELECT mark('Maya', 'BEGIN');
+@@13:43:08.453635|Maya|BEGIN
+SELECT mark('Maya', 'overlap check sees ' || (SELECT count(*) FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out));
+@@13:43:08.454536|Maya|overlap check sees 0
+SELECT pg_sleep(1.0);
+SAVEPOINT reservation_insert;
+SELECT mark('Maya', 'INSERT asked');
+@@13:43:09.456589|Maya|INSERT asked
+INSERT INTO reservations (id, guest_name, guest_email, room, check_in, check_out, status) VALUES ('R' || nextval('reservation_ids'), 'Maya', 'maya@example.com', 'R7', '2026-11-12', '2026-11-14', 'Confirmed') RETURNING mark('Maya', 'INSERT ' || id || ' done');
+@@13:43:09.457230|Maya|INSERT R101 done
+\if :ERROR
+  ROLLBACK TO SAVEPOINT reservation_insert;
+  SELECT mark('Maya', 'INSERT refused: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  RELEASE SAVEPOINT reservation_insert;
+  SELECT pg_sleep(1.0);
+\endif
+COMMIT;
+\if :ERROR
+  SELECT mark('Maya', 'COMMIT failed: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  SELECT mark('Maya', 'COMMIT done');
+@@13:43:10.464438|Maya|COMMIT done
+\endif
+
+--- psql transcript: Omar (statements echoed, results unaligned) ---
+BEGIN;
+SELECT mark('Omar', 'BEGIN');
+@@13:43:08.953988|Omar|BEGIN
+SELECT mark('Omar', 'overlap check sees ' || (SELECT count(*) FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out));
+@@13:43:08.954892|Omar|overlap check sees 0
+SELECT pg_sleep(1.0);
+SAVEPOINT reservation_insert;
+SELECT mark('Omar', 'INSERT asked');
+@@13:43:09.956718|Omar|INSERT asked
+INSERT INTO reservations (id, guest_name, guest_email, room, check_in, check_out, status) VALUES ('R' || nextval('reservation_ids'), 'Omar', 'omar@example.com', 'R7', '2026-11-12', '2026-11-14', 'Confirmed') RETURNING mark('Omar', 'INSERT ' || id || ' done');
+@@13:43:09.957206|Omar|INSERT R102 done
+\if :ERROR
+  ROLLBACK TO SAVEPOINT reservation_insert;
+  SELECT mark('Omar', 'INSERT refused: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  RELEASE SAVEPOINT reservation_insert;
+  SELECT pg_sleep(1.0);
+\endif
+COMMIT;
+\if :ERROR
+  SELECT mark('Omar', 'COMMIT failed: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  SELECT mark('Omar', 'COMMIT done');
+@@13:43:10.960305|Omar|COMMIT done
+\endif
+
+====================================================================================================
+repeatable-read - the same race at REPEATABLE READ
+====================================================================================================
+
+Both terminals, in time order (server clock_timestamp(), relative to the first step):
+  0.00s  Maya   BEGIN ISOLATION LEVEL REPEATABLE READ
+  0.00s  Maya   overlap check sees 0
+  0.49s  Omar   BEGIN ISOLATION LEVEL REPEATABLE READ
+  0.49s  Omar   overlap check sees 0
+  1.00s  Maya   INSERT asked
+  1.00s  Maya   INSERT R101 done
+  1.49s  Omar   INSERT asked
+  1.49s  Omar   INSERT R102 done
+  2.01s  Maya   COMMIT done
+  2.49s  Omar   COMMIT done
+
+The table afterwards:
+  id  | room |  check_in  | check_out  |  status   
+------+------+------------+------------+-----------
+ R101 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+ R102 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+(2 rows)
+
+--- psql transcript: Maya (statements echoed, results unaligned) ---
+BEGIN ISOLATION LEVEL REPEATABLE READ;
+SELECT mark('Maya', 'BEGIN ISOLATION LEVEL REPEATABLE READ');
+@@13:43:11.279509|Maya|BEGIN ISOLATION LEVEL REPEATABLE READ
+SELECT mark('Maya', 'overlap check sees ' || (SELECT count(*) FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out));
+@@13:43:11.280941|Maya|overlap check sees 0
+SELECT pg_sleep(1.0);
+SAVEPOINT reservation_insert;
+SELECT mark('Maya', 'INSERT asked');
+@@13:43:12.282930|Maya|INSERT asked
+INSERT INTO reservations (id, guest_name, guest_email, room, check_in, check_out, status) VALUES ('R' || nextval('reservation_ids'), 'Maya', 'maya@example.com', 'R7', '2026-11-12', '2026-11-14', 'Confirmed') RETURNING mark('Maya', 'INSERT ' || id || ' done');
+@@13:43:12.283494|Maya|INSERT R101 done
+\if :ERROR
+  ROLLBACK TO SAVEPOINT reservation_insert;
+  SELECT mark('Maya', 'INSERT refused: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  RELEASE SAVEPOINT reservation_insert;
+  SELECT pg_sleep(1.0);
+\endif
+COMMIT;
+\if :ERROR
+  SELECT mark('Maya', 'COMMIT failed: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  SELECT mark('Maya', 'COMMIT done');
+@@13:43:13.288200|Maya|COMMIT done
+\endif
+
+--- psql transcript: Omar (statements echoed, results unaligned) ---
+BEGIN ISOLATION LEVEL REPEATABLE READ;
+SELECT mark('Omar', 'BEGIN ISOLATION LEVEL REPEATABLE READ');
+@@13:43:11.764525|Omar|BEGIN ISOLATION LEVEL REPEATABLE READ
+SELECT mark('Omar', 'overlap check sees ' || (SELECT count(*) FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out));
+@@13:43:11.765471|Omar|overlap check sees 0
+SELECT pg_sleep(1.0);
+SAVEPOINT reservation_insert;
+SELECT mark('Omar', 'INSERT asked');
+@@13:43:12.767639|Omar|INSERT asked
+INSERT INTO reservations (id, guest_name, guest_email, room, check_in, check_out, status) VALUES ('R' || nextval('reservation_ids'), 'Omar', 'omar@example.com', 'R7', '2026-11-12', '2026-11-14', 'Confirmed') RETURNING mark('Omar', 'INSERT ' || id || ' done');
+@@13:43:12.768437|Omar|INSERT R102 done
+\if :ERROR
+  ROLLBACK TO SAVEPOINT reservation_insert;
+  SELECT mark('Omar', 'INSERT refused: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  RELEASE SAVEPOINT reservation_insert;
+  SELECT pg_sleep(1.0);
+\endif
+COMMIT;
+\if :ERROR
+  SELECT mark('Omar', 'COMMIT failed: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  SELECT mark('Omar', 'COMMIT done');
+@@13:43:13.771167|Omar|COMMIT done
+\endif
+
+====================================================================================================
+serializable - the same race at SERIALIZABLE
+====================================================================================================
+
+Both terminals, in time order (server clock_timestamp(), relative to the first step):
+  0.00s  Maya   BEGIN ISOLATION LEVEL SERIALIZABLE
+  0.00s  Maya   overlap check sees 0
+  0.50s  Omar   BEGIN ISOLATION LEVEL SERIALIZABLE
+  0.50s  Omar   overlap check sees 0
+  1.00s  Maya   INSERT asked
+  1.00s  Maya   INSERT R101 done
+  1.51s  Omar   INSERT asked
+  1.51s  Omar   INSERT R102 done
+  2.01s  Maya   COMMIT done
+  2.51s  Omar   COMMIT failed: 40001 could not serialize access due to read/write dependencies among transactions
+
+The table afterwards:
+  id  | room |  check_in  | check_out  |  status   
+------+------+------------+------------+-----------
+ R101 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+(1 row)
+
+--- psql transcript: Maya (statements echoed, results unaligned) ---
+BEGIN ISOLATION LEVEL SERIALIZABLE;
+SELECT mark('Maya', 'BEGIN ISOLATION LEVEL SERIALIZABLE');
+@@13:43:14.054493|Maya|BEGIN ISOLATION LEVEL SERIALIZABLE
+SELECT mark('Maya', 'overlap check sees ' || (SELECT count(*) FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out));
+@@13:43:14.055394|Maya|overlap check sees 0
+SELECT pg_sleep(1.0);
+SAVEPOINT reservation_insert;
+SELECT mark('Maya', 'INSERT asked');
+@@13:43:15.057503|Maya|INSERT asked
+INSERT INTO reservations (id, guest_name, guest_email, room, check_in, check_out, status) VALUES ('R' || nextval('reservation_ids'), 'Maya', 'maya@example.com', 'R7', '2026-11-12', '2026-11-14', 'Confirmed') RETURNING mark('Maya', 'INSERT ' || id || ' done');
+@@13:43:15.058131|Maya|INSERT R101 done
+\if :ERROR
+  ROLLBACK TO SAVEPOINT reservation_insert;
+  SELECT mark('Maya', 'INSERT refused: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  RELEASE SAVEPOINT reservation_insert;
+  SELECT pg_sleep(1.0);
+\endif
+COMMIT;
+\if :ERROR
+  SELECT mark('Maya', 'COMMIT failed: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  SELECT mark('Maya', 'COMMIT done');
+@@13:43:16.060838|Maya|COMMIT done
+\endif
+
+--- psql transcript: Omar (statements echoed, results unaligned) ---
+BEGIN ISOLATION LEVEL SERIALIZABLE;
+SELECT mark('Omar', 'BEGIN ISOLATION LEVEL SERIALIZABLE');
+@@13:43:14.557769|Omar|BEGIN ISOLATION LEVEL SERIALIZABLE
+SELECT mark('Omar', 'overlap check sees ' || (SELECT count(*) FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out));
+@@13:43:14.558695|Omar|overlap check sees 0
+SELECT pg_sleep(1.0);
+SAVEPOINT reservation_insert;
+SELECT mark('Omar', 'INSERT asked');
+@@13:43:15.560706|Omar|INSERT asked
+INSERT INTO reservations (id, guest_name, guest_email, room, check_in, check_out, status) VALUES ('R' || nextval('reservation_ids'), 'Omar', 'omar@example.com', 'R7', '2026-11-12', '2026-11-14', 'Confirmed') RETURNING mark('Omar', 'INSERT ' || id || ' done');
+@@13:43:15.561240|Omar|INSERT R102 done
+\if :ERROR
+  ROLLBACK TO SAVEPOINT reservation_insert;
+  SELECT mark('Omar', 'INSERT refused: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  RELEASE SAVEPOINT reservation_insert;
+  SELECT pg_sleep(1.0);
+\endif
+COMMIT;
+ERROR:  could not serialize access due to read/write dependencies among transactions
+\if :ERROR
+  SELECT mark('Omar', 'COMMIT failed: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+@@13:43:16.563470|Omar|COMMIT failed: 40001 could not serialize access due to read/write dependencies among transactions
+\else
+  SELECT mark('Omar', 'COMMIT done');
+\endif
+
+====================================================================================================
+lock-the-reservations - SELECT ... FOR UPDATE on the overlapping reservations (the first repair everybody tries)
+====================================================================================================
+
+Both terminals, in time order (server clock_timestamp(), relative to the first step):
+  0.00s  Maya   BEGIN
+  0.00s  Maya   FOR UPDATE on overlapping reservations locked 0 rows
+  0.49s  Omar   BEGIN
+  0.49s  Omar   FOR UPDATE on overlapping reservations locked 0 rows
+  1.00s  Maya   INSERT asked
+  1.00s  Maya   INSERT R101 done
+  1.49s  Omar   INSERT asked
+  1.49s  Omar   INSERT R102 done
+  2.01s  Maya   COMMIT done
+  2.50s  Omar   COMMIT done
+
+The table afterwards:
+  id  | room |  check_in  | check_out  |  status   
+------+------+------------+------------+-----------
+ R101 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+ R102 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+(2 rows)
+
+--- psql transcript: Maya (statements echoed, results unaligned) ---
+BEGIN;
+SELECT mark('Maya', 'BEGIN');
+@@13:43:16.874959|Maya|BEGIN
+SELECT mark('Maya', 'FOR UPDATE on overlapping reservations locked ' || count(*) || ' rows') FROM (SELECT id FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out FOR UPDATE) AS locked;
+@@13:43:16.875887|Maya|FOR UPDATE on overlapping reservations locked 0 rows
+SELECT pg_sleep(1.0);
+SAVEPOINT reservation_insert;
+SELECT mark('Maya', 'INSERT asked');
+@@13:43:17.877883|Maya|INSERT asked
+INSERT INTO reservations (id, guest_name, guest_email, room, check_in, check_out, status) VALUES ('R' || nextval('reservation_ids'), 'Maya', 'maya@example.com', 'R7', '2026-11-12', '2026-11-14', 'Confirmed') RETURNING mark('Maya', 'INSERT ' || id || ' done');
+@@13:43:17.878622|Maya|INSERT R101 done
+\if :ERROR
+  ROLLBACK TO SAVEPOINT reservation_insert;
+  SELECT mark('Maya', 'INSERT refused: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  RELEASE SAVEPOINT reservation_insert;
+  SELECT pg_sleep(1.0);
+\endif
+COMMIT;
+\if :ERROR
+  SELECT mark('Maya', 'COMMIT failed: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  SELECT mark('Maya', 'COMMIT done');
+@@13:43:18.881324|Maya|COMMIT done
+\endif
+
+--- psql transcript: Omar (statements echoed, results unaligned) ---
+BEGIN;
+SELECT mark('Omar', 'BEGIN');
+@@13:43:17.366095|Omar|BEGIN
+SELECT mark('Omar', 'FOR UPDATE on overlapping reservations locked ' || count(*) || ' rows') FROM (SELECT id FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out FOR UPDATE) AS locked;
+@@13:43:17.367051|Omar|FOR UPDATE on overlapping reservations locked 0 rows
+SELECT pg_sleep(1.0);
+SAVEPOINT reservation_insert;
+SELECT mark('Omar', 'INSERT asked');
+@@13:43:18.368972|Omar|INSERT asked
+INSERT INTO reservations (id, guest_name, guest_email, room, check_in, check_out, status) VALUES ('R' || nextval('reservation_ids'), 'Omar', 'omar@example.com', 'R7', '2026-11-12', '2026-11-14', 'Confirmed') RETURNING mark('Omar', 'INSERT ' || id || ' done');
+@@13:43:18.369449|Omar|INSERT R102 done
+\if :ERROR
+  ROLLBACK TO SAVEPOINT reservation_insert;
+  SELECT mark('Omar', 'INSERT refused: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  RELEASE SAVEPOINT reservation_insert;
+  SELECT pg_sleep(1.0);
+\endif
+COMMIT;
+\if :ERROR
+  SELECT mark('Omar', 'COMMIT failed: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  SELECT mark('Omar', 'COMMIT done');
+@@13:43:19.372276|Omar|COMMIT done
+\endif
+
+====================================================================================================
+trigger-in-postgres - SQLite's trigger translated to PL/pgSQL, Read Committed: is a trigger enough here?
+====================================================================================================
+
+Both terminals, in time order (server clock_timestamp(), relative to the first step):
+  0.00s  Maya   BEGIN
+  0.00s  Maya   overlap check sees 0
+  0.50s  Omar   BEGIN
+  0.50s  Omar   overlap check sees 0
+  1.00s  Maya   INSERT asked
+  1.00s  Maya   INSERT R101 done
+  1.50s  Omar   INSERT asked
+  1.50s  Omar   INSERT R102 done
+  2.01s  Maya   COMMIT done
+  2.51s  Omar   COMMIT done
+
+The table afterwards:
+  id  | room |  check_in  | check_out  |  status   
+------+------+------------+------------+-----------
+ R101 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+ R102 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+(2 rows)
+
+--- psql transcript: Maya (statements echoed, results unaligned) ---
+BEGIN;
+SELECT mark('Maya', 'BEGIN');
+@@13:43:19.631928|Maya|BEGIN
+SELECT mark('Maya', 'overlap check sees ' || (SELECT count(*) FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out));
+@@13:43:19.633027|Maya|overlap check sees 0
+SELECT pg_sleep(1.0);
+SAVEPOINT reservation_insert;
+SELECT mark('Maya', 'INSERT asked');
+@@13:43:20.634950|Maya|INSERT asked
+INSERT INTO reservations (id, guest_name, guest_email, room, check_in, check_out, status) VALUES ('R' || nextval('reservation_ids'), 'Maya', 'maya@example.com', 'R7', '2026-11-12', '2026-11-14', 'Confirmed') RETURNING mark('Maya', 'INSERT ' || id || ' done');
+@@13:43:20.636489|Maya|INSERT R101 done
+\if :ERROR
+  ROLLBACK TO SAVEPOINT reservation_insert;
+  SELECT mark('Maya', 'INSERT refused: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  RELEASE SAVEPOINT reservation_insert;
+  SELECT pg_sleep(1.0);
+\endif
+COMMIT;
+\if :ERROR
+  SELECT mark('Maya', 'COMMIT failed: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  SELECT mark('Maya', 'COMMIT done');
+@@13:43:21.639211|Maya|COMMIT done
+\endif
+
+--- psql transcript: Omar (statements echoed, results unaligned) ---
+BEGIN;
+SELECT mark('Omar', 'BEGIN');
+@@13:43:20.129715|Omar|BEGIN
+SELECT mark('Omar', 'overlap check sees ' || (SELECT count(*) FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out));
+@@13:43:20.130755|Omar|overlap check sees 0
+SELECT pg_sleep(1.0);
+SAVEPOINT reservation_insert;
+SELECT mark('Omar', 'INSERT asked');
+@@13:43:21.132715|Omar|INSERT asked
+INSERT INTO reservations (id, guest_name, guest_email, room, check_in, check_out, status) VALUES ('R' || nextval('reservation_ids'), 'Omar', 'omar@example.com', 'R7', '2026-11-12', '2026-11-14', 'Confirmed') RETURNING mark('Omar', 'INSERT ' || id || ' done');
+@@13:43:21.134643|Omar|INSERT R102 done
+\if :ERROR
+  ROLLBACK TO SAVEPOINT reservation_insert;
+  SELECT mark('Omar', 'INSERT refused: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  RELEASE SAVEPOINT reservation_insert;
+  SELECT pg_sleep(1.0);
+\endif
+COMMIT;
+\if :ERROR
+  SELECT mark('Omar', 'COMMIT failed: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  SELECT mark('Omar', 'COMMIT done');
+@@13:43:22.137260|Omar|COMMIT done
+\endif
+
+====================================================================================================
+guard-row - Step 5: SELECT ... FOR UPDATE on the room's guard row (Maya holds it 1 s; 5 runs)
+====================================================================================================
+
+Both terminals, in time order (server clock_timestamp(), relative to the first step):
+  0.00s  Maya   BEGIN
+  0.00s  Maya   SELECT ... FOR UPDATE asked
+  0.00s  Maya   SELECT ... FOR UPDATE returned: holds the lock on R7
+  0.00s  Maya   overlap check sees 0
+  0.11s  Omar   BEGIN
+  0.11s  Omar   SELECT ... FOR UPDATE asked
+  1.00s  Maya   INSERT R101
+  1.01s  Omar   SELECT ... FOR UPDATE returned: holds the lock on R7
+  1.01s  Maya   COMMIT (lock released)
+  1.01s  Omar   overlap check sees 1
+  1.01s  Omar   refuses: Unavailable (nothing inserted)
+  1.01s  Omar   COMMIT (lock released)
+
+The table afterwards:
+  id  | room |  check_in  | check_out  |  status   
+------+------+------------+------------+-----------
+ R101 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+(1 row)
+
+--- psql transcript: Maya (statements echoed, results unaligned) ---
+BEGIN;
+SELECT mark('Maya', 'BEGIN');
+@@13:43:22.413979|Maya|BEGIN
+SELECT mark('Maya', 'SELECT ... FOR UPDATE asked');
+@@13:43:22.414185|Maya|SELECT ... FOR UPDATE asked
+SELECT version FROM room_booking_guard WHERE room = 'R7' FOR UPDATE;
+0
+SELECT mark('Maya', 'SELECT ... FOR UPDATE returned: holds the lock on R7');
+@@13:43:22.414832|Maya|SELECT ... FOR UPDATE returned: holds the lock on R7
+SELECT ((SELECT count(*) FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out) = 0) AS free \gset
+SELECT mark('Maya', 'overlap check sees ' || (SELECT count(*) FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out));
+@@13:43:22.415670|Maya|overlap check sees 0
+SELECT pg_sleep(1.0);
+\if :free
+  INSERT INTO reservations (id, guest_name, guest_email, room, check_in, check_out, status) VALUES ('R' || nextval('reservation_ids'), 'Maya', 'maya@example.com', 'R7', '2026-11-12', '2026-11-14', 'Confirmed') RETURNING mark('Maya', 'INSERT ' || id);
+@@13:43:23.418770|Maya|INSERT R101
+\else
+  SELECT mark('Maya', 'refuses: Unavailable (nothing inserted)');
+\endif
+COMMIT;
+SELECT mark('Maya', 'COMMIT (lock released)');
+@@13:43:23.420867|Maya|COMMIT (lock released)
+
+--- psql transcript: Omar (statements echoed, results unaligned) ---
+BEGIN;
+SELECT mark('Omar', 'BEGIN');
+@@13:43:22.519286|Omar|BEGIN
+SELECT mark('Omar', 'SELECT ... FOR UPDATE asked');
+@@13:43:22.519621|Omar|SELECT ... FOR UPDATE asked
+SELECT version FROM room_booking_guard WHERE room = 'R7' FOR UPDATE;
+0
+SELECT mark('Omar', 'SELECT ... FOR UPDATE returned: holds the lock on R7');
+@@13:43:23.420511|Omar|SELECT ... FOR UPDATE returned: holds the lock on R7
+SELECT ((SELECT count(*) FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out) = 0) AS free \gset
+SELECT mark('Omar', 'overlap check sees ' || (SELECT count(*) FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out));
+@@13:43:23.423093|Omar|overlap check sees 1
+SELECT pg_sleep(0.0);
+\if :free
+  INSERT INTO reservations (id, guest_name, guest_email, room, check_in, check_out, status) VALUES ('R' || nextval('reservation_ids'), 'Omar', 'omar@example.com', 'R7', '2026-11-12', '2026-11-14', 'Confirmed') RETURNING mark('Omar', 'INSERT ' || id);
+\else
+  SELECT mark('Omar', 'refuses: Unavailable (nothing inserted)');
+@@13:43:23.423722|Omar|refuses: Unavailable (nothing inserted)
+\endif
+COMMIT;
+SELECT mark('Omar', 'COMMIT (lock released)');
+@@13:43:23.424508|Omar|COMMIT (lock released)
+
+Omar's wait at FOR UPDATE, 5 runs (s): 0.90, 0.91, 0.91, 0.92, 0.90; median 0.91 s. Confirmed reservations for R7 every run: 1
+
+====================================================================================================
+optimistic-version - Step 6: version check on the guard row, no lock (5 runs)
+====================================================================================================
+
+Both terminals, in time order (server clock_timestamp(), relative to the first step):
+  0.00s  Maya   BEGIN
+  0.00s  Maya   reads version = 0 (plain SELECT: no lock, no wait)
+  0.00s  Maya   overlap check sees 0
+  0.09s  Omar   BEGIN
+  0.09s  Omar   reads version = 0 (plain SELECT: no lock, no wait)
+  0.10s  Omar   overlap check sees 0
+  0.10s  Omar   UPDATE ... WHERE version = 0 matched 1 row(s)
+  0.10s  Omar   INSERT R101
+  0.10s  Omar   COMMIT
+  1.00s  Maya   UPDATE ... WHERE version = 0 matched 0 row(s)
+  1.00s  Maya   ROLLBACK, then try again from the start
+  1.01s  Maya   reads version = 1
+  1.01s  Maya   overlap check sees 1
+  1.01s  Maya   refuses: Unavailable
+
+The table afterwards:
+  id  | room |  check_in  | check_out  |  status   
+------+------+------------+------------+-----------
+ R101 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+(1 row)
+
+--- psql transcript: Maya (statements echoed, results unaligned) ---
+BEGIN;
+SELECT mark('Maya', 'BEGIN');
+@@13:43:28.821747|Maya|BEGIN
+SELECT version AS seen FROM room_booking_guard WHERE room = 'R7' \gset
+SELECT mark('Maya', 'reads version = ' || :seen || ' (plain SELECT: no lock, no wait)');
+@@13:43:28.822828|Maya|reads version = 0 (plain SELECT: no lock, no wait)
+SELECT mark('Maya', 'overlap check sees ' || (SELECT count(*) FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out));
+@@13:43:28.823535|Maya|overlap check sees 0
+SELECT pg_sleep(1.0);
+UPDATE room_booking_guard SET version = version + 1 WHERE room = 'R7' AND version = :seen;
+\set updated :ROW_COUNT
+SELECT (:updated = 1) AS claimed \gset
+SELECT mark('Maya', 'UPDATE ... WHERE version = ' || :seen || ' matched ' || :updated || ' row(s)');
+@@13:43:29.826118|Maya|UPDATE ... WHERE version = 0 matched 0 row(s)
+\if :claimed
+  INSERT INTO reservations (id, guest_name, guest_email, room, check_in, check_out, status) VALUES ('R' || nextval('reservation_ids'), 'Maya', 'maya@example.com', 'R7', '2026-11-12', '2026-11-14', 'Confirmed') RETURNING mark('Maya', 'INSERT ' || id);
+  COMMIT;
+  SELECT mark('Maya', 'COMMIT');
+\else
+  ROLLBACK;
+  SELECT mark('Maya', 'ROLLBACK, then try again from the start');
+@@13:43:29.826556|Maya|ROLLBACK, then try again from the start
+  BEGIN;
+  SELECT version AS seen FROM room_booking_guard WHERE room = 'R7' \gset
+  SELECT mark('Maya', 'reads version = ' || :seen);
+@@13:43:29.827083|Maya|reads version = 1
+  SELECT ((SELECT count(*) FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out) = 0) AS free \gset
+  SELECT mark('Maya', 'overlap check sees ' || (SELECT count(*) FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out));
+@@13:43:29.827870|Maya|overlap check sees 1
+  \if :free
+    SELECT mark('Maya', 'free after all (not expected here)');
+  \else
+    SELECT mark('Maya', 'refuses: Unavailable');
+@@13:43:29.828128|Maya|refuses: Unavailable
+  \endif
+  COMMIT;
+\endif
+
+--- psql transcript: Omar (statements echoed, results unaligned) ---
+BEGIN;
+SELECT mark('Omar', 'BEGIN');
+@@13:43:28.915338|Omar|BEGIN
+SELECT version AS seen FROM room_booking_guard WHERE room = 'R7' \gset
+SELECT mark('Omar', 'reads version = ' || :seen || ' (plain SELECT: no lock, no wait)');
+@@13:43:28.916386|Omar|reads version = 0 (plain SELECT: no lock, no wait)
+SELECT mark('Omar', 'overlap check sees ' || (SELECT count(*) FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out));
+@@13:43:28.916963|Omar|overlap check sees 0
+SELECT pg_sleep(0.0);
+UPDATE room_booking_guard SET version = version + 1 WHERE room = 'R7' AND version = :seen;
+\set updated :ROW_COUNT
+SELECT (:updated = 1) AS claimed \gset
+SELECT mark('Omar', 'UPDATE ... WHERE version = ' || :seen || ' matched ' || :updated || ' row(s)');
+@@13:43:28.917808|Omar|UPDATE ... WHERE version = 0 matched 1 row(s)
+\if :claimed
+  INSERT INTO reservations (id, guest_name, guest_email, room, check_in, check_out, status) VALUES ('R' || nextval('reservation_ids'), 'Omar', 'omar@example.com', 'R7', '2026-11-12', '2026-11-14', 'Confirmed') RETURNING mark('Omar', 'INSERT ' || id);
+@@13:43:28.918205|Omar|INSERT R101
+  COMMIT;
+  SELECT mark('Omar', 'COMMIT');
+@@13:43:28.921773|Omar|COMMIT
+\else
+  ROLLBACK;
+  SELECT mark('Omar', 'ROLLBACK, then try again from the start');
+  BEGIN;
+  SELECT version AS seen FROM room_booking_guard WHERE room = 'R7' \gset
+  SELECT mark('Omar', 'reads version = ' || :seen);
+  SELECT ((SELECT count(*) FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out) = 0) AS free \gset
+  SELECT mark('Omar', 'overlap check sees ' || (SELECT count(*) FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out));
+  \if :free
+    SELECT mark('Omar', 'free after all (not expected here)');
+  \else
+    SELECT mark('Omar', 'refuses: Unavailable');
+  \endif
+  COMMIT;
+\endif
+
+Nobody waited for a lock. Maya's lost attempt took (s, BEGIN -> ROLLBACK, all of it work to redo): 1.00, 1.00, 1.00, 1.00, 1.00; then she started again. Confirmed reservations for R7 every run: 1
+
+====================================================================================================
+exclusion-constraint - Step 7: the same race as race-no-rule against db/postgres/init.sql (5 runs)
+====================================================================================================
+
+Both terminals, in time order (server clock_timestamp(), relative to the first step):
+  0.00s  Maya   BEGIN
+  0.00s  Maya   overlap check sees 0
+  0.50s  Omar   BEGIN
+  0.50s  Omar   overlap check sees 0
+  1.00s  Maya   INSERT asked
+  1.00s  Maya   INSERT R101 done
+  1.50s  Omar   INSERT asked
+  2.01s  Maya   COMMIT done
+  2.01s  Omar   INSERT refused: 23P01 conflicting key value violates exclusion constraint "reservations_no_overlap"
+  2.01s  Omar   COMMIT done
+
+The table afterwards:
+  id  | room |  check_in  | check_out  |  status   
+------+------+------------+------------+-----------
+ R101 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+(1 row)
+
+--- psql transcript: Maya (statements echoed, results unaligned) ---
+BEGIN;
+SELECT mark('Maya', 'BEGIN');
+@@13:43:35.263845|Maya|BEGIN
+SELECT mark('Maya', 'overlap check sees ' || (SELECT count(*) FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out));
+@@13:43:35.265041|Maya|overlap check sees 0
+SELECT pg_sleep(1.0);
+SAVEPOINT reservation_insert;
+SELECT mark('Maya', 'INSERT asked');
+@@13:43:36.266972|Maya|INSERT asked
+INSERT INTO reservations (id, guest_name, guest_email, room, check_in, check_out, status) VALUES ('R' || nextval('reservation_ids'), 'Maya', 'maya@example.com', 'R7', '2026-11-12', '2026-11-14', 'Confirmed') RETURNING mark('Maya', 'INSERT ' || id || ' done');
+@@13:43:36.268279|Maya|INSERT R101 done
+\if :ERROR
+  ROLLBACK TO SAVEPOINT reservation_insert;
+  SELECT mark('Maya', 'INSERT refused: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  RELEASE SAVEPOINT reservation_insert;
+  SELECT pg_sleep(1.0);
+\endif
+COMMIT;
+\if :ERROR
+  SELECT mark('Maya', 'COMMIT failed: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  SELECT mark('Maya', 'COMMIT done');
+@@13:43:37.270912|Maya|COMMIT done
+\endif
+
+--- psql transcript: Omar (statements echoed, results unaligned) ---
+BEGIN;
+SELECT mark('Omar', 'BEGIN');
+@@13:43:35.764451|Omar|BEGIN
+SELECT mark('Omar', 'overlap check sees ' || (SELECT count(*) FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14' AND '2026-11-12' < check_out));
+@@13:43:35.765452|Omar|overlap check sees 0
+SELECT pg_sleep(1.0);
+SAVEPOINT reservation_insert;
+SELECT mark('Omar', 'INSERT asked');
+@@13:43:36.767379|Omar|INSERT asked
+INSERT INTO reservations (id, guest_name, guest_email, room, check_in, check_out, status) VALUES ('R' || nextval('reservation_ids'), 'Omar', 'omar@example.com', 'R7', '2026-11-12', '2026-11-14', 'Confirmed') RETURNING mark('Omar', 'INSERT ' || id || ' done');
+ERROR:  conflicting key value violates exclusion constraint "reservations_no_overlap"
+\if :ERROR
+  ROLLBACK TO SAVEPOINT reservation_insert;
+  SELECT mark('Omar', 'INSERT refused: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+@@13:43:37.271242|Omar|INSERT refused: 23P01 conflicting key value violates exclusion constraint "reservations_no_overlap"
+\else
+  RELEASE SAVEPOINT reservation_insert;
+  SELECT pg_sleep(1.0);
+\endif
+COMMIT;
+\if :ERROR
+  SELECT mark('Omar', 'COMMIT failed: ' || :'LAST_ERROR_SQLSTATE' || ' ' || :'LAST_ERROR_MESSAGE');
+\else
+  SELECT mark('Omar', 'COMMIT done');
+@@13:43:37.271658|Omar|COMMIT done
+\endif
+
+Omar's INSERT waited for Maya's undecided row, then was refused (s): 0.50, 0.50, 0.50, 0.50, 0.50. Confirmed reservations for R7 every run: 1
+
+====================================================================================================
+switch-on - Step 7.1: db/postgres/p09-upgrade.sql over version-5 data that holds a double booking
+====================================================================================================
+
+$ psql -f db/find-double-bookings.sql
+ first_id | second_id | room | first_check_in | first_check_out | second_check_in | second_check_out 
+----------+-----------+------+----------------+-----------------+-----------------+------------------
+ R101     | R102      | R7   | 2026-11-12     | 2026-11-14      | 2026-11-12      | 2026-11-14
+(1 row)
+
+$ psql -v ON_ERROR_STOP=1 -f db/postgres/p09-upgrade.sql
+BEGIN
+CREATE SEQUENCE
+ setval 
+--------
+    103
+(1 row)
+
+CREATE EXTENSION
+psql:db/postgres/p09-upgrade.sql:29: ERROR:  could not create exclusion constraint "reservations_no_overlap"
+DETAIL:  Key (room, daterange(check_in, check_out, '[)'::text))=(R7, [2026-11-12,2026-11-14)) conflicts with key (room, daterange(check_in, check_out, '[)'::text))=(R7, [2026-11-12,2026-11-14)).
+
+$ psql -c "\ds"   # the upgrade ran in one transaction: no sequence was left behind
+Did not find any relations.
+
+$ psql -c "UPDATE reservations SET status = 'Cancelled' WHERE id = 'R102';"   # Step 7.2: a person decides
+UPDATE 1
+
+$ psql -f db/find-double-bookings.sql
+ first_id | second_id | room | first_check_in | first_check_out | second_check_in | second_check_out 
+----------+-----------+------+----------------+-----------------+-----------------+------------------
+(0 rows)
+
+$ psql -v ON_ERROR_STOP=1 -f db/postgres/p09-upgrade.sql
+BEGIN
+CREATE SEQUENCE
+ setval 
+--------
+    103
+(1 row)
+
+CREATE EXTENSION
+ALTER TABLE
+COMMIT
+
+$ psql -c "SELECT nextval('reservation_ids');"   # starts above the ids already used
+ nextval 
+---------
+     103
+(1 row)
+
+====================================================================================================
+no-code-path - Step 7: an INSERT typed straight into psql; and the constraint without btree_gist
+====================================================================================================
+
+-- a direct INSERT for 13-15 Nov
+INSERT INTO reservations (id, guest_name, guest_email, room, check_in, check_out, status) VALUES ('R999', 'Direct Insert', 'direct@example.com', 'R7', '2026-11-13', '2026-11-15', 'Confirmed');
+ERROR:  23P01: conflicting key value violates exclusion constraint "reservations_no_overlap"
+DETAIL:  Key (room, daterange(check_in, check_out, '[)'::text))=(R7, [2026-11-13,2026-11-15)) conflicts with existing key (room, daterange(check_in, check_out, '[)'::text))=(R7, [2026-11-12,2026-11-14)).
+SCHEMA NAME:  public
+TABLE NAME:  reservations
+CONSTRAINT NAME:  reservations_no_overlap
+LOCATION:  check_exclusion_or_unique_constraint, execIndexing.c:874
+
+-- the same stay as Cancelled (blocks nothing)
+INSERT INTO reservations VALUES ('R998', 'Direct Insert', 'direct@example.com', 'R7', '2026-11-13', '2026-11-15', 'Cancelled');
+INSERT 0 1
+
+-- turning it back to Confirmed
+UPDATE reservations SET status = 'Confirmed' WHERE id = 'R998';
+ERROR:  23P01: conflicting key value violates exclusion constraint "reservations_no_overlap"
+DETAIL:  Key (room, daterange(check_in, check_out, '[)'::text))=(R7, [2026-11-13,2026-11-15)) conflicts with existing key (room, daterange(check_in, check_out, '[)'::text))=(R7, [2026-11-12,2026-11-14)).
+SCHEMA NAME:  public
+TABLE NAME:  reservations
+CONSTRAINT NAME:  reservations_no_overlap
+LOCATION:  check_exclusion_or_unique_constraint, execIndexing.c:874
+
+-- the adjacent stay 14-16 Nov
+INSERT INTO reservations VALUES ('R997', 'Nora', 'nora@example.com', 'R7', '2026-11-14', '2026-11-16', 'Confirmed');
+INSERT 0 1
+
+  id  | room |  check_in  | check_out  |  status   
+------+------+------------+------------+-----------
+ R101 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+ R997 | R7   | 2026-11-14 | 2026-11-16 | Confirmed
+ R998 | R7   | 2026-11-13 | 2026-11-15 | Cancelled
+(3 rows)
+
+-- the same constraint in a database without btree_gist
+ERROR:  data type text has no default operator class for access method "gist"
+HINT:  You must specify an operator class for the index or define a default operator class for the data type.
+
+====================================================================================================
+summary (confirmed reservations for R7 after each race scenario; waits in seconds)
+====================================================================================================
+ids-from-count           1
+race-no-rule             2
+repeatable-read          2
+serializable             1
+lock-the-reservations    2
+trigger-in-postgres      2
+guard-row waits          [0.90089, 0.906374, 0.906162, 0.923272, 0.903046]
+optimistic redo          [1.004809, 1.004894, 1.004668, 1.004696, 1.004463]
+constraint waits         [0.503863, 0.503175, 0.502381, 0.502944, 0.503712]

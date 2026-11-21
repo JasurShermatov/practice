@@ -1,0 +1,608 @@
+$ python3 -I practices/P09-protect-the-last-seat/evidence/race_experiment.py hotel-booking <copy of version 5> --rounds 20 --burst 100 --json evidence/logs/race-results.json
+# run 2026-11-21, Linux container
+Linux container, Python 3.13.18, SQLite 3.53.1; rounds=20, burst=100
+PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit
+
+====================================================================================================
+BEFORE - version 5 (P08 code), SQLite, ONE instance
+====================================================================================================
+
+$ HOTEL_SLOW_STEP=1 ... ; python tools/race_http.py      (exit status 1)
+Two bookings for R7, 2026-11-12 to 2026-11-14, sent at the same moment.
+
+Maya -> 201 Created   {"id":"R101","status":"Confirmed","notificationFailed":false}
+Omar -> 201 Created   {"id":"R102","status":"Confirmed","notificationFailed":false}
+
+Confirmed reservations for R7 on 12-14 Nov: 2
+DOUBLE BOOKED: the room has two confirmed reservations for the same nights.
+
+-- the reservations table, read from the database itself (Confirmed rows for R7):
+  id  | room |  check_in  | check_out  |  status
+------+------+------------+------------+-----------
+ R101 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+ R102 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+(2 rows)
+
+$ python tools/race_http.py --repeat 20   (slow step 1.0 s, Omar 0.5 s after Maya; exit status 1)
+Round   1: Maya 201 R103  Omar 201 R104  -> double-booked
+Round   2: Maya 201 R105  Omar 201 R106  -> double-booked
+Round   3: Maya 201 R107  Omar 201 R108  -> double-booked
+Round   4: Maya 201 R109  Omar 201 R110  -> double-booked
+Round   5: Maya 201 R111  Omar 201 R112  -> double-booked
+Round   6: Maya 201 R113  Omar 201 R114  -> double-booked
+Round   7: Maya 201 R115  Omar 201 R116  -> double-booked
+Round   8: Maya 201 R117  Omar 201 R118  -> double-booked
+Round   9: Maya 201 R119  Omar 201 R120  -> double-booked
+Round  10: Maya 201 R121  Omar 201 R122  -> double-booked
+Round  11: Maya 201 R123  Omar 201 R124  -> double-booked
+Round  12: Maya 201 R125  Omar 201 R126  -> double-booked
+Round  13: Maya 201 R127  Omar 201 R128  -> double-booked
+Round  14: Maya 201 R129  Omar 201 R130  -> double-booked
+Round  15: Maya 201 R131  Omar 201 R132  -> double-booked
+Round  16: Maya 201 R133  Omar 201 R134  -> double-booked
+Round  17: Maya 201 R135  Omar 201 R136  -> double-booked
+Round  18: Maya 201 R137  Omar 201 R138  -> double-booked
+Round  19: Maya 201 R139  Omar 201 R140  -> double-booked
+Round  20: Maya 201 R141  Omar 201 R142  -> double-booked
+
+Double bookings: 20 of 20 rounds; one 201 and one 409: 0; anything else: 0.
+-- errors the server(s) logged (cause of each 500): none
+-- database after the rounds: 42 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+
+$ (HOTEL_SLOW_STEP=0) python tools/race_http.py --repeat 100 --stagger 0   (both at once, no slow step; exit status 2)
+Round   1: Maya 201 R101  Omar 500 -     -> unexpected
+Round   2: Maya 201 R102  Omar 500 -     -> unexpected
+Round   3: Maya 409 -     Omar 201 R103  -> correct
+Round   4: Maya 201 R104  Omar 500 -     -> unexpected
+Round   5: Maya 500 -     Omar 201 R105  -> unexpected
+  ...
+Round 100: Maya 409 -     Omar 201 R204  -> correct
+
+Double bookings: 4 of 100 rounds; one 201 and one 409: 33; anything else: 63 (63 x 500 Internal Server Error).
+-- errors the server(s) logged (cause of each 500): 63 x sqlite3.IntegrityError: UNIQUE constraint failed: reservations.id
+-- database after the rounds: 104 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+
+====================================================================================================
+BEFORE - version 5 (P08 code), SQLite, TWO instances (Step 4)
+====================================================================================================
+
+$ HOTEL_SLOW_STEP=1 ... ; python tools/race_http.py http://localhost:5081      (exit status 1)
+Two bookings for R7, 2026-11-12 to 2026-11-14, sent at the same moment.
+Maya -> http://localhost:5080   Omar -> http://localhost:5081
+
+Maya -> 201 Created   {"id":"R101","status":"Confirmed","notificationFailed":false}
+Omar -> 201 Created   {"id":"R102","status":"Confirmed","notificationFailed":false}
+
+Confirmed reservations for R7 on 12-14 Nov: 2
+DOUBLE BOOKED: the room has two confirmed reservations for the same nights.
+
+-- the reservations table, read from the database itself (Confirmed rows for R7):
+  id  | room |  check_in  | check_out  |  status
+------+------+------------+------------+-----------
+ R101 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+ R102 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+(2 rows)
+
+$ python tools/race_http.py <5081> --repeat 20   (slow step 1.0 s, Omar 0.5 s after Maya; exit status 1)
+Round   1: Maya 201 R103  Omar 201 R104  -> double-booked
+Round   2: Maya 201 R105  Omar 201 R106  -> double-booked
+Round   3: Maya 201 R107  Omar 201 R108  -> double-booked
+Round   4: Maya 201 R109  Omar 201 R110  -> double-booked
+Round   5: Maya 201 R111  Omar 201 R112  -> double-booked
+Round   6: Maya 201 R113  Omar 201 R114  -> double-booked
+Round   7: Maya 201 R115  Omar 201 R116  -> double-booked
+Round   8: Maya 201 R117  Omar 201 R118  -> double-booked
+Round   9: Maya 201 R119  Omar 201 R120  -> double-booked
+Round  10: Maya 201 R121  Omar 201 R122  -> double-booked
+Round  11: Maya 201 R123  Omar 201 R124  -> double-booked
+Round  12: Maya 201 R125  Omar 201 R126  -> double-booked
+Round  13: Maya 201 R127  Omar 201 R128  -> double-booked
+Round  14: Maya 201 R129  Omar 201 R130  -> double-booked
+Round  15: Maya 201 R131  Omar 201 R132  -> double-booked
+Round  16: Maya 201 R133  Omar 201 R134  -> double-booked
+Round  17: Maya 201 R135  Omar 201 R136  -> double-booked
+Round  18: Maya 201 R137  Omar 201 R138  -> double-booked
+Round  19: Maya 201 R139  Omar 201 R140  -> double-booked
+Round  20: Maya 201 R141  Omar 201 R142  -> double-booked
+
+Double bookings: 20 of 20 rounds; one 201 and one 409: 0; anything else: 0.
+-- errors the server(s) logged (cause of each 500): none
+-- database after the rounds: 42 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+
+$ (HOTEL_SLOW_STEP=0) python tools/race_http.py <5081> --repeat 100 --stagger 0   (both at once, no slow step; exit status 2)
+Round   1: Maya 201 R101  Omar 409 -     -> correct
+Round   2: Maya 201 R102  Omar 409 -     -> correct
+Round   3: Maya 500 -     Omar 201 R103  -> unexpected
+Round   4: Maya 201 R104  Omar 409 -     -> correct
+Round   5: Maya 201 R105  Omar 409 -     -> correct
+  ...
+Round 100: Maya 201 R210  Omar 201 R211  -> double-booked
+
+Double bookings: 11 of 100 rounds; one 201 and one 409: 63; anything else: 26 (26 x 500 Internal Server Error).
+-- errors the server(s) logged (cause of each 500): 26 x sqlite3.IntegrityError: UNIQUE constraint failed: reservations.id
+-- database after the rounds: 111 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+
+====================================================================================================
+STEP 3 - version 5 + an in-process lock around every request, ONE instance
+====================================================================================================
+
+$ HOTEL_SLOW_STEP=1 ... ; python tools/race_http.py      (exit status 0)
+Two bookings for R7, 2026-11-12 to 2026-11-14, sent at the same moment.
+
+Maya -> 201 Created   {"id":"R101","status":"Confirmed","notificationFailed":false}
+Omar -> 409 Conflict  {"title":"Unavailable","status":409,"detail":"The room is booked for at least one night of this stay."}
+
+Confirmed reservations for R7 on 12-14 Nov: 1
+CORRECT: one booking was accepted and one was refused.
+
+-- the reservations table, read from the database itself (Confirmed rows for R7):
+  id  | room |  check_in  | check_out  |  status
+------+------+------------+------------+-----------
+ R101 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+(1 row)
+
+$ python tools/race_http.py --repeat 20   (slow step 1.0 s, Omar 0.5 s after Maya; exit status 0)
+Round   1: Maya 201 R102  Omar 409 -     -> correct
+Round   2: Maya 201 R103  Omar 409 -     -> correct
+Round   3: Maya 201 R104  Omar 409 -     -> correct
+Round   4: Maya 201 R105  Omar 409 -     -> correct
+Round   5: Maya 201 R106  Omar 409 -     -> correct
+Round   6: Maya 201 R107  Omar 409 -     -> correct
+Round   7: Maya 201 R108  Omar 409 -     -> correct
+Round   8: Maya 201 R109  Omar 409 -     -> correct
+Round   9: Maya 201 R110  Omar 409 -     -> correct
+Round  10: Maya 201 R111  Omar 409 -     -> correct
+Round  11: Maya 201 R112  Omar 409 -     -> correct
+Round  12: Maya 201 R113  Omar 409 -     -> correct
+Round  13: Maya 201 R114  Omar 409 -     -> correct
+Round  14: Maya 201 R115  Omar 409 -     -> correct
+Round  15: Maya 201 R116  Omar 409 -     -> correct
+Round  16: Maya 201 R117  Omar 409 -     -> correct
+Round  17: Maya 201 R118  Omar 409 -     -> correct
+Round  18: Maya 201 R119  Omar 409 -     -> correct
+Round  19: Maya 201 R120  Omar 409 -     -> correct
+Round  20: Maya 201 R121  Omar 409 -     -> correct
+
+Double bookings: 0 of 20 rounds; one 201 and one 409: 20; anything else: 0.
+-- errors the server(s) logged (cause of each 500): none
+-- database after the rounds: 21 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+
+$ (HOTEL_SLOW_STEP=0) python tools/race_http.py --repeat 100 --stagger 0   (both at once, no slow step; exit status 0)
+Round   1: Maya 201 R101  Omar 409 -     -> correct
+Round   2: Maya 201 R102  Omar 409 -     -> correct
+Round   3: Maya 201 R103  Omar 409 -     -> correct
+Round   4: Maya 409 -     Omar 201 R104  -> correct
+Round   5: Maya 409 -     Omar 201 R105  -> correct
+  ...
+Round 100: Maya 201 R200  Omar 409 -     -> correct
+
+Double bookings: 0 of 100 rounds; one 201 and one 409: 100; anything else: 0.
+-- errors the server(s) logged (cause of each 500): none
+-- database after the rounds: 100 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+
+====================================================================================================
+STEP 4 - version 5 + the same in-process lock, TWO instances
+====================================================================================================
+
+$ HOTEL_SLOW_STEP=1 ... ; python tools/race_http.py http://localhost:5081      (exit status 1)
+Two bookings for R7, 2026-11-12 to 2026-11-14, sent at the same moment.
+Maya -> http://localhost:5080   Omar -> http://localhost:5081
+
+Maya -> 201 Created   {"id":"R101","status":"Confirmed","notificationFailed":false}
+Omar -> 201 Created   {"id":"R102","status":"Confirmed","notificationFailed":false}
+
+Confirmed reservations for R7 on 12-14 Nov: 2
+DOUBLE BOOKED: the room has two confirmed reservations for the same nights.
+
+-- the reservations table, read from the database itself (Confirmed rows for R7):
+  id  | room |  check_in  | check_out  |  status
+------+------+------------+------------+-----------
+ R101 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+ R102 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+(2 rows)
+
+$ python tools/race_http.py <5081> --repeat 20   (slow step 1.0 s, Omar 0.5 s after Maya; exit status 1)
+Round   1: Maya 201 R103  Omar 201 R104  -> double-booked
+Round   2: Maya 201 R105  Omar 201 R106  -> double-booked
+Round   3: Maya 201 R107  Omar 201 R108  -> double-booked
+Round   4: Maya 201 R109  Omar 201 R110  -> double-booked
+Round   5: Maya 201 R111  Omar 201 R112  -> double-booked
+Round   6: Maya 201 R113  Omar 201 R114  -> double-booked
+Round   7: Maya 201 R115  Omar 201 R116  -> double-booked
+Round   8: Maya 201 R117  Omar 201 R118  -> double-booked
+Round   9: Maya 201 R119  Omar 201 R120  -> double-booked
+Round  10: Maya 201 R121  Omar 201 R122  -> double-booked
+Round  11: Maya 201 R123  Omar 201 R124  -> double-booked
+Round  12: Maya 201 R125  Omar 201 R126  -> double-booked
+Round  13: Maya 201 R127  Omar 201 R128  -> double-booked
+Round  14: Maya 201 R129  Omar 201 R130  -> double-booked
+Round  15: Maya 201 R131  Omar 201 R132  -> double-booked
+Round  16: Maya 201 R133  Omar 201 R134  -> double-booked
+Round  17: Maya 201 R135  Omar 201 R136  -> double-booked
+Round  18: Maya 201 R137  Omar 201 R138  -> double-booked
+Round  19: Maya 201 R139  Omar 201 R140  -> double-booked
+Round  20: Maya 201 R141  Omar 201 R142  -> double-booked
+
+Double bookings: 20 of 20 rounds; one 201 and one 409: 0; anything else: 0.
+-- errors the server(s) logged (cause of each 500): none
+-- database after the rounds: 42 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+
+$ (HOTEL_SLOW_STEP=0) python tools/race_http.py <5081> --repeat 100 --stagger 0   (both at once, no slow step; exit status 2)
+Round   1: Maya 201 R101  Omar 409 -     -> correct
+Round   2: Maya 201 R102  Omar 409 -     -> correct
+Round   3: Maya 201 R103  Omar 409 -     -> correct
+Round   4: Maya 201 R104  Omar 409 -     -> correct
+Round   5: Maya 201 R105  Omar 409 -     -> correct
+  ...
+Round 100: Maya 201 R205  Omar 409 -     -> correct
+
+Double bookings: 5 of 100 rounds; one 201 and one 409: 68; anything else: 27 (27 x 500 Internal Server Error).
+-- errors the server(s) logged (cause of each 500): 27 x sqlite3.IntegrityError: UNIQUE constraint failed: reservations.id
+-- database after the rounds: 105 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+
+====================================================================================================
+AFTER - version 6 (P09), SQLite (triggers), ONE instance - python main.py
+====================================================================================================
+
+$ HOTEL_SLOW_STEP=1 ... ; python tools/race_http.py      (exit status 0)
+Two bookings for R7, 2026-11-12 to 2026-11-14, sent at the same moment.
+
+Maya -> 201 Created   {"id":"R101","status":"Confirmed","notificationFailed":false}
+Omar -> 409 Conflict  {"title":"Unavailable","status":409,"detail":"The room is booked for at least one night of this stay."}
+
+Confirmed reservations for R7 on 12-14 Nov: 1
+CORRECT: one booking was accepted and one was refused.
+
+-- the reservations table, read from the database itself (Confirmed rows for R7):
+  id  | room |  check_in  | check_out  |  status
+------+------+------------+------------+-----------
+ R101 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+(1 row)
+
+$ python tools/race_http.py --repeat 20   (slow step 1.0 s, Omar 0.5 s after Maya; exit status 0)
+Round   1: Maya 201 R103  Omar 409 -     -> correct
+Round   2: Maya 201 R105  Omar 409 -     -> correct
+Round   3: Maya 201 R107  Omar 409 -     -> correct
+Round   4: Maya 201 R109  Omar 409 -     -> correct
+Round   5: Maya 201 R111  Omar 409 -     -> correct
+Round   6: Maya 201 R113  Omar 409 -     -> correct
+Round   7: Maya 201 R115  Omar 409 -     -> correct
+Round   8: Maya 201 R117  Omar 409 -     -> correct
+Round   9: Maya 201 R119  Omar 409 -     -> correct
+Round  10: Maya 201 R121  Omar 409 -     -> correct
+Round  11: Maya 201 R123  Omar 409 -     -> correct
+Round  12: Maya 201 R125  Omar 409 -     -> correct
+Round  13: Maya 201 R127  Omar 409 -     -> correct
+Round  14: Maya 201 R129  Omar 409 -     -> correct
+Round  15: Maya 201 R131  Omar 409 -     -> correct
+Round  16: Maya 201 R133  Omar 409 -     -> correct
+Round  17: Maya 201 R135  Omar 409 -     -> correct
+Round  18: Maya 201 R137  Omar 409 -     -> correct
+Round  19: Maya 201 R139  Omar 409 -     -> correct
+Round  20: Maya 201 R141  Omar 409 -     -> correct
+
+Double bookings: 0 of 20 rounds; one 201 and one 409: 20; anything else: 0.
+-- errors the server(s) logged (cause of each 500): none
+-- database after the rounds: 21 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+-- ids handed out by the database: 42; bookings that passed the pre-check and were refused by the database itself (lost the race): 21
+
+$ (HOTEL_SLOW_STEP=0) python tools/race_http.py --repeat 100 --stagger 0   (both at once, no slow step; exit status 0)
+Round   1: Maya 201 R101  Omar 409 -     -> correct
+Round   2: Maya 201 R102  Omar 409 -     -> correct
+Round   3: Maya 409 -     Omar 201 R104  -> correct
+Round   4: Maya 201 R106  Omar 409 -     -> correct
+Round   5: Maya 201 R108  Omar 409 -     -> correct
+  ...
+Round 100: Maya 201 R270  Omar 409 -     -> correct
+
+Double bookings: 0 of 100 rounds; one 201 and one 409: 100; anything else: 0.
+-- errors the server(s) logged (cause of each 500): none
+-- database after the rounds: 100 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+-- ids handed out by the database: 171; bookings that passed the pre-check and were refused by the database itself (lost the race): 71
+
+====================================================================================================
+AFTER - version 6 (P09), SQLite (triggers), TWO instances - python main.py
+====================================================================================================
+
+$ HOTEL_SLOW_STEP=1 ... ; python tools/race_http.py http://localhost:5081      (exit status 0)
+Two bookings for R7, 2026-11-12 to 2026-11-14, sent at the same moment.
+Maya -> http://localhost:5080   Omar -> http://localhost:5081
+
+Maya -> 201 Created   {"id":"R101","status":"Confirmed","notificationFailed":false}
+Omar -> 409 Conflict  {"title":"Unavailable","status":409,"detail":"The room is booked for at least one night of this stay."}
+
+Confirmed reservations for R7 on 12-14 Nov: 1
+CORRECT: one booking was accepted and one was refused.
+
+-- the reservations table, read from the database itself (Confirmed rows for R7):
+  id  | room |  check_in  | check_out  |  status
+------+------+------------+------------+-----------
+ R101 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+(1 row)
+
+$ python tools/race_http.py <5081> --repeat 20   (slow step 1.0 s, Omar 0.5 s after Maya; exit status 0)
+Round   1: Maya 201 R103  Omar 409 -     -> correct
+Round   2: Maya 201 R105  Omar 409 -     -> correct
+Round   3: Maya 201 R107  Omar 409 -     -> correct
+Round   4: Maya 201 R109  Omar 409 -     -> correct
+Round   5: Maya 201 R111  Omar 409 -     -> correct
+Round   6: Maya 201 R113  Omar 409 -     -> correct
+Round   7: Maya 201 R115  Omar 409 -     -> correct
+Round   8: Maya 201 R117  Omar 409 -     -> correct
+Round   9: Maya 201 R119  Omar 409 -     -> correct
+Round  10: Maya 201 R121  Omar 409 -     -> correct
+Round  11: Maya 201 R123  Omar 409 -     -> correct
+Round  12: Maya 201 R125  Omar 409 -     -> correct
+Round  13: Maya 201 R127  Omar 409 -     -> correct
+Round  14: Maya 201 R129  Omar 409 -     -> correct
+Round  15: Maya 201 R131  Omar 409 -     -> correct
+Round  16: Maya 201 R133  Omar 409 -     -> correct
+Round  17: Maya 201 R135  Omar 409 -     -> correct
+Round  18: Maya 201 R137  Omar 409 -     -> correct
+Round  19: Maya 201 R139  Omar 409 -     -> correct
+Round  20: Maya 201 R141  Omar 409 -     -> correct
+
+Double bookings: 0 of 20 rounds; one 201 and one 409: 20; anything else: 0.
+-- errors the server(s) logged (cause of each 500): none
+-- database after the rounds: 21 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+-- ids handed out by the database: 42; bookings that passed the pre-check and were refused by the database itself (lost the race): 21
+
+$ (HOTEL_SLOW_STEP=0) python tools/race_http.py <5081> --repeat 100 --stagger 0   (both at once, no slow step; exit status 0)
+Round   1: Maya 201 R101  Omar 409 -     -> correct
+Round   2: Maya 201 R102  Omar 409 -     -> correct
+Round   3: Maya 409 -     Omar 201 R104  -> correct
+Round   4: Maya 201 R106  Omar 409 -     -> correct
+Round   5: Maya 201 R107  Omar 409 -     -> correct
+  ...
+Round 100: Maya 409 -     Omar 201 R241  -> correct
+
+Double bookings: 0 of 100 rounds; one 201 and one 409: 100; anything else: 0.
+-- errors the server(s) logged (cause of each 500): none
+-- database after the rounds: 100 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+-- ids handed out by the database: 141; bookings that passed the pre-check and were refused by the database itself (lost the race): 41
+
+====================================================================================================
+BEFORE STEP 7 - version 6 code on PostgreSQL 16 WITHOUT the constraint, ONE instance
+====================================================================================================
+
+$ HOTEL_SLOW_STEP=1 ... ; python tools/race_http.py      (exit status 1)
+Two bookings for R7, 2026-11-12 to 2026-11-14, sent at the same moment.
+
+Maya -> 201 Created   {"id":"R101","status":"Confirmed","notificationFailed":false}
+Omar -> 201 Created   {"id":"R102","status":"Confirmed","notificationFailed":false}
+
+Confirmed reservations for R7 on 12-14 Nov: 2
+DOUBLE BOOKED: the room has two confirmed reservations for the same nights.
+
+-- the reservations table, read from the database itself (Confirmed rows for R7):
+  id  | room |  check_in  | check_out  |  status   
+------+------+------------+------------+-----------
+ R101 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+ R102 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+(2 rows)
+
+$ python tools/race_http.py --repeat 20   (slow step 1.0 s, Omar 0.5 s after Maya; exit status 1)
+Round   1: Maya 201 R103  Omar 201 R104  -> double-booked
+Round   2: Maya 201 R105  Omar 201 R106  -> double-booked
+Round   3: Maya 201 R107  Omar 201 R108  -> double-booked
+Round   4: Maya 201 R109  Omar 201 R110  -> double-booked
+Round   5: Maya 201 R111  Omar 201 R112  -> double-booked
+Round   6: Maya 201 R113  Omar 201 R114  -> double-booked
+Round   7: Maya 201 R115  Omar 201 R116  -> double-booked
+Round   8: Maya 201 R117  Omar 201 R118  -> double-booked
+Round   9: Maya 201 R119  Omar 201 R120  -> double-booked
+Round  10: Maya 201 R121  Omar 201 R122  -> double-booked
+Round  11: Maya 201 R123  Omar 201 R124  -> double-booked
+Round  12: Maya 201 R125  Omar 201 R126  -> double-booked
+Round  13: Maya 201 R127  Omar 201 R128  -> double-booked
+Round  14: Maya 201 R129  Omar 201 R130  -> double-booked
+Round  15: Maya 201 R131  Omar 201 R132  -> double-booked
+Round  16: Maya 201 R133  Omar 201 R134  -> double-booked
+Round  17: Maya 201 R135  Omar 201 R136  -> double-booked
+Round  18: Maya 201 R137  Omar 201 R138  -> double-booked
+Round  19: Maya 201 R139  Omar 201 R140  -> double-booked
+Round  20: Maya 201 R141  Omar 201 R142  -> double-booked
+
+Double bookings: 20 of 20 rounds; one 201 and one 409: 0; anything else: 0.
+-- errors the server(s) logged (cause of each 500): none
+-- database after the rounds: 42 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+-- ids handed out by the database: 42; bookings that passed the pre-check and were refused by the database itself (lost the race): 0
+
+$ (HOTEL_SLOW_STEP=0) python tools/race_http.py --repeat 100 --stagger 0   (both at once, no slow step; exit status 1)
+Round   1: Maya 201 R101  Omar 201 R102  -> double-booked
+Round   2: Maya 201 R103  Omar 201 R104  -> double-booked
+Round   3: Maya 201 R105  Omar 409 -     -> correct
+Round   4: Maya 201 R106  Omar 409 -     -> correct
+Round   5: Maya 201 R107  Omar 201 R108  -> double-booked
+  ...
+Round 100: Maya 201 R284  Omar 409 -     -> correct
+
+Double bookings: 84 of 100 rounds; one 201 and one 409: 16; anything else: 0.
+-- errors the server(s) logged (cause of each 500): none
+-- database after the rounds: 184 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+-- ids handed out by the database: 184; bookings that passed the pre-check and were refused by the database itself (lost the race): 0
+
+====================================================================================================
+BEFORE STEP 7 - version 6 code on PostgreSQL 16 WITHOUT the constraint, TWO instances
+====================================================================================================
+
+$ HOTEL_SLOW_STEP=1 ... ; python tools/race_http.py http://localhost:5081      (exit status 1)
+Two bookings for R7, 2026-11-12 to 2026-11-14, sent at the same moment.
+Maya -> http://localhost:5080   Omar -> http://localhost:5081
+
+Maya -> 201 Created   {"id":"R101","status":"Confirmed","notificationFailed":false}
+Omar -> 201 Created   {"id":"R102","status":"Confirmed","notificationFailed":false}
+
+Confirmed reservations for R7 on 12-14 Nov: 2
+DOUBLE BOOKED: the room has two confirmed reservations for the same nights.
+
+-- the reservations table, read from the database itself (Confirmed rows for R7):
+  id  | room |  check_in  | check_out  |  status   
+------+------+------------+------------+-----------
+ R101 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+ R102 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+(2 rows)
+
+$ python tools/race_http.py <5081> --repeat 20   (slow step 1.0 s, Omar 0.5 s after Maya; exit status 1)
+Round   1: Maya 201 R103  Omar 201 R104  -> double-booked
+Round   2: Maya 201 R105  Omar 201 R106  -> double-booked
+Round   3: Maya 201 R107  Omar 201 R108  -> double-booked
+Round   4: Maya 201 R109  Omar 201 R110  -> double-booked
+Round   5: Maya 201 R111  Omar 201 R112  -> double-booked
+Round   6: Maya 201 R113  Omar 201 R114  -> double-booked
+Round   7: Maya 201 R115  Omar 201 R116  -> double-booked
+Round   8: Maya 201 R117  Omar 201 R118  -> double-booked
+Round   9: Maya 201 R119  Omar 201 R120  -> double-booked
+Round  10: Maya 201 R121  Omar 201 R122  -> double-booked
+Round  11: Maya 201 R123  Omar 201 R124  -> double-booked
+Round  12: Maya 201 R125  Omar 201 R126  -> double-booked
+Round  13: Maya 201 R127  Omar 201 R128  -> double-booked
+Round  14: Maya 201 R129  Omar 201 R130  -> double-booked
+Round  15: Maya 201 R131  Omar 201 R132  -> double-booked
+Round  16: Maya 201 R133  Omar 201 R134  -> double-booked
+Round  17: Maya 201 R135  Omar 201 R136  -> double-booked
+Round  18: Maya 201 R137  Omar 201 R138  -> double-booked
+Round  19: Maya 201 R139  Omar 201 R140  -> double-booked
+Round  20: Maya 201 R141  Omar 201 R142  -> double-booked
+
+Double bookings: 20 of 20 rounds; one 201 and one 409: 0; anything else: 0.
+-- errors the server(s) logged (cause of each 500): none
+-- database after the rounds: 42 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+-- ids handed out by the database: 42; bookings that passed the pre-check and were refused by the database itself (lost the race): 0
+
+$ (HOTEL_SLOW_STEP=0) python tools/race_http.py <5081> --repeat 100 --stagger 0   (both at once, no slow step; exit status 1)
+Round   1: Maya 201 R101  Omar 201 R102  -> double-booked
+Round   2: Maya 201 R103  Omar 201 R104  -> double-booked
+Round   3: Maya 201 R105  Omar 201 R106  -> double-booked
+Round   4: Maya 201 R108  Omar 201 R107  -> double-booked
+Round   5: Maya 201 R110  Omar 201 R109  -> double-booked
+  ...
+Round 100: Maya 201 R290  Omar 201 R289  -> double-booked
+
+Double bookings: 90 of 100 rounds; one 201 and one 409: 10; anything else: 0.
+-- errors the server(s) logged (cause of each 500): none
+-- database after the rounds: 190 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+-- ids handed out by the database: 190; bookings that passed the pre-check and were refused by the database itself (lost the race): 0
+
+====================================================================================================
+AFTER - version 6 on PostgreSQL 16 with db/postgres/init.sql (exclusion constraint), ONE instance
+====================================================================================================
+
+$ HOTEL_SLOW_STEP=1 ... ; python tools/race_http.py      (exit status 0)
+Two bookings for R7, 2026-11-12 to 2026-11-14, sent at the same moment.
+
+Maya -> 201 Created   {"id":"R101","status":"Confirmed","notificationFailed":false}
+Omar -> 409 Conflict  {"title":"Unavailable","status":409,"detail":"The room is booked for at least one night of this stay."}
+
+Confirmed reservations for R7 on 12-14 Nov: 1
+CORRECT: one booking was accepted and one was refused.
+
+-- the reservations table, read from the database itself (Confirmed rows for R7):
+  id  | room |  check_in  | check_out  |  status   
+------+------+------------+------------+-----------
+ R101 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+(1 row)
+
+$ python tools/race_http.py --repeat 20   (slow step 1.0 s, Omar 0.5 s after Maya; exit status 0)
+Round   1: Maya 201 R103  Omar 409 -     -> correct
+Round   2: Maya 201 R105  Omar 409 -     -> correct
+Round   3: Maya 201 R107  Omar 409 -     -> correct
+Round   4: Maya 201 R109  Omar 409 -     -> correct
+Round   5: Maya 201 R111  Omar 409 -     -> correct
+Round   6: Maya 201 R113  Omar 409 -     -> correct
+Round   7: Maya 201 R115  Omar 409 -     -> correct
+Round   8: Maya 201 R117  Omar 409 -     -> correct
+Round   9: Maya 201 R119  Omar 409 -     -> correct
+Round  10: Maya 201 R121  Omar 409 -     -> correct
+Round  11: Maya 201 R123  Omar 409 -     -> correct
+Round  12: Maya 201 R125  Omar 409 -     -> correct
+Round  13: Maya 201 R127  Omar 409 -     -> correct
+Round  14: Maya 201 R129  Omar 409 -     -> correct
+Round  15: Maya 201 R131  Omar 409 -     -> correct
+Round  16: Maya 201 R133  Omar 409 -     -> correct
+Round  17: Maya 201 R135  Omar 409 -     -> correct
+Round  18: Maya 201 R137  Omar 409 -     -> correct
+Round  19: Maya 201 R139  Omar 409 -     -> correct
+Round  20: Maya 201 R141  Omar 409 -     -> correct
+
+Double bookings: 0 of 20 rounds; one 201 and one 409: 20; anything else: 0.
+-- errors the server(s) logged (cause of each 500): none
+-- database after the rounds: 21 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+-- ids handed out by the database: 42; bookings that passed the pre-check and were refused by the database itself (lost the race): 21
+
+$ (HOTEL_SLOW_STEP=0) python tools/race_http.py --repeat 100 --stagger 0   (both at once, no slow step; exit status 2)
+Round   1: Maya 409 -     Omar 201 R101  -> correct
+Round   2: Maya 201 R103  Omar 409 -     -> correct
+Round   3: Maya 409 -     Omar 201 R105  -> correct
+Round   4: Maya 201 R107  Omar 409 -     -> correct
+Round   5: Maya 201 R109  Omar 409 -     -> correct
+  ...
+Round 100: Maya 201 R292  Omar 409 -     -> correct
+
+Double bookings: 0 of 100 rounds; one 201 and one 409: 99; anything else: 1 (1 x 500 Internal Server Error).
+-- errors the server(s) logged (cause of each 500): 1 x pg_wire.PgError: deadlock detected
+-- database after the rounds: 100 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+-- ids handed out by the database: 193; bookings that passed the pre-check and were refused by the database itself (lost the race): 93
+
+====================================================================================================
+AFTER - version 6 on PostgreSQL 16 with db/postgres/init.sql (exclusion constraint), TWO instances
+====================================================================================================
+
+$ HOTEL_SLOW_STEP=1 ... ; python tools/race_http.py http://localhost:5081      (exit status 0)
+Two bookings for R7, 2026-11-12 to 2026-11-14, sent at the same moment.
+Maya -> http://localhost:5080   Omar -> http://localhost:5081
+
+Maya -> 201 Created   {"id":"R101","status":"Confirmed","notificationFailed":false}
+Omar -> 409 Conflict  {"title":"Unavailable","status":409,"detail":"The room is booked for at least one night of this stay."}
+
+Confirmed reservations for R7 on 12-14 Nov: 1
+CORRECT: one booking was accepted and one was refused.
+
+-- the reservations table, read from the database itself (Confirmed rows for R7):
+  id  | room |  check_in  | check_out  |  status   
+------+------+------------+------------+-----------
+ R101 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+(1 row)
+
+$ python tools/race_http.py <5081> --repeat 20   (slow step 1.0 s, Omar 0.5 s after Maya; exit status 0)
+Round   1: Maya 201 R103  Omar 409 -     -> correct
+Round   2: Maya 201 R105  Omar 409 -     -> correct
+Round   3: Maya 201 R107  Omar 409 -     -> correct
+Round   4: Maya 201 R109  Omar 409 -     -> correct
+Round   5: Maya 201 R111  Omar 409 -     -> correct
+Round   6: Maya 201 R113  Omar 409 -     -> correct
+Round   7: Maya 201 R115  Omar 409 -     -> correct
+Round   8: Maya 201 R117  Omar 409 -     -> correct
+Round   9: Maya 201 R119  Omar 409 -     -> correct
+Round  10: Maya 201 R121  Omar 409 -     -> correct
+Round  11: Maya 201 R123  Omar 409 -     -> correct
+Round  12: Maya 201 R125  Omar 409 -     -> correct
+Round  13: Maya 201 R127  Omar 409 -     -> correct
+Round  14: Maya 201 R129  Omar 409 -     -> correct
+Round  15: Maya 201 R131  Omar 409 -     -> correct
+Round  16: Maya 201 R133  Omar 409 -     -> correct
+Round  17: Maya 201 R135  Omar 409 -     -> correct
+Round  18: Maya 201 R137  Omar 409 -     -> correct
+Round  19: Maya 201 R139  Omar 409 -     -> correct
+Round  20: Maya 201 R141  Omar 409 -     -> correct
+
+Double bookings: 0 of 20 rounds; one 201 and one 409: 20; anything else: 0.
+-- errors the server(s) logged (cause of each 500): none
+-- database after the rounds: 21 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+-- ids handed out by the database: 42; bookings that passed the pre-check and were refused by the database itself (lost the race): 21
+
+$ (HOTEL_SLOW_STEP=0) python tools/race_http.py <5081> --repeat 100 --stagger 0   (both at once, no slow step; exit status 2)
+Round   1: Maya 201 R101  Omar 409 -     -> correct
+Round   2: Maya 201 R104  Omar 409 -     -> correct
+Round   3: Maya 201 R105  Omar 409 -     -> correct
+Round   4: Maya 201 R107  Omar 409 -     -> correct
+Round   5: Maya 201 R109  Omar 409 -     -> correct
+  ...
+Round 100: Maya 201 R294  Omar 409 -     -> correct
+
+Double bookings: 0 of 100 rounds; one 201 and one 409: 94; anything else: 6 (6 x 500 Internal Server Error).
+-- errors the server(s) logged (cause of each 500): 6 x pg_wire.PgError: deadlock detected
+-- database after the rounds: 100 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+-- ids handed out by the database: 195; bookings that passed the pre-check and were refused by the database itself (lost the race): 95
+
+SUMMARY {"v5-sqlite-1": {"title": "BEFORE - version 5 (P08 code), SQLite, ONE instance", "single run confirmed rows": 2, "course": {"rounds": 20, "double_booked": 20, "one_201_one_409": 0, "other": 0, "rows_in_database": 42}, "burst": {"rounds": 100, "double_booked": 4, "one_201_one_409": 33, "other": 63, "rows_in_database": 104}}, "v5-sqlite-2": {"title": "BEFORE - version 5 (P08 code), SQLite, TWO instances (Step 4)", "single run confirmed rows": 2, "course": {"rounds": 20, "double_booked": 20, "one_201_one_409": 0, "other": 0, "rows_in_database": 42}, "burst": {"rounds": 100, "double_booked": 11, "one_201_one_409": 63, "other": 26, "rows_in_database": 111}}, "v5-lock-1": {"title": "STEP 3 - version 5 + an in-process lock around every request, ONE instance", "single run confirmed rows": 1, "course": {"rounds": 20, "double_booked": 0, "one_201_one_409": 20, "other": 0, "rows_in_database": 21}, "burst": {"rounds": 100, "double_booked": 0, "one_201_one_409": 100, "other": 0, "rows_in_database": 100}}, "v5-lock-2": {"title": "STEP 4 - version 5 + the same in-process lock, TWO instances", "single run confirmed rows": 2, "course": {"rounds": 20, "double_booked": 20, "one_201_one_409": 0, "other": 0, "rows_in_database": 42}, "burst": {"rounds": 100, "double_booked": 5, "one_201_one_409": 68, "other": 27, "rows_in_database": 105}}, "v6-sqlite-1": {"title": "AFTER - version 6 (P09), SQLite (triggers), ONE instance - python main.py", "single run confirmed rows": 1, "course": {"rounds": 20, "double_booked": 0, "one_201_one_409": 20, "other": 0, "rows_in_database": 21, "refused_by_the_database": 21}, "burst": {"rounds": 100, "double_booked": 0, "one_201_one_409": 100, "other": 0, "rows_in_database": 100, "refused_by_the_database": 71}}, "v6-sqlite-2": {"title": "AFTER - version 6 (P09), SQLite (triggers), TWO instances - python main.py", "single run confirmed rows": 1, "course": {"rounds": 20, "double_booked": 0, "one_201_one_409": 20, "other": 0, "rows_in_database": 21, "refused_by_the_database": 21}, "burst": {"rounds": 100, "double_booked": 0, "one_201_one_409": 100, "other": 0, "rows_in_database": 100, "refused_by_the_database": 41}}, "v6-pg-norule-1": {"title": "BEFORE STEP 7 - version 6 code on PostgreSQL 16 WITHOUT the constraint, ONE instance", "single run confirmed rows": 2, "course": {"rounds": 20, "double_booked": 20, "one_201_one_409": 0, "other": 0, "rows_in_database": 42, "refused_by_the_database": 0}, "burst": {"rounds": 100, "double_booked": 84, "one_201_one_409": 16, "other": 0, "rows_in_database": 184, "refused_by_the_database": 0}}, "v6-pg-norule-2": {"title": "BEFORE STEP 7 - version 6 code on PostgreSQL 16 WITHOUT the constraint, TWO instances", "single run confirmed rows": 2, "course": {"rounds": 20, "double_booked": 20, "one_201_one_409": 0, "other": 0, "rows_in_database": 42, "refused_by_the_database": 0}, "burst": {"rounds": 100, "double_booked": 90, "one_201_one_409": 10, "other": 0, "rows_in_database": 190, "refused_by_the_database": 0}}, "v6-pg-1": {"title": "AFTER - version 6 on PostgreSQL 16 with db/postgres/init.sql (exclusion constraint), ONE instance", "single run confirmed rows": 1, "course": {"rounds": 20, "double_booked": 0, "one_201_one_409": 20, "other": 0, "rows_in_database": 21, "refused_by_the_database": 21}, "burst": {"rounds": 100, "double_booked": 0, "one_201_one_409": 99, "other": 1, "rows_in_database": 100, "refused_by_the_database": 93}}, "v6-pg-2": {"title": "AFTER - version 6 on PostgreSQL 16 with db/postgres/init.sql (exclusion constraint), TWO instances", "single run confirmed rows": 1, "course": {"rounds": 20, "double_booked": 0, "one_201_one_409": 20, "other": 0, "rows_in_database": 21, "refused_by_the_database": 21}, "burst": {"rounds": 100, "double_booked": 0, "one_201_one_409": 94, "other": 6, "rows_in_database": 100, "refused_by_the_database": 95}}}

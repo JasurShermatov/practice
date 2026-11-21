@@ -12,8 +12,9 @@ codebase**; each practice evolves it and keeps earlier behaviour (and tests) wor
 | 3 | [P06](../practices/P06-modular-monolith-review/README.md) | **Modular monolith**, same behaviour: four modules (rooms, reservations, payments, notifications), each a package with a public contract and `internal.py`; Notifications gets its own `Confirmation` message; Payments contract + simulated service; `main.py` is the only app file that names internal code; the borders are checked (`.importlinter` + `tests/test_architecture.py`); ADR-001 |
 | 4 | [P07](../practices/P07-capacity-api-design/README.md) | **HTTP API + database**, same booking rule: capacity estimate (`docs/capacity.md`, `capacity.py`); hand-written contract `docs/openapi.yaml` checked against the code both ways; `hotel_booking/api.py` (Starlette + pydantic, uvicorn on :5080) with problem-details errors and cursor paging; `SqlReservationStore` / `SqlRoomCatalog` behind the same promises, a unit of work per request; SQLite by default, the same `db/postgres/init.sql` for PostgreSQL in `docker-compose.yml`; `docs/api-check.md` run against the real server |
 | 5 | [P08](../practices/P08-cache-scale-experiment/README.md) | **Measured, then cached**, same booking rule: `GET /stats` (searches, database queries, cache hits/misses/errors) with a counting store around the SQL store; `tools/measure.py` (1,000 searches: average, p95, counters); cache-aside for the search only in Redis (`hotel_booking/api_cache.py` + `api_redis.py`, key `availability:v{version}:{checkIn}:{checkOut}`, TTL 30 s, version raised after every committed booking/cancel, fail-open); contract 1.1.0; `docs/cache-experiment.md` (real runs) and ADR-002 |
+| 6 | [P09](../practices/P09-protect-the-last-seat/README.md) | **The last seat protected** - the race of P03-P08 fixed: `ReservationStore.save` now *promises* to refuse a double booking (`OverlapRejected`, answered 409 Unavailable) and the store hands out ids (`next_reservation_id`). PostgreSQL keeps the rule with the exclusion constraint `reservations_no_overlap` (btree_gist) and a sequence; SQLite with triggers of the same name and a one-row id table (`db/sqlite/init.sql`); the list store with a lock. `tools/race_http.py`, `HOTEL_SLOW_STEP`/`HOTEL_PORT`; upgrade scripts for version-5 databases; contract 1.2.0; `docs/interleaving.md`, ADR-003 |
 
-Planned by the course (not implemented yet): P09 concurrency fix for the race, P10 asynchronous notifications, P11 idempotency key for
+Planned by the course (not implemented yet): P10 asynchronous notifications, P11 idempotency key for
 `POST /reservations`, P17 booking saga with the Payments deposit.
 
 ## Requirements
@@ -47,9 +48,13 @@ python main.py --no-invalidation    # P08 Step 5 experiment only: shows the stal
 python tools/measure.py             # P08, second terminal: 1,000 searches -> average, p95, GET /stats difference
 python tools/measure.py 2026-12-31 2027-01-02 --clients 8   # other dates, 8 clients at once
 python main.py --demo               # the console demo: nine lines proving R1-R4 (data in lists)
-python main.py --race               # two guests book R7 for the same nights at the same moment
+python main.py --race               # two guests book R7 for the same nights at the same moment: one gets it (P09)
+HOTEL_SLOW_STEP=1 python main.py    # P09: every booking waits 1 s between check and save (the race is easy to hit)
+HOTEL_SLOW_STEP=1 HOTEL_PORT=5081 python main.py   # P09 Step 4: a second instance on the same database
+python tools/race_http.py           # P09: two bookings for R7 at the same moment -> one 201, one 409
+python tools/race_http.py http://localhost:5081 --repeat 20   # Omar to the second instance, 20 rounds
 python capacity.py                  # the capacity estimate, line by line (docs/capacity.md)
-python -m unittest -v               # the course's 14 tests: 8 behaviour (test_booking_service.py) + 6 API (test_api.py)
+python -m unittest -v               # the course's 16 tests: 8 behaviour (test_booking_service.py) + 8 API (test_api.py)
 lint-imports                        # the 6 borders in .importlinter (needs import-linter)
 python -m tests.test_architecture   # the same 6 borders, standard library only, lint-imports-style output
 python -m pytest                    # everything: unittest tests + the pytest suite in tests/
@@ -75,15 +80,33 @@ Free rooms 12-14 Nov: R7, R8
 Confirmation emails sent: 2
 ```
 
-Expected race output (a **known defect**, kept on purpose until P09 — a refactoring does not fix bugs):
+Expected race output (since P09; versions 1 to 5 printed "Omar: Accepted R102" and "Double booking!"):
 
 ```text
 Maya and Omar both book R7 for 12-14 Nov at the same moment...
 Maya: Accepted R101
-Omar: Accepted R102
-Confirmed reservations for R7 on 12-14 Nov: 2
-Double booking! Both requests checked before either one saved.
+Omar: Unavailable
+Confirmed reservations for R7 on 12-14 Nov: 1
+Only one guest has R7.
 ```
+
+Expected race tool output (`HOTEL_SLOW_STEP=1 python main.py`, then `python tools/race_http.py`):
+
+```text
+Two bookings for R7, 2026-11-12 to 2026-11-14, sent at the same moment.
+
+Maya -> 201 Created   {"id":"R101","status":"Confirmed","notificationFailed":false}
+Omar -> 409 Conflict  {"title":"Unavailable","status":409,"detail":"The room is booked for at least one night of this stay."}
+
+Confirmed reservations for R7 on 12-14 Nov: 1
+CORRECT: one booking was accepted and one was refused.
+```
+
+A PostgreSQL database created by version 5 needs the P09 changes once (init.sql runs only when the
+database is created): `docker compose exec -T db psql -U hotel -d hotel -v ON_ERROR_STOP=1 < db/postgres/p09-upgrade.sql`.
+It is refused while a room still has two Confirmed reservations for one night -
+`db/find-double-bookings.sql` lists them; cancel one of each pair first. A version-5 SQLite file is
+upgraded by `main.py` itself when it is opened, with the same refusal.
 
 Expected border check:
 
@@ -105,11 +128,16 @@ hotel-booking/
 ├── main.py                     wiring: the only app file that names internal code; web app (default), --demo, --race
 ├── capacity.py                 P07: the capacity estimate as a program (docs/capacity.md is checked against it)
 ├── tools/measure.py            P08: N searches against the running app -> average, p50/p95/p99, total, GET /stats difference
+├── tools/race_http.py          P09: two bookings for R7 at the same moment (Omar optionally to a second instance); --repeat
 ├── test_booking_service.py     the course's 8 unittest tests (P04) + FakeNotificationSender (receives a Confirmation)
-├── test_api.py                 P07/P08: the course's 6 API tests (Starlette TestClient, list store, cache in a dictionary)
+├── test_api.py                 P07/P08/P09: the course's 8 API tests (Starlette TestClient, list store, cache in a dictionary)
 ├── .importlinter               the 3 module borders (P06) + 2 API borders (P07, now covering the 4 edge files) + 1 cache border (P08)
 ├── docker-compose.yml          P07/P08: PostgreSQL 18 (mounts db/postgres/init.sql) + Redis 8 (no volume) for the Mac
-├── db/postgres/init.sql        P07: rooms + reservations tables (portable: SQLite runs the same file)
+├── db/postgres/init.sql        P07: rooms + reservations tables; P09: + btree_gist, EXCLUDE reservations_no_overlap, SEQUENCE reservation_ids
+├── db/postgres/p09-upgrade.sql P09: the same for a database created by version 5 (one transaction; refused over double bookings)
+├── db/sqlite/init.sql          P09: SQLite's translation (same tables; triggers reservations_no_overlap_*; one-row reservation_ids)
+├── db/sqlite/p09-upgrade.sql   P09: version-5 SQLite file -> 6 (main.py runs it after checking for double bookings)
+├── db/find-double-bookings.sql P09: every pair of Confirmed reservations sharing a night (portable)
 ├── hotel_booking/
 │   ├── __init__.py             docstring only - re-exports nothing
 │   ├── api.py                  P07: the HTTP edge (Starlette + pydantic): 3 operations + GET /openapi.yaml, problem details;
@@ -119,8 +147,8 @@ hotel-booking/
 │   ├── api_redis.py            P08: RedisKeyValueStore - RESP2 over a socket, pooled, 0.5 s timeout (stdlib only)
 │   ├── rooms/                  Rooms: __init__.py (contract: Room, RoomCatalog), catalog.py, internal.py (InMemoryRoomCatalog, SqlRoomCatalog)
 │   ├── reservations/           Reservations: __init__.py (contract), domain.py (DateRange, Guest, Reservation, ReservationStatus),
-│   │                           booking.py (ReservationStore, BookingOutcome, BookingResult, BookingService),
-│   │                           internal.py (InMemoryReservationStore, SqlReservationStore)
+│   │                           booking.py (ReservationStore, OverlapRejected, BookingOutcome, BookingResult, BookingService),
+│   │                           internal.py (InMemoryReservationStore, SqlReservationStore, is_overlap_refusal)
 │   ├── payments/               Payments: __init__.py (contract: PaymentStatus, PaymentService), internal.py (SimulatedPaymentService)
 │   ├── notifications/          Notifications: __init__.py (contract: Confirmation, NotificationSender), internal.py (Email/Sms senders)
 │   └── demo.py                 the classroom scenario (R7, R8, Maya, Omar, Nora) and the race; uses contracts only
@@ -128,7 +156,8 @@ hotel-booking/
 │   ├── test_domain.py          DateRange half-open rule, Reservation status/encapsulation
 │   ├── test_booking_service.py R1-R5 and the R3 invariant (one request at a time)
 │   ├── test_sequences.py       message order of each sequence diagram, via spies (+ R6)
-│   ├── test_demo_and_race.py   exact demo output; race known defect + control case
+│   ├── test_demo_and_race.py   exact demo output; race regression (one guest gets R7; P09) + control case
+│   ├── test_concurrency.py     P09: the store's no-overlap promise and ids (both stores), 50 threads / 8 SQLite connections, PostgreSQL path
 │   ├── test_uml_conformance.py code == P07 class diagram (classes, members, interfaces, links, modules)
 │   ├── test_dependency_rule.py P04: booking.py names no concrete helper; only main.py creates them (not the API)
 │   ├── test_substitution.py    P04: any sender/store that keeps the promise gives the same records
@@ -137,7 +166,7 @@ hotel-booking/
 │   ├── test_api_http.py        P07: every success and error path over HTTP, idempotency, 404/405/500
 │   ├── test_openapi_contract.py P07: docs/openapi.yaml == the implemented API, both directions; examples executed
 │   ├── test_sql_store.py       P07: list and SQL store keep the same promise; unit of work; schema; queries per search
-│   ├── test_api_sqlite.py      P07: api-check + restart through the real wiring on SQLite; the race over HTTP
+│   ├── test_api_sqlite.py      P07: api-check + restart through the real wiring on SQLite; P09: the race over HTTP = one 201 + one 409
 │   ├── test_capacity.py        P07: capacity.md numbers == capacity.py; peak == l04-notes
 │   ├── test_cache.py           P08: key, value, TTL expiry (fake clock), version, in-memory store
 │   ├── test_api_cache.py       P08: hit/miss/expiry/invalidation over HTTP, stale result pinned, fail-open, "booking never reads the cache" (ast)
@@ -153,11 +182,13 @@ hotel-booking/
 │   ├── capacity.md             P07: assumptions, results, checked by hand, what to measure (answered in P08)
 │   ├── cache-experiment.md     P08: measurements with and without the cache (real runs), stale result, invalidation, hot key, Redis outage
 │   ├── adr-002-cache-availability.md  P08: why the search (only) is cached in Redis, TTL 30 s + version
+│   ├── interleaving.md         P09: the race traced statement by statement; the four repairs and what each cost (measured)
+│   ├── adr-003-booking-concurrency.md P09: why the rule lives in the database (exclusion constraint), alternatives with costs
 │   ├── openapi.yaml            P07: the API contract (OpenAPI 3.1), served at GET /openapi.yaml
 │   ├── api-check.md            P07: every request with curl and its exact answer; SQLite run observed
 │   ├── requests/               P07: request bodies for curl (maya-r7, omar-r7, omar-r8 + three error bodies); P08: maya-newyear
 │   ├── diagrams.drawio         pages "Context map" (P05) and "Modules" (P06)
-│   └── l02-notes.md, l03-notes.md, l04-notes.md   lecture exit-check answers
+│   └── l02-notes.md … l05-notes.md   lecture exit-check answers
 ├── pyproject.toml              pytest / mypy configuration, dependencies
 └── requirements.txt
 ```
@@ -196,18 +227,42 @@ read the cache; after their unit of work has committed a 201/204 they raise `ava
 The cache lives at the edge (`api_cache.py`, `api_redis.py`), imports no module, and a failing cache
 never fails a request (the search falls back to the database, `cacheErrors` counts it).
 
-## Known limitations of version 5
+**P09:** the booking rule is kept by the database, not by the order of two statements. The
+pre-check in `reserve` stays (it answers the ordinary case with a readable 409), but the
+`ReservationStore` promise now includes "``save`` refuses a reservation that would give the room two
+Confirmed reservations for one night" (`OverlapRejected`), and `reserve` answers that refusal with the
+same Unavailable. Each store keeps the promise its own way: the PostgreSQL schema has the exclusion
+constraint `reservations_no_overlap` (checked by a GiST index as the row goes in, whatever the other
+transactions are doing); SQLite has two triggers of the same name (safe there because SQLite has one
+writer at a time - the same trigger in PostgreSQL let a double booking through, observed); the list
+store checks under a lock. The SQL store recognises only that one refusal (SQLSTATE 23P01 + the
+constraint name, or SQLite's trigger error + the name) and re-raises everything else; on PostgreSQL
+the INSERT runs in a savepoint so the refused statement does not poison the transaction. Ids come
+from the store: `nextval('reservation_ids')`, SQLite's one-row counter, or the list's counter.
+`docs/interleaving.md` has the trace and the measured cost of the four repairs, ADR-003 the decision.
 
-- **Race condition (R3/S2 under concurrency):** check (`has_overlap`) and act (`save`) are still
-  separate steps. In memory: pinned by `test_race_double_books_r7_known_defect`. Through HTTP and
-  SQLite: two simultaneous bookings either both succeed (R101 + R102, double booking) or, when both
-  number theirs R101, the primary key refuses the second with 500 InternalError — pinned by
-  `test_race_through_the_database_still_double_books_known_defect` and
-  `test_two_requests_numbering_r101_the_primary_key_refuses_the_second`. Fixed in P09.
+## Known limitations of version 6
+
+- **Fixed in P09 (was the main limitation of versions 1-5):** the race on the last seat. Check and
+  save are still two steps, but the store's `save` refuses a double booking - PostgreSQL by the
+  exclusion constraint, SQLite by its triggers, the list store under its lock - and the loser gets
+  409. Ids come from the database, so the duplicate-R101 500 is gone too. Kept true by the
+  regression tests `test_race_gives_r7_to_exactly_one_guest_regression`,
+  `test_race_through_the_database_gives_the_room_to_one_guest`,
+  `test_a_booking_made_while_another_is_uncommitted_gets_its_own_id_and_a_409`, the course's two
+  P09 tests in `test_api.py` and `tests/test_concurrency.py`.
+- **The rule covers one table only.** A rule that spans tables (P17: a booking and its deposit) will
+  need a guard-row lock or Serializable (ADR-003, "When to revisit").
+- **Ids can have gaps** (a refused booking uses up its number, like any sequence): R101, R103 ... is
+  normal, not lost data.
+- **SQLite holds its single write lock from the id until COMMIT**, and the confirmation is still sent
+  inside that transaction: a mail server that hangs for more than the 5 s busy timeout makes other
+  bookings fail with 500 ("database is locked"). P10 moves the email out of the request.
+- **The PostgreSQL path ran through a stand-in driver:** psycopg cannot be installed in the build
+  container; the app's own SQL store ran against a real PostgreSQL 16 through a small stdlib protocol
+  client (`practices/P09-…/evidence/pg_wire.py`). With psycopg on the Mac: to do by the student.
 - **POST is not idempotent:** a retried booking answers 409 for the guest's own stay and the client
   never learns its id (pinned by `test_post_is_not_idempotent_…`; Idempotency-Key in P11).
-- Reservation ids come from the row count (`R{101 + count}`): fine for one writer, the source of the
-  R101 clash for several (P09).
 - **Cache trade-offs (P08, ADR-002):** a search may show a booked room for a moment (between the
   commit and the version INCR, or up to 30 s if the INCR fails); several simultaneous misses all
   ask the database (stampede: 8 clients → 8 misses, measured); one New Year key takes nearly all
@@ -221,7 +276,7 @@ never fails a request (the search falls back to the database, `cacheErrors` coun
   no Docker daemon); its SQL was run on PostgreSQL 16 with psql. To run on the student's Mac.
 - The confirmation is sent before the commit: if the commit then fails, the guest has an email for
   a booking that was rolled back (P10 moves sending after the commit / to a queue).
-- The demo pause `slow_step_seconds` still sits inside `reserve()` (0 in normal use).
+- The experiment pause `slow_step_seconds` still sits inside `reserve()` (0 in normal use; `HOTEL_SLOW_STEP`).
 - R6 reports a failed confirmation but nothing resends it yet (P10).
 - Python cannot *hide* internal code: `internal.py` is a naming convention, and the border holds
   only because the architecture tests run with every test run (CI from P25).

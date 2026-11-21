@@ -1,0 +1,20 @@
+---
+title: P09 - where each repair closes the gap between "check" and "save", and what it cost (observed)
+---
+flowchart LR
+  gap["The gap: has_overlap, then save<br/>two requests both read 'free'<br/>(write skew)"]
+  lock["Step 3: in-process lock<br/>closes it inside one process"]
+  forupdate["Step 5: FOR UPDATE on a guard row<br/>the loser WAITS (~0.9 s measured)"]
+  version["Step 6: version check<br/>nobody waits, the loser REDOES (~1.0 s of work)"]
+  constraint["Step 7: exclusion constraint<br/>the table refuses the row itself"]
+  two["Two instances (Step 4):<br/>20 of 20 double-booked"]
+  remember["Only code that remembers<br/>to take the lock / check the version"]
+  every["Every writer: the app, psql,<br/>a script, any instance - 0 of 20"]
+  gap --> lock --> two
+  gap --> forupdate --> remember
+  gap --> version --> remember
+  gap --> constraint --> every
+  classDef bad fill:#ffebee,stroke:#c62828
+  classDef good fill:#e8f5e9,stroke:#2e7d32
+  class two,remember bad
+  class every good

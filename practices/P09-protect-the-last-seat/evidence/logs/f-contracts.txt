@@ -1,0 +1,10 @@
+$ python3 -m tests.test_architecture
+Analyzed 17 files, 22 dependencies.
+Reservations uses only the public contracts of other modules KEPT
+Rooms does not depend on any other module KEPT
+Payments and Notifications do not depend on Reservations KEPT
+The HTTP API uses only the public contracts of the modules KEPT
+No module depends on the HTTP API KEPT
+The availability cache depends on no module KEPT
+
+Contracts: 6 kept, 0 broken.

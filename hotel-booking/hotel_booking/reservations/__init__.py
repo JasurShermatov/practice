@@ -2,13 +2,20 @@
 
 Public contract: the booking service and its answer, the words of the context
 (Stay = ``DateRange``, ``Guest``, ``Reservation``, ``ReservationStatus``) and
-the ``ReservationStore`` promise the wiring plugs a store into. The store
-itself (``internal.py``) is private.
+the ``ReservationStore`` promise the wiring plugs a store into, and (P09)
+``OverlapRejected``, the refusal that promise includes. The store itself
+(``internal.py``) is private.
 
 Reservations may use only the public contracts of Rooms, Payments and
 Notifications (architecture rule 1).
 """
-from hotel_booking.reservations.booking import BookingOutcome, BookingResult, BookingService, ReservationStore
+from hotel_booking.reservations.booking import (
+    BookingOutcome,
+    BookingResult,
+    BookingService,
+    OverlapRejected,
+    ReservationStore,
+)
 from hotel_booking.reservations.domain import DateRange, Guest, Reservation, ReservationStatus
 
 __all__ = [
@@ -17,6 +24,7 @@ __all__ = [
     "BookingService",
     "DateRange",
     "Guest",
+    "OverlapRejected",
     "Reservation",
     "ReservationStatus",
     "ReservationStore",

@@ -1,0 +1,50 @@
+{
+  "v6-pg-1": {
+    "title": "AFTER - version 6 on PostgreSQL 16 with db/postgres/init.sql (exclusion constraint), ONE instance",
+    "single run confirmed rows": 1,
+    "course": {
+      "rounds": 20,
+      "double_booked": 0,
+      "one_201_one_409": 20,
+      "other": 0,
+      "rows_in_database": 21,
+      "postgres_23P01": 21,
+      "postgres_40P01": 0,
+      "refused_by_the_database": 21
+    },
+    "burst": {
+      "rounds": 300,
+      "double_booked": 0,
+      "one_201_one_409": 300,
+      "other": 0,
+      "rows_in_database": 300,
+      "postgres_23P01": 275,
+      "postgres_40P01": 15,
+      "refused_by_the_database": 275
+    }
+  },
+  "v6-pg-2": {
+    "title": "AFTER - version 6 on PostgreSQL 16 with db/postgres/init.sql (exclusion constraint), TWO instances",
+    "single run confirmed rows": 1,
+    "course": {
+      "rounds": 20,
+      "double_booked": 0,
+      "one_201_one_409": 20,
+      "other": 0,
+      "rows_in_database": 21,
+      "postgres_23P01": 21,
+      "postgres_40P01": 0,
+      "refused_by_the_database": 21
+    },
+    "burst": {
+      "rounds": 300,
+      "double_booked": 0,
+      "one_201_one_409": 300,
+      "other": 0,
+      "rows_in_database": 300,
+      "postgres_23P01": 268,
+      "postgres_40P01": 7,
+      "refused_by_the_database": 268
+    }
+  }
+}

@@ -1,0 +1,131 @@
+$ python3 -I practices/P09-protect-the-last-seat/evidence/race_experiment.py hotel-booking <copy of version 5> --only v6-pg-1,v6-pg-2 --rounds 20 --burst 300 --json evidence/logs/race-results-postgres-after-the-retry.json
+# run 2026-11-21, Linux container, after adding the bounded retry on 40P01 to SqlReservationStore._insert
+Linux container, Python 3.13.18, SQLite 3.53.1; rounds=20, burst=300
+PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit
+
+====================================================================================================
+AFTER - version 6 on PostgreSQL 16 with db/postgres/init.sql (exclusion constraint), ONE instance
+====================================================================================================
+
+$ HOTEL_SLOW_STEP=1 ... ; python tools/race_http.py      (exit status 0)
+Two bookings for R7, 2026-11-12 to 2026-11-14, sent at the same moment.
+
+Maya -> 201 Created   {"id":"R101","status":"Confirmed","notificationFailed":false}
+Omar -> 409 Conflict  {"title":"Unavailable","status":409,"detail":"The room is booked for at least one night of this stay."}
+
+Confirmed reservations for R7 on 12-14 Nov: 1
+CORRECT: one booking was accepted and one was refused.
+
+-- the reservations table, read from the database itself (Confirmed rows for R7):
+  id  | room |  check_in  | check_out  |  status   
+------+------+------------+------------+-----------
+ R101 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+(1 row)
+
+$ python tools/race_http.py --repeat 20   (slow step 1.0 s, Omar 0.5 s after Maya; exit status 0)
+Round   1: Maya 201 R103  Omar 409 -     -> correct
+Round   2: Maya 201 R105  Omar 409 -     -> correct
+Round   3: Maya 201 R107  Omar 409 -     -> correct
+Round   4: Maya 201 R109  Omar 409 -     -> correct
+Round   5: Maya 201 R111  Omar 409 -     -> correct
+Round   6: Maya 201 R113  Omar 409 -     -> correct
+Round   7: Maya 201 R115  Omar 409 -     -> correct
+Round   8: Maya 201 R117  Omar 409 -     -> correct
+Round   9: Maya 201 R119  Omar 409 -     -> correct
+Round  10: Maya 201 R121  Omar 409 -     -> correct
+Round  11: Maya 201 R123  Omar 409 -     -> correct
+Round  12: Maya 201 R125  Omar 409 -     -> correct
+Round  13: Maya 201 R127  Omar 409 -     -> correct
+Round  14: Maya 201 R129  Omar 409 -     -> correct
+Round  15: Maya 201 R131  Omar 409 -     -> correct
+Round  16: Maya 201 R133  Omar 409 -     -> correct
+Round  17: Maya 201 R135  Omar 409 -     -> correct
+Round  18: Maya 201 R137  Omar 409 -     -> correct
+Round  19: Maya 201 R139  Omar 409 -     -> correct
+Round  20: Maya 201 R141  Omar 409 -     -> correct
+
+Double bookings: 0 of 20 rounds; one 201 and one 409: 20; anything else: 0.
+-- errors the server(s) logged (cause of each 500): none
+-- PostgreSQL's own log for this phase: 21 x 23P01 reservations_no_overlap, 0 x 40P01 deadlock detected
+-- database after the rounds: 21 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+-- ids handed out by the database: 42; bookings that passed the pre-check and were refused by the database itself (lost the race): 21
+
+$ (HOTEL_SLOW_STEP=0) python tools/race_http.py --repeat 300 --stagger 0   (both at once, no slow step; exit status 0)
+Round   1: Maya 201 R101  Omar 409 -     -> correct
+Round   2: Maya 201 R104  Omar 409 -     -> correct
+Round   3: Maya 201 R105  Omar 409 -     -> correct
+Round   4: Maya 201 R107  Omar 409 -     -> correct
+Round   5: Maya 201 R109  Omar 409 -     -> correct
+  ...
+Round 300: Maya 201 R674  Omar 409 -     -> correct
+
+Double bookings: 0 of 300 rounds; one 201 and one 409: 300; anything else: 0.
+-- errors the server(s) logged (cause of each 500): none
+-- PostgreSQL's own log for this phase: 275 x 23P01 reservations_no_overlap, 15 x 40P01 deadlock detected
+-- database after the rounds: 300 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+-- ids handed out by the database: 575; bookings that passed the pre-check and were refused by the database itself (lost the race): 275
+
+====================================================================================================
+AFTER - version 6 on PostgreSQL 16 with db/postgres/init.sql (exclusion constraint), TWO instances
+====================================================================================================
+
+$ HOTEL_SLOW_STEP=1 ... ; python tools/race_http.py http://localhost:5081      (exit status 0)
+Two bookings for R7, 2026-11-12 to 2026-11-14, sent at the same moment.
+Maya -> http://localhost:5080   Omar -> http://localhost:5081
+
+Maya -> 201 Created   {"id":"R101","status":"Confirmed","notificationFailed":false}
+Omar -> 409 Conflict  {"title":"Unavailable","status":409,"detail":"The room is booked for at least one night of this stay."}
+
+Confirmed reservations for R7 on 12-14 Nov: 1
+CORRECT: one booking was accepted and one was refused.
+
+-- the reservations table, read from the database itself (Confirmed rows for R7):
+  id  | room |  check_in  | check_out  |  status   
+------+------+------------+------------+-----------
+ R101 | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+(1 row)
+
+$ python tools/race_http.py <5081> --repeat 20   (slow step 1.0 s, Omar 0.5 s after Maya; exit status 0)
+Round   1: Maya 201 R103  Omar 409 -     -> correct
+Round   2: Maya 201 R105  Omar 409 -     -> correct
+Round   3: Maya 201 R107  Omar 409 -     -> correct
+Round   4: Maya 201 R109  Omar 409 -     -> correct
+Round   5: Maya 201 R111  Omar 409 -     -> correct
+Round   6: Maya 201 R113  Omar 409 -     -> correct
+Round   7: Maya 201 R115  Omar 409 -     -> correct
+Round   8: Maya 201 R117  Omar 409 -     -> correct
+Round   9: Maya 201 R119  Omar 409 -     -> correct
+Round  10: Maya 201 R121  Omar 409 -     -> correct
+Round  11: Maya 201 R123  Omar 409 -     -> correct
+Round  12: Maya 201 R125  Omar 409 -     -> correct
+Round  13: Maya 201 R127  Omar 409 -     -> correct
+Round  14: Maya 201 R129  Omar 409 -     -> correct
+Round  15: Maya 201 R131  Omar 409 -     -> correct
+Round  16: Maya 201 R133  Omar 409 -     -> correct
+Round  17: Maya 201 R135  Omar 409 -     -> correct
+Round  18: Maya 201 R137  Omar 409 -     -> correct
+Round  19: Maya 201 R139  Omar 409 -     -> correct
+Round  20: Maya 201 R141  Omar 409 -     -> correct
+
+Double bookings: 0 of 20 rounds; one 201 and one 409: 20; anything else: 0.
+-- errors the server(s) logged (cause of each 500): none
+-- PostgreSQL's own log for this phase: 21 x 23P01 reservations_no_overlap, 0 x 40P01 deadlock detected
+-- database after the rounds: 21 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+-- ids handed out by the database: 42; bookings that passed the pre-check and were refused by the database itself (lost the race): 21
+
+$ (HOTEL_SLOW_STEP=0) python tools/race_http.py <5081> --repeat 300 --stagger 0   (both at once, no slow step; exit status 0)
+Round   1: Maya 409 -     Omar 201 R101  -> correct
+Round   2: Maya 201 R103  Omar 409 -     -> correct
+Round   3: Maya 201 R105  Omar 409 -     -> correct
+Round   4: Maya 201 R106  Omar 409 -     -> correct
+Round   5: Maya 409 -     Omar 201 R108  -> correct
+  ...
+Round 300: Maya 201 R667  Omar 409 -     -> correct
+
+Double bookings: 0 of 300 rounds; one 201 and one 409: 300; anything else: 0.
+-- errors the server(s) logged (cause of each 500): none
+-- PostgreSQL's own log for this phase: 268 x 23P01 reservations_no_overlap, 7 x 40P01 deadlock detected
+-- database after the rounds: 300 reservation rows, 0 still Confirmed (the tool cancels what it booked)
+-- ids handed out by the database: 568; bookings that passed the pre-check and were refused by the database itself (lost the race): 268
+
+SUMMARY {"v6-pg-1": {"title": "AFTER - version 6 on PostgreSQL 16 with db/postgres/init.sql (exclusion constraint), ONE instance", "single run confirmed rows": 1, "course": {"rounds": 20, "double_booked": 0, "one_201_one_409": 20, "other": 0, "rows_in_database": 21, "postgres_23P01": 21, "postgres_40P01": 0, "refused_by_the_database": 21}, "burst": {"rounds": 300, "double_booked": 0, "one_201_one_409": 300, "other": 0, "rows_in_database": 300, "postgres_23P01": 275, "postgres_40P01": 15, "refused_by_the_database": 275}}, "v6-pg-2": {"title": "AFTER - version 6 on PostgreSQL 16 with db/postgres/init.sql (exclusion constraint), TWO instances", "single run confirmed rows": 1, "course": {"rounds": 20, "double_booked": 0, "one_201_one_409": 20, "other": 0, "rows_in_database": 21, "postgres_23P01": 21, "postgres_40P01": 0, "refused_by_the_database": 21}, "burst": {"rounds": 300, "double_booked": 0, "one_201_one_409": 300, "other": 0, "rows_in_database": 300, "postgres_23P01": 268, "postgres_40P01": 7, "refused_by_the_database": 268}}}

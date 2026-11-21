@@ -1,0 +1,28 @@
+---
+title: P09 Step 7 - the same race against PostgreSQL with reservations_no_overlap (observed, psql and the app)
+---
+sequenceDiagram
+  autonumber
+  actor Tool as tools/race_http.py
+  participant M as Maya's request
+  participant DB as PostgreSQL: reservations + EXCLUDE USING gist
+  participant O as Omar's request (any instance)
+
+  Tool->>M: POST /reservations R7 12-14 Nov
+  M->>DB: SELECT EXISTS overlap
+  DB-->>M: false
+  Tool->>O: POST /reservations R7 12-14 Nov
+  O->>DB: SELECT EXISTS overlap
+  DB-->>O: false - the pre-check is unchanged and still cannot see it
+  M->>DB: nextval -> 101, SAVEPOINT, INSERT R101
+  Note over DB: the GiST index finds no Confirmed R7 row whose daterange overlaps: row<br/>written
+  O->>DB: nextval -> 102, SAVEPOINT, INSERT R102
+  Note over DB: the index finds R101 - not committed yet - so Omar's INSERT waits for<br/>Maya's transaction to decide
+  M->>DB: COMMIT
+  DB--xO: ERROR 23P01 conflicting key value violates exclusion constraint "reservations_no_overlap"
+  O->>DB: ROLLBACK TO SAVEPOINT, COMMIT (nothing of Omar's booking is kept, number 102 stays used)
+  Note over O: SqlReservationStore: sqlstate 23P01 and constraint<br/>reservations_no_overlap -> OverlapRejected, BookingService -><br/>Unavailable
+  M-->>Tool: 201 Created R101
+  O-->>Tool: 409 Conflict Unavailable (the same body as the pre-check's refusal)
+  Note over O,DB: Both INSERTs at the same instant: each may wait for the other's<br/>undecided row - PostgreSQL aborts one with 40P01 deadlock detected.<br/>The store rolls back to the savepoint and retries the INSERT (at most<br/>3 times) and so still ends with 23P01 or success
+  Note over DB: exactly one Confirmed reservation for R7. Also true for psql, a<br/>script, a second instance: the rule is in the table.

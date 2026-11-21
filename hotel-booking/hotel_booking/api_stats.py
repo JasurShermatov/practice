@@ -66,9 +66,13 @@ class CountingReservationStore:
         self._stats.add("databaseQueries")
         return self._store.has_overlap(room, stay)
 
+    def next_reservation_id(self) -> str:
+        self._stats.add("databaseQueries")
+        return self._store.next_reservation_id()
+
     def save(self, reservation: Reservation) -> None:
         self._stats.add("databaseQueries")
-        self._store.save(reservation)
+        self._store.save(reservation)  # OverlapRejected passes through untouched (P09)
 
     def find(self, reservation_id: str) -> Reservation | None:
         self._stats.add("databaseQueries")

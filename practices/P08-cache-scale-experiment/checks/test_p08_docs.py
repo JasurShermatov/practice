@@ -199,8 +199,11 @@ def test_docker_compose_has_the_course_cache_service() -> None:
 
 
 def test_contract_is_1_1_0_with_get_stats() -> None:
+    """P09 change (deliberate): P09 raised the contract to 1.2.0 (a promise added, no shape changed),
+    so this P08 check now asks for "1.1.0 or a later 1.x" - GET /stats must still be there."""
     contract = yaml.safe_load(read(DOCS / "openapi.yaml"))
-    assert contract["info"]["version"] == "1.1.0"
+    major, minor, _ = (int(part) for part in contract["info"]["version"].split("."))
+    assert major == 1 and minor >= 1
     assert contract["paths"]["/stats"]["get"]["operationId"] == "getStats"
     stats = contract["components"]["schemas"]["Stats"]
     assert {"searches", "databaseQueries", "cacheHits", "cacheMisses"} <= set(stats["required"])

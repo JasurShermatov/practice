@@ -8,6 +8,8 @@ starlette>=1.0          # the web app (routes, requests, responses, TestClient);
 pydantic>=2.11          # request/answer models (validate_by_alias/serialize_by_alias need 2.11); built with 2.13.5
 uvicorn>=0.30           # the ASGI server: python main.py serves on http://localhost:5080; built with 0.54.0
 
+# P09 adds no package: tools/race_http.py uses only the standard library (urllib, threading).
+
 # Optional: PostgreSQL from docker-compose.yml (python main.py --db postgres). Not needed for the tests.
 psycopg[binary]>=3.2
 

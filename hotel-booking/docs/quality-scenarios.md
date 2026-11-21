@@ -24,7 +24,7 @@ the practice that checks it. The numbers are the course's targets for this proje
 | Scenario | Quality | Measure (number) | Checked in | Status today |
 |---|---|---|---|---|
 | S1 | Performance | p95 search response ≤ 1 second, 0 wrong answers | P08, P23 | Proposed |
-| S2 | Data integrity | 0 double bookings in 100 simultaneous pairs | P09 | Proposed; known to fail today (P03 race: 2 Confirmed for R7) |
+| S2 | Data integrity | 0 double bookings in 100 simultaneous pairs | P09 | Observed in P09: 0 in 100 pairs (SQLite) and 300 pairs (PostgreSQL 16), two instances |
 | S3 | Availability | 0 lost bookings while email is down; 100% of failures counted | P04, P10 | Observed for one booking (P04 R6 test) |
 | S4 | Security | 0 of 100 attempts show another guest's reservation | P21 | Proposed; no access control exists yet |
 | S5 | Modifiability | 0 lines changed in BookingService; ≤ 2 files changed | P04 | Observed in P04 (SMS sender added) |
@@ -73,8 +73,15 @@ even if the average is 0.3 s.
 | Measure | 100 Confirmed and 100 Unavailable; 0 double bookings |
 | Checked in | P09 |
 
-Status: the P03 race demo (`python main.py --race`) produces 2 Confirmed reservations for R7 on
-12–14 Nov, so S2 is **not met** today. This is a known, pinned defect, fixed in P09.
+Status until P08: the P03 race demo (`python main.py --race`) produced 2 Confirmed reservations
+for R7 on 12–14 Nov, so S2 was **not met** (a known, pinned defect).
+
+Status since P09 — **met, Observed** (`tools/race_http.py --repeat 100 --stagger 0`, both guests of
+each pair sent at the same moment, two app instances on one database): SQLite 100 of 100 pairs
+gave one 201 and one 409, PostgreSQL 16 300 of 300; 0 double bookings. The same measure against
+version 5 gave 11 double bookings and 26 server errors in 100 pairs
+([P09 race results](../../practices/P09-protect-the-last-seat/README.md#race-results)). The rule is
+kept by the database (ADR-003), so it does not depend on how many processes run.
 
 ## S4 · Security
 

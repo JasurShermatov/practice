@@ -26,6 +26,13 @@ two internal SQL classes (``SqlReservationStore``, ``SqlRoomCatalog``) with thei
 sample instances use an in-memory SQLite connection. The HTTP API edge
 (``api.py``) is not a module and is not drawn here; its classes are pydantic
 shapes checked against docs/openapi.yaml (``test_openapi_contract.py``).
+
+P09 change (deliberate): CLASS_DIAGRAM now points at the P09 diagram
+(``practices/P09-protect-the-last-seat/diagrams/class-diagram.mmd``): ``ReservationStore`` gained
+``next_reservation_id`` (both stores implement it; ``BookingService.next_id`` is gone), the list
+store has its lock, counter and ``blocked`` helper, the SQL store its ``insert`` helper, and the
+contract exports ``OverlapRejected``, drawn as an ``<<exception>>`` box with two lines (the store's
+save raises it, BookingService answers Unavailable for it): 18 -> 20 non-"implements" lines.
 """
 from __future__ import annotations
 
@@ -44,7 +51,7 @@ from typing import Any
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CLASS_DIAGRAM = REPO_ROOT / "practices" / "P07-capacity-api-design" / "diagrams" / "class-diagram.mmd"
+CLASS_DIAGRAM = REPO_ROOT / "practices" / "P09-protect-the-last-seat" / "diagrams" / "class-diagram.mmd"
 CLASSES_AFTER = REPO_ROOT / "practices" / "P04-refactor-reservation" / "uml" / "classes-after.mmd"
 
 MODULES = ("rooms", "reservations", "payments", "notifications")
@@ -197,6 +204,7 @@ INTERNAL_CLASSES = [
 ]
 INTERFACES = ["NotificationSender", "PaymentService", "ReservationStore", "RoomCatalog"]
 ENUMERATIONS = ["BookingOutcome", "PaymentStatus", "ReservationStatus"]
+EXCEPTIONS = ["OverlapRejected"]  # P09
 
 
 def code_members(obj: object) -> dict[str, set[str]]:
@@ -252,6 +260,8 @@ def test_internal_boxes_are_exactly_the_classes_of_the_internal_files(diagram: D
 def test_diagram_marks_the_interfaces_and_enumerations(diagram: Diagram) -> None:
     assert diagram.named("interface") == set(INTERFACES)
     assert diagram.named("enumeration") == set(ENUMERATIONS)
+    assert diagram.named("exception") == set(EXCEPTIONS)
+    assert all(issubclass(lookup(name), Exception) for name in EXCEPTIONS)
     assert diagram.named(None) == set(CONCRETE_CLASSES)
 
 
@@ -298,7 +308,7 @@ def test_every_implements_line_holds_in_the_code(diagram: Diagram) -> None:
 def test_every_other_relationship_is_visible_in_the_source(diagram: Diagram) -> None:
     """Each non-"implements" line must correspond to a reference in the code of one end."""
     others = [(left, right) for left, kind, right in diagram.relations if kind != IMPLEMENTS]
-    assert len(others) == 18  # P06: 16; P07: + SqlReservationStore -> Reservation, SqlRoomCatalog -> Room
+    assert len(others) == 20  # P06: 16; P07: + 2 (SQL store/catalog); P09: + 2 (OverlapRejected)
     for left, right in others:
         left_src = inspect.getsource(lookup(left))
         right_src = inspect.getsource(lookup(right))

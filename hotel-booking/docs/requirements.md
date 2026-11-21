@@ -52,10 +52,12 @@ Proof: `Omar books R7 13-15 Nov: Unavailable`, `Nora books R7 14-16 Nov: Accepte
 `Omar books R8 15-15 Nov: InvalidDates`
 Tests: `test_r3_*`, `TestDateRange::test_overlap_counts_nights_not_dates`
 
-Known limitation (**Observed**): the rule holds for one request at a time only. Two simultaneous
-requests can both pass the check and both be saved — `python main.py --race` prints
-`Confirmed reservations for R7 on 12-14 Nov: 2`. Pinned by `test_race_double_books_r7_known_defect`;
-fixed in P09.
+Under concurrency (**Observed**): until P08 the rule held for one request at a time only - two
+simultaneous requests could both pass the check and both be saved (`--race` printed
+`Confirmed reservations for R7 on 12-14 Nov: 2`). Since P09 the store refuses the second save
+(the database's `reservations_no_overlap`), so `--race` prints `... 1` / `Only one guest has R7.`.
+Tests: `test_race_gives_r7_to_exactly_one_guest_regression`, `tests/test_concurrency.py`,
+`test_race_through_the_database_gives_the_room_to_one_guest`; proof: docs/interleaving.md.
 
 ## R4 · Cancel
 A booking can be cancelled. It is kept as Cancelled and no longer blocks the room.

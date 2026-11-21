@@ -1,0 +1,19 @@
+---
+title: P09 Step 5 - SELECT ... FOR UPDATE on a guard row (pessimistic; measured on PostgreSQL 16)
+---
+sequenceDiagram
+  autonumber
+  participant A as Terminal A - Maya
+  participant DB as PostgreSQL: room_booking_guard (one row per room)
+  participant B as Terminal B - Omar
+
+  A->>DB: BEGIN, SELECT version FROM room_booking_guard WHERE room = 'R7' FOR UPDATE
+  DB-->>A: row locked (the row always exists, so the lock always has a target)
+  A->>DB: overlap check -> 0
+  B->>DB: BEGIN, SELECT ... FOR UPDATE on the same row
+  Note over B,DB: B waits here for as long as A's transaction lasts
+  A->>DB: INSERT R101, COMMIT (lock released)
+  DB-->>B: row locked by B now
+  B->>DB: overlap check -> 1 (Maya's row is committed and visible)
+  B->>DB: COMMIT - nothing inserted, Omar is told Unavailable
+  Note over A,B: Works, and costs a wait: every booking for a room queues behind the<br/>one in front, including its email or payment.

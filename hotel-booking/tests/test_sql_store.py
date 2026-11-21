@@ -5,15 +5,27 @@
 2. What only a database store has: data that outlives the connection (the restart), the unit of
    work (``save_changes`` writes only what changed; a rollback leaves nothing), the identity map,
    the rules the database keeps by itself (primary key, CHECK), bound parameters.
-3. The schema the SQLite wiring runs is the very file docker-compose mounts into PostgreSQL.
+3. One schema for both databases: until P08 SQLite ran the very file docker-compose mounts into
+   PostgreSQL; since P09 it runs its translation (db/sqlite/init.sql), and the checks here keep
+   the two files declaring the same tables, columns, CHECKs, index and rooms.
 4. The capacity model's assumption "a search asks the database once per room" (docs/capacity.md),
    counted on the real SQL with SQLite's trace hook.
 
 PostgreSQL itself is not reachable from these tests (no driver in the build container); the same
 SQL statements were run on a real PostgreSQL 16 server with psql - see the P07 evidence (E9).
+
+P09 changes (deliberate): (a) ``test_save_changes_writes_only_the_statuses_that_changed`` counts
+the rows the UPDATE changed instead of the traced UPDATE lines - SQLite's trace hook reports the
+statement a second time when the no-overlap UPDATE trigger starts, although one row is written
+once. (b) ``test_sqlite_runs_the_file_docker_compose_mounts_into_postgresql`` became
+``test_sqlite_and_postgresql_schemas_declare_the_same_tables`` plus two checks of the
+PostgreSQL-only statements and their SQLite counterparts. (c) The SQLite schema now has a third
+table, ``reservation_ids`` (SQLite's stand-in for the sequence), owned by Reservations. The new
+promises (``save`` refuses an overlap, ``next_reservation_id``) are tested in tests/test_concurrency.py.
 """
 from __future__ import annotations
 
+import re
 import sqlite3
 from collections.abc import Callable, Iterator
 from contextlib import closing
@@ -28,7 +40,7 @@ from hotel_booking.reservations import BookingService, DateRange, Reservation, R
 from hotel_booking.reservations.internal import InMemoryReservationStore, SqlReservationStore, as_date
 from hotel_booking.rooms import Room
 from hotel_booking.rooms.internal import SqlRoomCatalog
-from main import SCHEMA, sqlite_connector
+from main import POSTGRES_SCHEMA, SCHEMA, SQLITE_UPGRADE, sqlite_connector
 
 PROJECT = Path(__file__).resolve().parents[1]
 
@@ -148,11 +160,13 @@ def test_save_changes_writes_only_the_statuses_that_changed(connection: sqlite3.
     assert found is not None and found.cancel()
     reader.find("R102")  # looked at, not changed
     statements: list[str] = []
+    changes_before = connection.total_changes
     connection.set_trace_callback(statements.append)
     assert reader.save_changes() == 1
     connection.set_trace_callback(None)
-    assert [s for s in statements if s.startswith("UPDATE")] == [
-        "UPDATE reservations SET status = 'Cancelled' WHERE id = 'R101'"]
+    assert connection.total_changes - changes_before == 1  # one row written
+    assert {s for s in statements if s.startswith("UPDATE")} == {
+        "UPDATE reservations SET status = 'Cancelled' WHERE id = 'R101'"}  # (traced twice: the trigger)
     assert reader.save_changes() == 0  # in sync now: saving twice writes nothing twice
 
 
@@ -220,15 +234,69 @@ def test_sql_room_catalog_reads_the_rooms_table_in_text_order(connection: sqlite
 # --------------------------------------------------------------------------- 3. one schema for both databases
 
 
-def test_sqlite_runs_the_file_docker_compose_mounts_into_postgresql() -> None:
+def table_definitions(sql: str) -> dict[str, list[str]]:
+    """CREATE TABLE name -> its column and CHECK lines (comments, constraint blocks and spacing removed)."""
+    tables: dict[str, list[str]] = {}
+    for name, body in re.findall(r"CREATE TABLE (\w+) \((.*?)\n\);", sql, re.DOTALL):
+        lines = [re.sub(r"\s+", " ", line.split("--")[0]).strip().rstrip(",") for line in body.splitlines()]
+        kept, in_constraint = [], False
+        for line in lines:
+            if line.startswith("CONSTRAINT"):
+                in_constraint = True
+            if line and not in_constraint:
+                kept.append(line)
+            if in_constraint and line.startswith(")"):
+                in_constraint = False
+        tables[name] = kept
+    return tables
+
+
+def test_sqlite_and_postgresql_schemas_declare_the_same_tables() -> None:
     compose = (PROJECT / "docker-compose.yml").read_text(encoding="utf-8")
     assert "./db/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro" in compose
-    assert SCHEMA == PROJECT / "db" / "postgres" / "init.sql"
+    assert (SCHEMA, POSTGRES_SCHEMA) == (PROJECT / "db" / "sqlite" / "init.sql", PROJECT / "db" / "postgres" / "init.sql")
+    sqlite_sql, postgres_sql = SCHEMA.read_text(encoding="utf-8"), POSTGRES_SCHEMA.read_text(encoding="utf-8")
+    sqlite_tables, postgres_tables = table_definitions(sqlite_sql), table_definitions(postgres_sql)
+    assert sqlite_tables["rooms"] == postgres_tables["rooms"]
+    assert sqlite_tables["reservations"] == postgres_tables["reservations"]
+    index = re.compile(r"CREATE INDEX reservations_confirmed_room_stay.*?;", re.DOTALL)
+    assert index.findall(sqlite_sql) == index.findall(postgres_sql) != []
+    rooms = "INSERT INTO rooms (number, type) VALUES ('R7', 'Standard'), ('R8', 'Deluxe');"
+    assert rooms in sqlite_sql and rooms in postgres_sql
 
 
-def test_schema_has_two_tables_one_per_module_and_no_foreign_key(connection: sqlite3.Connection) -> None:
+def test_each_postgresql_only_statement_has_its_sqlite_counterpart() -> None:
+    postgres_sql, sqlite_sql = POSTGRES_SCHEMA.read_text(encoding="utf-8"), SCHEMA.read_text(encoding="utf-8")
+    # The rule: an exclusion constraint there, two triggers of the same name here.
+    assert "CONSTRAINT reservations_no_overlap EXCLUDE USING gist" in postgres_sql
+    assert "CREATE EXTENSION IF NOT EXISTS btree_gist;" in postgres_sql
+    assert re.findall(r"CREATE TRIGGER (reservations_no_overlap_\w+)", sqlite_sql) == [
+        "reservations_no_overlap_insert", "reservations_no_overlap_update"]
+    assert "WHERE (status = 'Confirmed')" in postgres_sql and sqlite_sql.count("NEW.status = 'Confirmed'") == 2
+    # The ids: a sequence there, a one-row table of the same name here, both starting at 101.
+    assert "CREATE SEQUENCE reservation_ids START 101;" in postgres_sql
+    assert "INSERT INTO reservation_ids (only_row, last_value) VALUES (1, 100);" in sqlite_sql
+    statements = "\n".join(line.split("--")[0] for line in sqlite_sql.splitlines()).upper()
+    assert "EXCLUDE" not in statements and "SEQUENCE" not in statements  # nothing SQLite cannot run
+
+
+def test_the_upgrade_files_add_exactly_what_init_sql_has() -> None:
+    """A version-5 database upgraded with p09-upgrade.sql must end up with the same rule as a new one."""
+    sqlite_init, sqlite_upgrade = SCHEMA.read_text(encoding="utf-8"), SQLITE_UPGRADE.read_text(encoding="utf-8")
+    trigger = re.compile(r"CREATE TRIGGER .*?END;", re.DOTALL)
+    assert trigger.findall(sqlite_upgrade) == trigger.findall(sqlite_init) != []
+    postgres_init = POSTGRES_SCHEMA.read_text(encoding="utf-8")
+    postgres_upgrade = (PROJECT / "db" / "postgres" / "p09-upgrade.sql").read_text(encoding="utf-8")
+    rule = re.search(r"EXCLUDE USING gist \((.*?)\) WHERE \(status = 'Confirmed'\)", postgres_init, re.DOTALL)
+    again = re.search(r"EXCLUDE USING gist \((.*?)\) WHERE \(status = 'Confirmed'\)", postgres_upgrade, re.DOTALL)
+    assert rule is not None and again is not None
+    assert re.sub(r"\s+", " ", rule.group(1)) == re.sub(r"\s+", " ", again.group(1))
+    assert "ADD CONSTRAINT reservations_no_overlap" in postgres_upgrade and "setval('reservation_ids'" in postgres_upgrade
+
+
+def test_schema_has_one_table_per_module_the_id_counter_and_no_foreign_key(connection: sqlite3.Connection) -> None:
     tables = {name for (name,) in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-    assert tables == {"rooms", "reservations"}
+    assert tables == {"rooms", "reservations", "reservation_ids"}  # P09: + Reservations' id counter
     assert connection.execute("PRAGMA foreign_key_list(reservations)").fetchall() == []
     assert connection.execute("SELECT number, type FROM rooms ORDER BY number").fetchall() == [("R7", "Standard"), ("R8", "Deluxe")]
 

@@ -1,0 +1,20 @@
+---
+title: P09 Step 6 - optimistic version check on the guard row (no lock; measured on PostgreSQL 16)
+---
+sequenceDiagram
+  autonumber
+  participant A as Terminal A - Maya
+  participant DB as PostgreSQL: room_booking_guard.version
+  participant B as Terminal B - Omar
+
+  A->>DB: BEGIN, SELECT version -> 0 (plain read, no lock)
+  A->>DB: overlap check -> 0
+  B->>DB: BEGIN, SELECT version -> 0 (nobody waits)
+  B->>DB: overlap check -> 0
+  B->>DB: UPDATE ... SET version = version + 1 WHERE room = 'R7' AND version = 0 -> 1 row
+  B->>DB: INSERT R101, COMMIT
+  A->>DB: UPDATE ... WHERE version = 0 -> 0 rows (not an error: a fact)
+  A->>DB: ROLLBACK - everything decided so far is stale
+  A->>DB: BEGIN again, SELECT version -> 1, overlap check -> 1
+  A->>DB: COMMIT - nothing inserted, Maya is told Unavailable
+  Note over A,B: Nobody waits, the loser does its work twice. The retry must redo the<br/>check, and needs a limit.

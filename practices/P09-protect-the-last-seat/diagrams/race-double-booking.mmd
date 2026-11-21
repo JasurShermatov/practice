@@ -1,0 +1,24 @@
+---
+title: P09 Step 2 - the interleaving that double-books R7 (observed on PostgreSQL 16 and through the app)
+---
+sequenceDiagram
+  autonumber
+  actor Tool as tools/race_http.py
+  participant M as Maya's request (unit of work = transaction)
+  participant DB as Database: reservations (no rule yet)
+  participant O as Omar's request (another thread or another instance)
+
+  Tool->>M: POST /reservations R7 12-14 Nov
+  M->>DB: BEGIN, SELECT EXISTS overlap (has_overlap)
+  DB-->>M: false - no Confirmed row for R7
+  Tool->>O: POST /reservations R7 12-14 Nov (0.5 s later)
+  O->>DB: BEGIN, SELECT EXISTS overlap (has_overlap)
+  DB-->>O: false - Maya has inserted nothing yet
+  Note over M,O: HOTEL_SLOW_STEP = 1 s: both are now past the check. The gap is always<br/>there, the slow step only widens it.
+  M->>DB: next id, INSERT R101 Confirmed
+  O->>DB: next id, INSERT R102 Confirmed (R101 is invisible to Omar until it commits)
+  M->>DB: COMMIT
+  O->>DB: COMMIT
+  M-->>Tool: 201 Created R101
+  O--xTool: 201 Created R102 - should have been refused
+  Note over DB: R101 and R102: two Confirmed reservations for R7 on the same nights.<br/>Write skew - each read the same empty set, then inserted a different<br/>row, nothing either read was changed, so Repeatable Read does not stop<br/>it.

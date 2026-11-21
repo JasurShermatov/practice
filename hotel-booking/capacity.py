@@ -24,7 +24,7 @@ PHOTOS_KB = 2000             # ten room photos of 200 KB on the booking page
 SECONDS_PER_DAY = 86_400
 
 # --- Assumptions added in this portfolio (labelled as such in docs/capacity.md). ------------------
-STATEMENTS_PER_BOOKING = 3   # reserve: EXISTS overlap + count(*) for the id + INSERT (SqlReservationStore)
+STATEMENTS_PER_BOOKING = 3   # reserve: EXISTS overlap + the next id (P09: nextval, was count(*)) + INSERT (SqlReservationStore)
 S1_SECONDS = 1.0             # S1: p95 of a search <= 1 s (docs/quality-scenarios.md)
 YEARS = 5                    # how long reservations are kept (history is never deleted)
 GROWTH = 10                  # "what if" factor for visitors

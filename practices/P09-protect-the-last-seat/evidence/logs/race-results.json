@@ -1,0 +1,194 @@
+{
+  "v5-sqlite-1": {
+    "title": "BEFORE - version 5 (P08 code), SQLite, ONE instance",
+    "single run confirmed rows": 2,
+    "course": {
+      "rounds": 20,
+      "double_booked": 20,
+      "one_201_one_409": 0,
+      "other": 0,
+      "rows_in_database": 42
+    },
+    "burst": {
+      "rounds": 100,
+      "double_booked": 4,
+      "one_201_one_409": 33,
+      "other": 63,
+      "rows_in_database": 104
+    }
+  },
+  "v5-sqlite-2": {
+    "title": "BEFORE - version 5 (P08 code), SQLite, TWO instances (Step 4)",
+    "single run confirmed rows": 2,
+    "course": {
+      "rounds": 20,
+      "double_booked": 20,
+      "one_201_one_409": 0,
+      "other": 0,
+      "rows_in_database": 42
+    },
+    "burst": {
+      "rounds": 100,
+      "double_booked": 11,
+      "one_201_one_409": 63,
+      "other": 26,
+      "rows_in_database": 111
+    }
+  },
+  "v5-lock-1": {
+    "title": "STEP 3 - version 5 + an in-process lock around every request, ONE instance",
+    "single run confirmed rows": 1,
+    "course": {
+      "rounds": 20,
+      "double_booked": 0,
+      "one_201_one_409": 20,
+      "other": 0,
+      "rows_in_database": 21
+    },
+    "burst": {
+      "rounds": 100,
+      "double_booked": 0,
+      "one_201_one_409": 100,
+      "other": 0,
+      "rows_in_database": 100
+    }
+  },
+  "v5-lock-2": {
+    "title": "STEP 4 - version 5 + the same in-process lock, TWO instances",
+    "single run confirmed rows": 2,
+    "course": {
+      "rounds": 20,
+      "double_booked": 20,
+      "one_201_one_409": 0,
+      "other": 0,
+      "rows_in_database": 42
+    },
+    "burst": {
+      "rounds": 100,
+      "double_booked": 5,
+      "one_201_one_409": 68,
+      "other": 27,
+      "rows_in_database": 105
+    }
+  },
+  "v6-sqlite-1": {
+    "title": "AFTER - version 6 (P09), SQLite (triggers), ONE instance - python main.py",
+    "single run confirmed rows": 1,
+    "course": {
+      "rounds": 20,
+      "double_booked": 0,
+      "one_201_one_409": 20,
+      "other": 0,
+      "rows_in_database": 21,
+      "refused_by_the_database": 21
+    },
+    "burst": {
+      "rounds": 100,
+      "double_booked": 0,
+      "one_201_one_409": 100,
+      "other": 0,
+      "rows_in_database": 100,
+      "refused_by_the_database": 71
+    }
+  },
+  "v6-sqlite-2": {
+    "title": "AFTER - version 6 (P09), SQLite (triggers), TWO instances - python main.py",
+    "single run confirmed rows": 1,
+    "course": {
+      "rounds": 20,
+      "double_booked": 0,
+      "one_201_one_409": 20,
+      "other": 0,
+      "rows_in_database": 21,
+      "refused_by_the_database": 21
+    },
+    "burst": {
+      "rounds": 100,
+      "double_booked": 0,
+      "one_201_one_409": 100,
+      "other": 0,
+      "rows_in_database": 100,
+      "refused_by_the_database": 41
+    }
+  },
+  "v6-pg-norule-1": {
+    "title": "BEFORE STEP 7 - version 6 code on PostgreSQL 16 WITHOUT the constraint, ONE instance",
+    "single run confirmed rows": 2,
+    "course": {
+      "rounds": 20,
+      "double_booked": 20,
+      "one_201_one_409": 0,
+      "other": 0,
+      "rows_in_database": 42,
+      "refused_by_the_database": 0
+    },
+    "burst": {
+      "rounds": 100,
+      "double_booked": 84,
+      "one_201_one_409": 16,
+      "other": 0,
+      "rows_in_database": 184,
+      "refused_by_the_database": 0
+    }
+  },
+  "v6-pg-norule-2": {
+    "title": "BEFORE STEP 7 - version 6 code on PostgreSQL 16 WITHOUT the constraint, TWO instances",
+    "single run confirmed rows": 2,
+    "course": {
+      "rounds": 20,
+      "double_booked": 20,
+      "one_201_one_409": 0,
+      "other": 0,
+      "rows_in_database": 42,
+      "refused_by_the_database": 0
+    },
+    "burst": {
+      "rounds": 100,
+      "double_booked": 90,
+      "one_201_one_409": 10,
+      "other": 0,
+      "rows_in_database": 190,
+      "refused_by_the_database": 0
+    }
+  },
+  "v6-pg-1": {
+    "title": "AFTER - version 6 on PostgreSQL 16 with db/postgres/init.sql (exclusion constraint), ONE instance",
+    "single run confirmed rows": 1,
+    "course": {
+      "rounds": 20,
+      "double_booked": 0,
+      "one_201_one_409": 20,
+      "other": 0,
+      "rows_in_database": 21,
+      "refused_by_the_database": 21
+    },
+    "burst": {
+      "rounds": 100,
+      "double_booked": 0,
+      "one_201_one_409": 99,
+      "other": 1,
+      "rows_in_database": 100,
+      "refused_by_the_database": 93
+    }
+  },
+  "v6-pg-2": {
+    "title": "AFTER - version 6 on PostgreSQL 16 with db/postgres/init.sql (exclusion constraint), TWO instances",
+    "single run confirmed rows": 1,
+    "course": {
+      "rounds": 20,
+      "double_booked": 0,
+      "one_201_one_409": 20,
+      "other": 0,
+      "rows_in_database": 21,
+      "refused_by_the_database": 21
+    },
+    "burst": {
+      "rounds": 100,
+      "double_booked": 0,
+      "one_201_one_409": 94,
+      "other": 6,
+      "rows_in_database": 100,
+      "refused_by_the_database": 95
+    }
+  }
+}

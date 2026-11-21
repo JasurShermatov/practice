@@ -1,0 +1,26 @@
+$ python3 -m pytest -q -p no:cacheprovider   # the version-5 tests, run against the P09 code before any test was changed
+18 failed, 409 passed in 8.40s
+
+$ python3 -m pytest -q -p no:cacheprovider -rf tests | grep FAILED
+FAILED tests/test_api_sqlite.py::test_race_through_the_database_still_double_books_known_defect
+FAILED tests/test_api_sqlite.py::test_two_requests_numbering_r101_the_primary_key_refuses_the_second
+FAILED tests/test_demo_and_race.py::test_main_race_flag_still_double_books - ...
+FAILED tests/test_demo_and_race.py::test_race_double_books_r7_known_defect - ...
+FAILED tests/test_sequences.py::test_sequence_book_maya_r7 - AssertionError: ...
+FAILED tests/test_sequences.py::test_sequence_race_both_checks_before_either_save
+FAILED tests/test_sequences.py::test_sequence_r6_failed_confirmation - Assert...
+FAILED tests/test_sql_store.py::test_save_changes_writes_only_the_statuses_that_changed
+FAILED tests/test_sql_store.py::test_sqlite_runs_the_file_docker_compose_mounts_into_postgresql
+FAILED tests/test_sql_store.py::test_schema_has_two_tables_one_per_module_and_no_foreign_key
+FAILED tests/test_substitution.py::test_changing_the_store_keeps_answers_and_saved_records[dict (tests only)]
+FAILED tests/test_substitution.py::test_a_store_that_breaks_the_promise_is_caught
+FAILED tests/test_uml_conformance.py::test_diagram_has_exactly_the_classes_of_the_four_modules
+FAILED tests/test_uml_conformance.py::test_every_box_is_drawn_in_the_module_that_defines_it
+FAILED tests/test_uml_conformance.py::test_class_members_match_the_diagram[BookingService]
+FAILED tests/test_uml_conformance.py::test_class_members_match_the_diagram[InMemoryReservationStore]
+FAILED tests/test_uml_conformance.py::test_class_members_match_the_diagram[SqlReservationStore]
+FAILED tests/test_uml_conformance.py::test_interfaces_are_protocols_with_the_drawn_operations[ReservationStore]
+18 failed, 409 passed in 8.41s
+
+$ python3 -m pytest -q -p no:cacheprovider ../practices/*/checks
+138 passed in 0.47s

@@ -1,7 +1,8 @@
 """The classroom scenario: rooms R7/R8 and guests Maya, Omar and Nora (fictional).
 
-``run_demo`` prints the nine lines that prove R1-R4; ``run_race`` shows the
-double booking that P09 fixes.
+``run_demo`` prints the nine lines that prove R1-R4; ``run_race`` sends two
+bookings for one room at the same moment - a double booking until P08, one
+accepted and one refused since P09 (the list store checks under its lock).
 
 These functions *receive* the service and its helpers instead of creating them
 (since P04): ``main.py`` is the wiring, the only app file that names internal
@@ -62,8 +63,9 @@ def run_race(service: BookingService, store: ReservationStore, stagger_seconds: 
 
     ``service`` must be built with a slow step (``main.py`` uses 0.5 s) so that
     each request waits between its availability check and its save; Omar starts
-    ``stagger_seconds`` after Maya. Because both checks happen before either
-    save, both are accepted (requirement R3 is broken - known defect until P09).
+    ``stagger_seconds`` after Maya, so both checks happen before either save.
+    Until P08 both were accepted (R3 broken). Since P09 the store's ``save``
+    refuses the second one (``OverlapRejected``), so Omar is told Unavailable.
     ``store`` is the store ``service`` was built with; it is only read here.
     """
     stay = nov(12, 14)
