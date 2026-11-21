@@ -8,4 +8,6 @@ Exit check of lecture L02 (Object-oriented design, UML and SOLID), the starting 
    reservation belongs to exactly one guest (Maya for R101).
 3. **Open–closed (together with dependency inversion)** lets the hotel add SMS without editing
    BookingService: once BookingService depends on a notification interface, SMS is a new class.
-   (That refactoring is P04; in P03 BookingService still uses the concrete EmailSender.)
+   (That refactoring is P04; in P03 BookingService still used the concrete EmailSender.)
+   *P04 update:* done — `BookingService` now asks for `NotificationSender`, and
+   `SmsNotificationSender` was added without editing `booking.py` (same SHA-256 before and after).

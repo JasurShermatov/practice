@@ -5,19 +5,19 @@ from dataclasses import dataclass
 
 import pytest
 
-from hotel_booking import BookingService, EmailSender, ReservationStore
+from hotel_booking import BookingService, EmailNotificationSender, InMemoryReservationStore
 from hotel_booking.demo import HOTEL_ROOMS
 
 
 @dataclass
 class Hotel:
     service: BookingService
-    store: ReservationStore
-    email: EmailSender
+    store: InMemoryReservationStore
+    email: EmailNotificationSender
 
 
 @pytest.fixture
 def hotel() -> Hotel:
-    store = ReservationStore()
-    email = EmailSender()
+    store = InMemoryReservationStore()
+    email = EmailNotificationSender()
     return Hotel(BookingService(HOTEL_ROOMS, store, email), store, email)

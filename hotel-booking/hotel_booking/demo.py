@@ -1,7 +1,11 @@
 """The classroom scenario: rooms R7/R8 and guests Maya, Omar and Nora (fictional).
 
 ``run_demo`` prints the nine lines that prove R1-R4; ``run_race`` shows the
-double booking that P09 fixes. ``main.py`` wires these to the command line.
+double booking that P09 fixes.
+
+Since P04 these functions *receive* the service and its helpers instead of
+creating them: ``main.py`` is the composition root, the only place that picks
+the real store and sender. The scenario itself did not change.
 """
 from __future__ import annotations
 
@@ -12,7 +16,7 @@ from datetime import date
 
 from .booking import BookingResult, BookingService
 from .domain import DateRange, Guest, Room
-from .notifications import EmailSender
+from .notifications import EmailNotificationSender
 from .stores import ReservationStore
 
 R7 = Room("R7", "Standard")
@@ -35,11 +39,12 @@ def room_numbers(rooms: Iterable[Room]) -> str:
     return ", ".join(room.number for room in rooms)
 
 
-def run_demo() -> None:
-    """The normal demo: one request at a time."""
-    email = EmailSender()
-    service = BookingService(HOTEL_ROOMS, ReservationStore(), email)
+def run_demo(service: BookingService, email: EmailNotificationSender) -> None:
+    """The normal demo: one request at a time.
 
+    ``email`` is the sender that ``service`` was built with; it is passed in only
+    so the last line can report how many confirmations it counted.
+    """
     print(f"Free rooms 12-14 Nov: {room_numbers(service.find_free_rooms(nov(12, 14)))}")
     print(f"Maya books R7 12-14 Nov: {service.reserve(MAYA, R7, nov(12, 14))}")
     print(f"Omar books R7 13-15 Nov: {service.reserve(OMAR, R7, nov(13, 15))}")
@@ -51,15 +56,15 @@ def run_demo() -> None:
     print(f"Confirmation emails sent: {email.sent}")
 
 
-def run_race(slow_step_seconds: float = 0.5, stagger_seconds: float = 0.1) -> int:
+def run_race(service: BookingService, store: ReservationStore, stagger_seconds: float = 0.1) -> int:
     """Maya and Omar book R7 for 12-14 Nov almost at once; returns the Confirmed count for R7.
 
-    Each request waits ``slow_step_seconds`` between its availability check and
-    its save; Omar starts ``stagger_seconds`` after Maya. Because both checks
-    happen before either save, both are accepted (requirement R3 is broken).
+    ``service`` must be built with a slow step (``main.py`` uses 0.5 s) so that
+    each request waits between its availability check and its save; Omar starts
+    ``stagger_seconds`` after Maya. Because both checks happen before either
+    save, both are accepted (requirement R3 is broken - known defect until P09).
+    ``store`` is the store ``service`` was built with; it is only read here.
     """
-    store = ReservationStore()
-    service = BookingService(HOTEL_ROOMS, store, EmailSender(), slow_step_seconds=slow_step_seconds)
     stay = nov(12, 14)
     results: dict[str, BookingResult] = {}
 

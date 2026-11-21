@@ -1,4 +1,8 @@
-# Requirements: hotel booking app, version 1
+# Requirements: hotel booking app, versions 1–2
+
+R1–R5 are version 1 (P03). R6 was added in P04 (version 2). The P04 refactoring did not change
+R1–R5: the same checks give the same answers (see the P04 proof in
+[design-notes.md](design-notes.md#proof)).
 
 Fictional classroom case (P03). Rooms R7 (Standard) and R8 (Deluxe); guests book on the website,
 a receptionist books for guests who phone or walk in. Both go into **one** shared list of
@@ -23,7 +27,7 @@ Proof lines below are copied from the program output and the test run recorded i
 A guest or receptionist can list the rooms that are free for given dates.
 Check: empty hotel, 12–14 November → R7, R8.
 Proof: `Free rooms 12-14 Nov: R7, R8`
-Tests: `test_r1_search_empty_hotel_lists_every_room`, `test_r1_search_hides_room_with_shared_night`
+Tests: `test_r1_search_empty_hotel_lists_every_room`, `test_r1_search_hides_room_with_shared_night`; P04 unittest: `test_cancelling_frees_the_room_again`
 
 ## R2 · Book
 A guest or receptionist can book a free room. The app answers with a reservation id.
@@ -65,3 +69,16 @@ Check: R101 → Maya, R7, 12–14 November, Confirmed.
 Proof: `tests/test_booking_service.py::test_r5_view_booking_by_id PASSED` (the nine-line demo has
 no View line, so the proof is the test run; `ReservationStore.find("R101")` returns
 Maya, R7, 2026-11-12..2026-11-14, Confirmed).
+
+## R6 · Failed message
+If the confirmation cannot be sent, the booking stays saved and Accepted, and the failure is reported.
+(New in P04, Step 7.2. A behaviour change, so it was added *after* the refactoring, test first.)
+Check: the sender fails ("The mail server is down.") while Maya books R7 for 12–14 November →
+`Accepted R101`, `notification_failed` is True, the store holds R101 (Confirmed).
+Proof: `test_booking_service.py::BookingServiceTests::test_a_failed_confirmation_keeps_the_booking ... ok`
+(red before the change in `reserve`, green after it — recorded in
+[practices/P04-refactor-reservation/evidence/observed-runs.md](../../practices/P04-refactor-reservation/evidence/observed-runs.md)).
+Tests: `test_a_failed_confirmation_keeps_the_booking`, `tests/test_sequences.py::test_sequence_r6_failed_confirmation`
+How it is reported: the result carries `notification_failed=True` (so a screen or the receptionist
+can offer to resend), and the service logs a warning with the reservation id. The demo never sees
+this case: its simulated email sender does not fail.

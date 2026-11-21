@@ -1,16 +1,16 @@
 [project]
 name = "hotel-booking"
-version = "0.3.0"
+version = "0.4.0"
 description = "Hotel booking app for the Advanced Software Design & Architecture course (grows from P03 on)."
 requires-python = ">=3.12"
 dependencies = []
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "test_booking_service.py"]
 pythonpath = ["."]
 addopts = "-ra"
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["hotel_booking", "main.py"]
+files = ["hotel_booking", "main.py", "test_booking_service.py", "tests/test_substitution.py", "tests/test_dependency_rule.py"]

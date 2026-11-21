@@ -1,3 +1,5 @@
-# P03: standard library only - no runtime dependencies.
-# Development / test tools:
+# P03-P04: standard library only - no runtime dependencies.
+# The P04 tests in test_booking_service.py use unittest (built in): python -m unittest -v
+# Development / test tools for the full suite and the type check:
 pytest>=8
+mypy>=1.10

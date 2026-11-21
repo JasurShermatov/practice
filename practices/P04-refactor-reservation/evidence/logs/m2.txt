@@ -1,0 +1,19 @@
+### Move 2 (5.2): ReservationStore protocol; P03 ReservationStore renamed to InMemoryReservationStore everywhere
+$ python -m unittest
+Ran 6 tests in 0.001s
+
+OK
+$ python -m pytest -q
+FAILED tests/test_uml_conformance.py::test_diagram_has_exactly_the_public_classes_of_the_package
+FAILED tests/test_uml_conformance.py::test_class_members_match_the_diagram[BookingResult]
+FAILED tests/test_uml_conformance.py::test_class_members_match_the_diagram[BookingService]
+FAILED tests/test_uml_conformance.py::test_class_members_match_the_diagram[DateRange]
+FAILED tests/test_uml_conformance.py::test_class_members_match_the_diagram[EmailNotificationSender]
+FAILED tests/test_uml_conformance.py::test_class_members_match_the_diagram[Guest]
+FAILED tests/test_uml_conformance.py::test_class_members_match_the_diagram[InMemoryReservationStore]
+FAILED tests/test_uml_conformance.py::test_class_members_match_the_diagram[Reservation]
+FAILED tests/test_uml_conformance.py::test_class_members_match_the_diagram[Room]
+FAILED tests/test_uml_conformance.py::test_class_members_match_the_diagram[SmsNotificationSender]
+FAILED tests/test_uml_conformance.py::test_every_implements_line_holds_in_the_code
+FAILED tests/test_uml_conformance.py::test_classes_after_page_implements_lines_hold_in_the_code
+12 failed, 54 passed in 1.23s

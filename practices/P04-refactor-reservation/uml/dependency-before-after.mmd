@@ -1,0 +1,37 @@
+---
+title: Before/after dependency sketch - who names which concrete class
+---
+flowchart LR
+  subgraph before["Before (P03)"]
+    direction TB
+    b_demo["demo.py<br/>creates ReservationStore + EmailSender"]
+    b_service["BookingService<br/>(booking rules)"]
+    b_store["ReservationStore<br/>(list in memory)"]
+    b_email["EmailSender<br/>(simulated email)"]
+    b_demo -- "creates + passes in" --> b_service
+    b_service -- "imports, type = concrete class" --> b_store
+    b_service -- "imports, type = concrete class" --> b_email
+  end
+
+  subgraph after["After (P04)"]
+    direction TB
+    a_main["main.py = composition root<br/>the only place that picks the real classes"]
+    a_service["BookingService<br/>(booking rules, unchanged)"]
+    a_store_port[["«interface» ReservationStore"]]
+    a_sender_port[["«interface» NotificationSender"]]
+    a_mem["InMemoryReservationStore"]
+    a_email["EmailNotificationSender"]
+    a_sms["SmsNotificationSender"]
+    a_fake["FakeNotificationSender<br/>(tests only)"]
+    a_main -- "creates + passes in" --> a_service
+    a_main -. creates .-> a_mem
+    a_main -. creates .-> a_email
+    a_service -- uses --> a_store_port
+    a_service -- uses --> a_sender_port
+    a_mem -. implements .-> a_store_port
+    a_email -. implements .-> a_sender_port
+    a_sms -. implements .-> a_sender_port
+    a_fake -. implements .-> a_sender_port
+  end
+
+  before ~~~ after

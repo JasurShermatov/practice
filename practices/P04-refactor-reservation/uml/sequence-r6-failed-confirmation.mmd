@@ -1,0 +1,21 @@
+---
+title: R6 - the email fails after the booking is saved (test_a_failed_confirmation_keeps_the_booking)
+---
+sequenceDiagram
+  autonumber
+  actor Maya
+  participant BS as :BookingService
+  participant Store as store:ReservationStore<br/>(InMemoryReservationStore)
+  participant Sender as notifications:NotificationSender<br/>(FakeNotificationSender, fail=True)
+
+  Maya->>BS: reserve(MAYA, R7, 12-14 Nov)
+  BS->>Store: has_overlap(R7, 12-14 Nov)
+  Store-->>BS: False
+  BS->>Store: count()   [inside next_id()]
+  Store-->>BS: 0
+  BS->>Store: save(R101)
+  Note over Store: from here on Maya has R101 (Confirmed),<br/>whatever happens next
+  BS->>Sender: send_confirmation(R101)
+  Sender--xBS: RuntimeError("The mail server is down.")
+  Note over BS: caught in try_to_confirm():<br/>logged, booking not undone
+  BS-->>Maya: BookingResult(ACCEPTED, "R101", notification_failed=True) - "Accepted R101"

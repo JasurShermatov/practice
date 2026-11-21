@@ -3,7 +3,12 @@
 Spies record every call that crosses an object boundary, so each test reads
 like the numbered arrows of the matching diagram in
 practices/P03-hotel-domain-uml/uml/ (sequence-book, sequence-unavailable,
-sequence-cancel).
+sequence-cancel) and practices/P04-refactor-reservation/uml/
+(sequence-r6-failed-confirmation).
+
+P04 change (deliberate): the spies now extend the renamed concrete classes
+(InMemoryReservationStore, EmailNotificationSender) - the P03 message order is
+unchanged, which is part of the proof that the refactoring kept behaviour.
 """
 from __future__ import annotations
 
@@ -11,7 +16,7 @@ import threading
 import time
 from dataclasses import dataclass
 
-from hotel_booking import BookingService, DateRange, EmailSender, Reservation, ReservationStore
+from hotel_booking import BookingService, DateRange, EmailNotificationSender, InMemoryReservationStore, Reservation
 from hotel_booking.demo import HOTEL_ROOMS, MAYA, OMAR, R7, nov
 
 Log = list[str]
@@ -28,7 +33,7 @@ class SpyDateRange(DateRange):
         return answer
 
 
-class SpyStore(ReservationStore):
+class SpyStore(InMemoryReservationStore):
     def __init__(self, log: Log) -> None:
         super().__init__()
         self.log = log
@@ -53,7 +58,7 @@ class SpyStore(ReservationStore):
         return answer
 
 
-class SpyEmail(EmailSender):
+class SpyEmail(EmailNotificationSender):
     def __init__(self, log: Log) -> None:
         super().__init__()
         self.log = log
@@ -114,7 +119,7 @@ def test_sequence_cancel_r101() -> None:
     log: Log = []
     service, store = new_service(log)
     service.reserve(MAYA, R7, nov(12, 14))
-    r101 = ReservationStore.find(store, "R101")  # unspied lookup for the test setup
+    r101 = InMemoryReservationStore.find(store, "R101")  # unspied lookup for the test setup
     assert r101 is not None
     real_cancel = r101.cancel
 
@@ -153,3 +158,32 @@ def test_sequence_race_both_checks_before_either_save() -> None:
         "store.save(R102)",
         "email.send_confirmation(R102)",
     ]
+
+
+class FailingSpySender:
+    """Keeps the NotificationSender promise, logs the call, then fails like a mail server that is down."""
+
+    def __init__(self, log: Log) -> None:
+        self.log = log
+
+    def send_confirmation(self, reservation: Reservation) -> None:
+        self.log.append(f"sender.send_confirmation({reservation.id}) -> error")
+        raise RuntimeError("The mail server is down.")
+
+
+def test_sequence_r6_failed_confirmation() -> None:
+    """uml/sequence-r6-failed-confirmation: save (4) happens before the failing send (5-6)."""
+    log: Log = []
+    store = SpyStore(log)
+    service = BookingService(HOTEL_ROOMS, store, FailingSpySender(log))
+    result = service.reserve(MAYA, R7, nov(12, 14))
+    log.append(f"reply -> {result} (notification_failed={result.notification_failed})")
+    assert log == [
+        "store.has_overlap(R7) -> False",
+        "store.count() -> 0",
+        "store.save(R101)",
+        "sender.send_confirmation(R101) -> error",
+        "reply -> Accepted R101 (notification_failed=True)",
+    ]
+    saved = InMemoryReservationStore.find(store, "R101")
+    assert saved is not None and saved.status.value == "Confirmed"  # not undone
