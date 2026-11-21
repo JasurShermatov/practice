@@ -1,0 +1,6 @@
+P02 synthetic lab output
+child_pid=1422
+parent_pid=1418
+platform=Linux
+cpu_iterations=14815955
+requested_exit_code=0

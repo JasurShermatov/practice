@@ -1,0 +1,31 @@
+---
+title: Classes - before (P03). BookingService is tied to two concrete classes
+---
+classDiagram
+  direction TB
+
+  class BookingService {
+    -rooms: list~Room~
+    -store: ReservationStore
+    -email: EmailSender
+    +find_free_rooms(stay: DateRange) list~Room~
+    +reserve(guest: Guest, room: Room, stay: DateRange) BookingResult
+    +cancel(reservation_id: str) bool
+  }
+
+  class ReservationStore {
+    -rows: list~Reservation~
+    +count() int
+    +has_overlap(room: Room, stay: DateRange) bool
+    +save(reservation: Reservation) None
+    +find(reservation_id: str) Reservation or None
+    +count_confirmed(room: Room, stay: DateRange) int
+  }
+
+  class EmailSender {
+    +sent: int
+    +send_confirmation(reservation: Reservation) None
+  }
+
+  BookingService ..> ReservationStore : uses this exact class
+  BookingService ..> EmailSender : uses this exact class

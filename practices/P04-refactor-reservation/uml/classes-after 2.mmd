@@ -1,0 +1,53 @@
+---
+title: Classes - after (P04). BookingService depends only on two interfaces
+---
+classDiagram
+  direction TB
+
+  class BookingService {
+    -rooms: list~Room~
+    -store: ReservationStore
+    -notifications: NotificationSender
+    +find_free_rooms(stay: DateRange) list~Room~
+    +reserve(guest: Guest, room: Room, stay: DateRange) BookingResult
+    +cancel(reservation_id: str) bool
+  }
+
+  class ReservationStore {
+    <<interface>>
+    +count() int
+    +has_overlap(room: Room, stay: DateRange) bool
+    +save(reservation: Reservation) None
+    +find(reservation_id: str) Reservation or None
+    +count_confirmed(room: Room, stay: DateRange) int
+  }
+
+  class NotificationSender {
+    <<interface>>
+    +send_confirmation(reservation: Reservation) None
+  }
+
+  class InMemoryReservationStore {
+    -rows: list~Reservation~
+  }
+
+  class EmailNotificationSender {
+    +sent: int
+  }
+
+  class SmsNotificationSender {
+    +sent: int
+  }
+
+  class FakeNotificationSender {
+    <<tests only>>
+    +fail: bool
+    +sent: list~str~
+  }
+
+  BookingService ..> ReservationStore : uses
+  BookingService ..> NotificationSender : uses
+  InMemoryReservationStore ..|> ReservationStore : implements
+  EmailNotificationSender ..|> NotificationSender : implements
+  SmsNotificationSender ..|> NotificationSender : implements
+  FakeNotificationSender ..|> NotificationSender : implements

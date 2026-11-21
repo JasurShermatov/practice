@@ -1,0 +1,30 @@
+%% P02 execution-boundary diagram: how child.py saves its synthetic result (Linux run, strace-observed syscalls)
+flowchart TB
+    subgraph HW["Hardware"]
+        CPU["CPU core<br/>executes both user and kernel code"]
+        RAM["Working RAM<br/>child's private address space<br/>(iterations, PID strings)"]
+        DISK[("Storage device<br/>output/child-result.txt")]
+    end
+
+    subgraph USER["USER MODE - child process (strace run: PID 714, python3 -u child.py)"]
+        U1["1. bounded_cpu_work(0.75)<br/>loop on values in RAM<br/>no system call for 0.75 s (stays in user mode)"]
+        U2["2. OUTPUT_FILE.write_text(...)<br/>synthetic text built in RAM"]
+        U3["3. Python io layer + C library wrappers<br/>(OS interface: openat / write / close)"]
+        U6["6. return value checked;<br/>'CHILD: wrote synthetic data ...' printed"]
+    end
+
+    subgraph KERNEL["KERNEL MODE - privileged"]
+        K1["4. system-call entry<br/>checks fd, permissions, path"]
+        K2["5. VFS + filesystem service<br/>copies bytes into page cache<br/>returns 114 (bytes written) / fd 3 / 0"]
+        K3["later: writeback to storage<br/>(not proven by a successful write)"]
+    end
+
+    U1 --> U2 --> U3
+    U3 -- "trap: openat(...child-result.txt) = 3<br/>write(3, ..., 114) = 114<br/>close(3) = 0" --> K1
+    K1 --> K2
+    K2 -- "return to user mode<br/>(same process, no new PID)" --> U6
+    K2 -.-> K3 -.-> DISK
+    U1 -. "uses" .-> CPU
+    U1 -. "reads/writes" .-> RAM
+    RAM -. "released when the process exits" .-> GONE["working values are gone"]
+    DISK -. "survives process exit;<br/>cat output/child-result.txt reopens it" .-> KEEP["saved file remains"]

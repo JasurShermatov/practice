@@ -1,0 +1,25 @@
+---
+title: Who uses the hotel booking app, and for what? (use case diagram)
+---
+flowchart LR
+  guest["«actor»<br/>Guest<br/>(website)"]
+  receptionist["«actor»<br/>Receptionist<br/>(phone / walk-in)"]
+
+  subgraph app["Hotel booking app (system boundary)"]
+    search(["Search free rooms"])
+    book(["Book a room"])
+    view(["View a booking"])
+    cancel(["Cancel a booking"])
+  end
+
+  guest --- search
+  guest --- book
+  guest --- view
+  guest --- cancel
+  receptionist --- search
+  receptionist --- book
+  receptionist --- view
+  receptionist --- cancel
+
+  classDef actor fill:#fff,stroke:#333,stroke-width:2px
+  class guest,receptionist actor

@@ -1,0 +1,94 @@
+=== P02 capture: run4-fork-exec-wait ===
+Command in Terminal A (cwd = lab/): python3 starter/fork_exec_wait.py
+Recorded: 2026-11-21T11:07:56+05:00
+Environment: Linux 6.18.44-fc-v726 x86_64; Ubuntu 24.04.5 LTS; Python 3.13.18
+
+--- Terminal A while the child waits at its prompt (Enter NOT pressed yet) ---
+lab$ python3 starter/fork_exec_wait.py
+FORK-DEMO: parent PID=817 is about to fork.
+FORK-DEMO: parent created PID=821; waiting for it.
+CHILD: started
+CHILD: PID=821 PPID=817
+CHILD: platform=Linux Python=3.13.18
+CHILD: CPU phase for 0.75 seconds...
+CHILD: CPU phase complete (7557094 loop iterations).
+CHILD: press Enter to continue and write synthetic lab output:
+
+--- Terminal B: inspection of child PID 821 (parent PID 817) ---
+$ date -Is
+2026-11-21T11:07:56+05:00
+$ ps -o pid,ppid,stat,%cpu,vsz,rss,nlwp,comm -p 821
+  PID  PPID STAT %CPU    VSZ   RSS NLWP COMMAND
+  821   817 S+   18.5  37348 13852    1 python3
+$ ps -o pid,ppid,stat,%cpu,vsz,rss,nlwp,comm -p 817    # the parent, waiting in wait()
+  PID  PPID STAT %CPU    VSZ   RSS NLWP COMMAND
+  817   811 S+    0.7  37324 13504    1 python3
+$ ps -o pid,ppid,stat,time,etime,args -p 817,821   # cumulative CPU TIME and command lines
+  PID  PPID STAT     TIME     ELAPSED COMMAND
+  817   811 S+   00:00:00       00:03 python3 starter/fork_exec_wait.py
+  821   817 S+   00:00:00       00:03 /usr/local/bin/python3 -u /mnt/attach/outputs/advanced-programming/practices/P02-os-process-lifecycle/lab/starter/child.py
+$ ps -o pid,ppid,stat,comm --forest -s $(ps -o sid= -p 817)   # process tree of this terminal session
+  PID  PPID STAT COMMAND
+  811   810 Ss   bash
+  817   811 S+    \_ python3
+  821   817 S+        \_ python3
+$ awk '{print "utime_ticks="$14, "stime_ticks="$15}' /proc/821/stat; getconf CLK_TCK   # exact cumulative CPU
+utime_ticks=71 stime_ticks=0
+100
+$ grep -E '^(Name|State|Pid|PPid|Threads|VmSize|VmRSS)' /proc/821/status
+Name:	python3
+State:	S (sleeping)
+Pid:	821
+PPid:	817
+VmSize:	   37348 kB
+VmRSS:	   13852 kB
+Threads:	1
+$ cat /proc/821/wchan; echo     # kernel function the child sleeps in
+wait_woken
+$ cat /proc/817/wchan; echo    # kernel function the parent sleeps in
+do_wait
+$ ls -l /proc/821/fd
+total 0
+Nov 21 11:07 0 -> /dev/pts/0
+Nov 21 11:07 1 -> /dev/pts/0
+Nov 21 11:07 2 -> /dev/pts/0
+$ lsof -p 821 | wc -l    # open resources incl. header line (paths not copied)
+16
+$ lsof -p 821 | awk 'NR>1{print $5}' | sort | uniq -c    # resource TYPE counts
+      3 CHR
+      2 DIR
+     10 REG
+$ sleep 1; ps -o pid,stat,%cpu,time -p 821    # second sample, 1 s later
+  PID STAT %CPU     TIME
+  821 S+   14.4 00:00:00
+
+--- Terminal A after Enter (complete transcript) ---
+lab$ python3 starter/fork_exec_wait.py
+FORK-DEMO: parent PID=817 is about to fork.
+FORK-DEMO: parent created PID=821; waiting for it.
+CHILD: started
+CHILD: PID=821 PPID=817
+CHILD: platform=Linux Python=3.13.18
+CHILD: CPU phase for 0.75 seconds...
+CHILD: CPU phase complete (7557094 loop iterations).
+CHILD: press Enter to continue and write synthetic lab output:
+CHILD: wrote synthetic data to output/child-result.txt
+CHILD: exiting with code 7.
+FORK-DEMO: waited for PID=821; exit code=7
+lab$ echo "parent exit status: $?"
+parent exit status: 0
+lab$
+
+--- After the run: is the child PID still present? ---
+$ ps -o pid,stat,comm -p 821 || echo 'no such process (exited and reaped)'
+  PID STAT COMMAND
+no such process (exited and reaped)
+
+--- Saved synthetic file ---
+$ cat output/child-result.txt
+P02 synthetic lab output
+child_pid=821
+parent_pid=817
+platform=Linux
+cpu_iterations=7557094
+requested_exit_code=7
