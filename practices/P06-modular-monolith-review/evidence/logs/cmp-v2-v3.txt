@@ -1,0 +1,42 @@
+$ python3 -I compare_behaviour.py <copy of hotel-booking at the end of P04>   # stderr:
+# shape found: version 2 (flat package)
+accepted Maya R7 12-14                -> Accepted R101
+full     Omar R7 13-15                -> Unavailable
+accepted Nora R7 14-16 (adjacent)     -> Accepted R102
+error    Omar R8 15-15 (zero nights)  -> InvalidDates
+error    Omar R8 16-14 (reversed)     -> InvalidDates
+accepted Omar R8 12-14                -> Accepted R103
+search   free 12-14                   -> (none - full)
+full     Nora R8 13-14                -> Unavailable
+cancel   cancel R101                  -> True
+cancel   cancel R101 again            -> False
+cancel   cancel R999 (unknown)        -> False
+search   free 12-14                   -> R7
+confirmations sent: 3
+saved records: 3
+  R101 Maya R7 2026-11-12..2026-11-14 Cancelled
+  R102 Nora R7 2026-11-14..2026-11-16 Confirmed
+  R103 Omar R8 2026-11-12..2026-11-14 Confirmed
+
+$ python3 -I compare_behaviour.py hotel-booking   # stderr:
+# shape found: version 3 (four modules)
+accepted Maya R7 12-14                -> Accepted R101
+full     Omar R7 13-15                -> Unavailable
+accepted Nora R7 14-16 (adjacent)     -> Accepted R102
+error    Omar R8 15-15 (zero nights)  -> InvalidDates
+error    Omar R8 16-14 (reversed)     -> InvalidDates
+accepted Omar R8 12-14                -> Accepted R103
+search   free 12-14                   -> (none - full)
+full     Nora R8 13-14                -> Unavailable
+cancel   cancel R101                  -> True
+cancel   cancel R101 again            -> False
+cancel   cancel R999 (unknown)        -> False
+search   free 12-14                   -> R7
+confirmations sent: 3
+saved records: 3
+  R101 Maya R7 2026-11-12..2026-11-14 Cancelled
+  R102 Nora R7 2026-11-14..2026-11-16 Confirmed
+  R103 Omar R8 2026-11-12..2026-11-14 Confirmed
+
+$ diff <v2 output> <v3 output>
+(no difference)

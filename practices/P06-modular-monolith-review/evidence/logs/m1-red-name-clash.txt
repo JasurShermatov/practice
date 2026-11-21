@@ -1,0 +1,25 @@
+# Step 2 attempt: four empty module folders incl. hotel_booking/notifications/ next to notifications.py
+$ ls hotel_booking
+__init__.py
+__pycache__
+booking.py
+demo.py
+domain.py
+notifications
+notifications.py
+payments
+reservations
+rooms
+stores.py
+$ python3 -m unittest -v
+      1 FAILED (errors=8)
+      1 ImportError: Failed to import test module: hotel_booking
+      1 ImportError: Failed to import test module: test_booking_service
+      1 ImportError: Failed to import test module: tests.test_booking_service
+      1 ImportError: Failed to import test module: tests.test_demo_and_race
+      1 ImportError: Failed to import test module: tests.test_domain
+      1 ImportError: Failed to import test module: tests.test_sequences
+      1 ImportError: Failed to import test module: tests.test_substitution
+      1 ImportError: Failed to import test module: tests.test_uml_conformance
+      8 ImportError: cannot import name 'NotificationSender' from 'hotel_booking.notifications' (<portfolio>/hotel-booking/hotel_booking/notifications/__init__.py)
+      1 Ran 8 tests in 0.001s

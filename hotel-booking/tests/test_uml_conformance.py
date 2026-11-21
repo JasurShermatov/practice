@@ -1,38 +1,46 @@
-"""The code must match the class diagrams exactly: same classes, members, interfaces and links.
+"""The code must match the class diagrams exactly: same classes, members, interfaces, links - and modules.
 
-The diagrams are the Mermaid sources in the practice folder. When a later
+The diagrams are the Mermaid sources in the practice folders. When a later
 practice changes the design, it points CLASS_DIAGRAM at its own diagram.
 
-P04 change (deliberate): CLASS_DIAGRAM moved from the P03 diagram to the P04
-one, and the parser now understands ``<<interface>>`` boxes and ``..|>``
-("implements") lines. Interfaces are ``typing.Protocol`` classes; "implements"
-is checked structurally (same public methods, same parameter names), because a
-Protocol is kept by shape, not by inheritance. Two more tests check the
-activity sheet's "Classes - after" page (2 interfaces, 5 classes, 2 "uses",
-4 "implements").
+P04 change: CLASS_DIAGRAM moved to the P04 diagram; ``<<interface>>`` boxes and
+``..|>`` ("implements") lines are understood. Interfaces are ``typing.Protocol``
+classes; "implements" is checked structurally (same public methods, same
+parameter names).
 
-Names are looked up lazily (``getattr``) so that, while the code is between the
-P03 and the P04 design, only the affected tests fail, not the whole module.
+P06 change (deliberate): CLASS_DIAGRAM now points at the P06 diagram
+(``practices/P06-modular-monolith-review/diagrams/class-diagram.mmd``), which
+draws one Mermaid ``namespace`` per module and marks internal classes
+``<<internal>>``. Because the package root no longer re-exports anything,
+classes are looked up in the four module contracts (``__all__``) and their
+``internal.py``. New checks: every box sits in the namespace of the module whose
+code defines it; ``<<internal>>`` boxes are exactly the classes of the
+``internal.py`` files; and the diagram itself respects the module borders (a
+line between two modules starts in Reservations and ends at a public class).
+The two checks of the P04 activity page "Classes - after" are kept.
 """
 from __future__ import annotations
 
+import importlib
 import inspect
 import re
 from dataclasses import dataclass, field
 from datetime import date
+from decimal import Decimal
 from enum import Enum
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
 import pytest
 
-import hotel_booking
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
-UML_DIR = REPO_ROOT / "practices" / "P04-refactor-reservation" / "uml"
-CLASS_DIAGRAM = UML_DIR / "class-diagram.mmd"
-CLASSES_AFTER = UML_DIR / "classes-after.mmd"
+CLASS_DIAGRAM = REPO_ROOT / "practices" / "P06-modular-monolith-review" / "diagrams" / "class-diagram.mmd"
+CLASSES_AFTER = REPO_ROOT / "practices" / "P04-refactor-reservation" / "uml" / "classes-after.mmd"
 
+MODULES = ("rooms", "reservations", "payments", "notifications")
+
+NAMESPACE_HEADER = re.compile(r"^\s*namespace (\w+) \{\s*$")
 CLASS_HEADER = re.compile(r"^\s*class (\w+) \{\s*$")
 MEMBER = re.compile(r"^\s*([+-])(\w+)(\(.*\))?")
 STEREOTYPE = re.compile(r"^\s*<<(.+)>>\s*$")
@@ -41,10 +49,12 @@ RELATION = re.compile(
 )
 IMPLEMENTS = "..|>"
 USES = "..>"
+INTERNAL = "internal"
 
 
 @dataclass
 class Box:
+    namespace: str | None = None
     stereotype: str | None = None
     members: dict[str, set[str]] = field(
         default_factory=lambda: {key: set() for key in ("+attr", "-attr", "+op", "-op")}
@@ -67,10 +77,14 @@ class Diagram:
 def parse_diagram(text: str) -> Diagram:
     boxes: dict[str, Box] = {}
     relations: list[tuple[str, str, str]] = []
+    namespace: str | None = None
     current: Box | None = None
     for line in text.splitlines():
+        if (header := NAMESPACE_HEADER.match(line)) is not None:
+            namespace = header.group(1)
+            continue
         if (header := CLASS_HEADER.match(line)) is not None:
-            current = boxes[header.group(1)] = Box()
+            current = boxes[header.group(1)] = Box(namespace=namespace)
             continue
         if current is not None:
             if line.strip() == "}":
@@ -82,6 +96,9 @@ def parse_diagram(text: str) -> Diagram:
                 current.members[f"{visibility}{'op' if params else 'attr'}"].add(name)
             elif line.strip():
                 current.values.add(line.strip())
+            continue
+        if line.strip() == "}":  # end of a namespace block
+            namespace = None
             continue
         if (relation := RELATION.match(line)) is not None:
             left, arrow, right = relation.groups()
@@ -100,21 +117,59 @@ def diagram() -> Diagram:
     return load(CLASS_DIAGRAM)
 
 
+# --- where every class lives in the code -------------------------------------------------
+
+
+def contract(module: str) -> ModuleType:
+    return importlib.import_module(f"hotel_booking.{module}")
+
+
+def internal(module: str) -> ModuleType:
+    return importlib.import_module(f"hotel_booking.{module}.internal")
+
+
+def public_classes() -> dict[str, tuple[str, type]]:
+    """Name -> (module, class) for everything a module's contract exports."""
+    return {name: (module, getattr(contract(module), name)) for module in MODULES for name in contract(module).__all__}
+
+
+def internal_classes() -> dict[str, tuple[str, type]]:
+    """Name -> (module, class) for every class *defined* in a module's internal.py."""
+    found: dict[str, tuple[str, type]] = {}
+    for module in MODULES:
+        code = internal(module)
+        for name, value in vars(code).items():
+            if inspect.isclass(value) and value.__module__ == code.__name__:
+                found[name] = (module, value)
+    return found
+
+
+def lookup(name: str) -> type:
+    return {**public_classes(), **internal_classes()}[name][1]
+
+
 def sample_instances() -> dict[str, object]:
-    """One real object per concrete class of the package (interfaces cannot be instantiated)."""
-    hb = hotel_booking
-    stay = hb.DateRange(date(2026, 11, 12), date(2026, 11, 14))
-    guest = hb.Guest("Maya", "maya@example.com")
-    room = hb.Room("R7", "Standard")
-    store = getattr(hb, "InMemoryReservationStore")()
-    email = getattr(hb, "EmailNotificationSender")()
+    """One real object per concrete class of the four modules (interfaces cannot be instantiated)."""
+    rooms_internal, reservations_internal = internal("rooms"), internal("reservations")
+    payments_internal, notifications_internal = internal("payments"), internal("notifications")
+    res, rms, ntf = contract("reservations"), contract("rooms"), contract("notifications")
+    stay = res.DateRange(date(2026, 11, 12), date(2026, 11, 14))
+    guest = res.Guest("Maya", "maya@example.com")
+    room = rms.Room("R7", "Standard")
+    store = reservations_internal.InMemoryReservationStore()
+    email = notifications_internal.EmailNotificationSender()
+    payments = payments_internal.SimulatedPaymentService()
+    payments.take_deposit("R101", Decimal("60.00"))
     return {
-        "BookingService": hb.BookingService([room], store, email),
-        "BookingResult": hb.BookingResult(hb.BookingOutcome.ACCEPTED, "R101"),
+        "BookingService": res.BookingService([room], store, email),
+        "BookingResult": res.BookingResult(res.BookingOutcome.ACCEPTED, "R101"),
         "InMemoryReservationStore": store,
+        "InMemoryRoomCatalog": rooms_internal.InMemoryRoomCatalog([room]),
+        "SimulatedPaymentService": payments,
         "EmailNotificationSender": email,
-        "SmsNotificationSender": getattr(hb, "SmsNotificationSender")(),
-        "Reservation": hb.Reservation("R101", guest, room, stay),
+        "SmsNotificationSender": notifications_internal.SmsNotificationSender(),
+        "Confirmation": ntf.Confirmation("R101", guest.email, room.number, stay.check_in, stay.check_out),
+        "Reservation": res.Reservation("R101", guest, room, stay),
         "Guest": guest,
         "Room": room,
         "DateRange": stay,
@@ -122,9 +177,14 @@ def sample_instances() -> dict[str, object]:
 
 
 CONCRETE_CLASSES = [
-    "BookingResult", "BookingService", "DateRange", "EmailNotificationSender", "Guest",
-    "InMemoryReservationStore", "Reservation", "Room", "SmsNotificationSender",
+    "BookingResult", "BookingService", "Confirmation", "DateRange", "Guest", "Reservation", "Room",
 ]
+INTERNAL_CLASSES = [
+    "EmailNotificationSender", "InMemoryReservationStore", "InMemoryRoomCatalog",
+    "SimulatedPaymentService", "SmsNotificationSender",
+]
+INTERFACES = ["NotificationSender", "PaymentService", "ReservationStore", "RoomCatalog"]
+ENUMERATIONS = ["BookingOutcome", "PaymentStatus", "ReservationStatus"]
 
 
 def code_members(obj: object) -> dict[str, set[str]]:
@@ -159,20 +219,31 @@ def assert_keeps_promise(implementation: type, interface: type) -> None:
         )
 
 
-# --- the full class diagram of version 2 -------------------------------------------------
+# --- the full class diagram of version 3 -------------------------------------------------
 
 
-def test_diagram_has_exactly_the_public_classes_of_the_package(diagram: Diagram) -> None:
-    assert set(diagram.boxes) == set(hotel_booking.__all__)
+def test_diagram_has_exactly_the_classes_of_the_four_modules(diagram: Diagram) -> None:
+    assert set(diagram.boxes) == set(public_classes()) | set(internal_classes())
 
 
-def test_diagram_marks_the_two_interfaces_and_two_enumerations(diagram: Diagram) -> None:
-    assert diagram.named("interface") == {"ReservationStore", "NotificationSender"}
-    assert diagram.named("enumeration") == {"ReservationStatus", "BookingOutcome"}
+def test_every_box_is_drawn_in_the_module_that_defines_it(diagram: Diagram) -> None:
+    where = {name: module for name, (module, _) in {**public_classes(), **internal_classes()}.items()}
+    drawn = {name: box.namespace for name, box in diagram.boxes.items()}
+    assert drawn == where
+
+
+def test_internal_boxes_are_exactly_the_classes_of_the_internal_files(diagram: Diagram) -> None:
+    assert diagram.named(INTERNAL) == set(internal_classes()) == set(INTERNAL_CLASSES)
+    assert not set(internal_classes()) & set(public_classes()), "a contract re-exports an internal class"
+
+
+def test_diagram_marks_the_interfaces_and_enumerations(diagram: Diagram) -> None:
+    assert diagram.named("interface") == set(INTERFACES)
+    assert diagram.named("enumeration") == set(ENUMERATIONS)
     assert diagram.named(None) == set(CONCRETE_CLASSES)
 
 
-@pytest.mark.parametrize("name", CONCRETE_CLASSES)
+@pytest.mark.parametrize("name", CONCRETE_CLASSES + INTERNAL_CLASSES)
 def test_class_members_match_the_diagram(diagram: Diagram, name: str) -> None:
     expected = diagram.boxes[name].members
     actual = code_members(sample_instances()[name])
@@ -180,18 +251,18 @@ def test_class_members_match_the_diagram(diagram: Diagram, name: str) -> None:
         assert actual[key] == expected[key], f"{name} {key}: code {actual[key]} vs diagram {expected[key]}"
 
 
-@pytest.mark.parametrize("name", ["ReservationStore", "NotificationSender"])
+@pytest.mark.parametrize("name", INTERFACES)
 def test_interfaces_are_protocols_with_the_drawn_operations(diagram: Diagram, name: str) -> None:
-    interface = getattr(hotel_booking, name)
+    interface = lookup(name)
     box = diagram.boxes[name]
     assert getattr(interface, "_is_protocol", False), f"{name} must be a typing.Protocol"
     assert protocol_operations(interface) == box.members["+op"]
     assert not (box.members["+attr"] | box.members["-attr"] | box.members["-op"])  # a promise has no data
 
 
-@pytest.mark.parametrize("name", ["ReservationStatus", "BookingOutcome"])
+@pytest.mark.parametrize("name", ENUMERATIONS)
 def test_enumeration_values_match_the_diagram(diagram: Diagram, name: str) -> None:
-    enum_cls = getattr(hotel_booking, name)
+    enum_cls = lookup(name)
     assert issubclass(enum_cls, Enum)
     assert {member.name for member in enum_cls} == diagram.boxes[name].values
 
@@ -201,19 +272,22 @@ def test_every_implements_line_holds_in_the_code(diagram: Diagram) -> None:
     assert sorted(implements) == [
         ("EmailNotificationSender", "NotificationSender"),
         ("InMemoryReservationStore", "ReservationStore"),
+        ("InMemoryRoomCatalog", "RoomCatalog"),
+        ("SimulatedPaymentService", "PaymentService"),
         ("SmsNotificationSender", "NotificationSender"),
     ]
     for implementation, interface in implements:
-        assert_keeps_promise(getattr(hotel_booking, implementation), getattr(hotel_booking, interface))
+        assert diagram.boxes[implementation].namespace == diagram.boxes[interface].namespace
+        assert_keeps_promise(lookup(implementation), lookup(interface))
 
 
 def test_every_other_relationship_is_visible_in_the_source(diagram: Diagram) -> None:
     """Each non-"implements" line must correspond to a reference in the code of one end."""
     others = [(left, right) for left, kind, right in diagram.relations if kind != IMPLEMENTS]
-    assert len(others) == 11
+    assert len(others) == 16
     for left, right in others:
-        left_src = inspect.getsource(getattr(hotel_booking, left))
-        right_src = inspect.getsource(getattr(hotel_booking, right))
+        left_src = inspect.getsource(lookup(left))
+        right_src = inspect.getsource(lookup(right))
         assert right in left_src or left in right_src, f"no code link for {left} -- {right}"
 
 
@@ -221,10 +295,25 @@ def test_booking_service_uses_only_the_interfaces(diagram: Diagram) -> None:
     """Dependency inversion on the diagram: BookingService's "uses" lines end at interfaces."""
     used = {right for left, right in diagram.links(USES) if left == "BookingService"}
     assert {"ReservationStore", "NotificationSender"} <= used
-    assert not used & {"InMemoryReservationStore", "EmailNotificationSender", "SmsNotificationSender"}
+    assert not used & set(INTERNAL_CLASSES)
 
 
-# --- the activity sheet's page "Classes - after" ------------------------------------------
+def test_the_diagram_respects_the_module_borders(diagram: Diagram) -> None:
+    """Rules 1-3 on paper: a line between two modules starts in Reservations and ends at a public class."""
+    crossing = [
+        (left, right) for left, _, right in diagram.relations
+        if diagram.boxes[left].namespace != diagram.boxes[right].namespace
+    ]
+    assert crossing, "the modules must be connected somewhere"
+    for left, right in crossing:
+        # Mermaid lets either end be written first; the dependent end is the one in Reservations.
+        ends = {diagram.boxes[left].namespace, diagram.boxes[right].namespace}
+        assert "reservations" in ends, f"{left} -- {right}: only Reservations may depend on other modules"
+        other = right if diagram.boxes[left].namespace == "reservations" else left
+        assert diagram.boxes[other].stereotype != INTERNAL, f"{left} -- {right} reaches internal code"
+
+
+# --- the P04 activity sheet's page "Classes - after" (kept) ------------------------------
 
 
 def test_classes_after_page_has_the_counts_of_the_p04_checklist() -> None:
@@ -240,6 +329,7 @@ def test_classes_after_page_implements_lines_hold_in_the_code() -> None:
     import test_booking_service  # the course's unittest file at the project root holds the fake
 
     page = load(CLASSES_AFTER)
+    known = {**public_classes(), **internal_classes()}
     for implementation, interface in page.links(IMPLEMENTS):
-        cls = getattr(hotel_booking, implementation, None) or getattr(test_booking_service, implementation)
-        assert_keeps_promise(cls, getattr(hotel_booking, interface))
+        cls = known[implementation][1] if implementation in known else getattr(test_booking_service, implementation)
+        assert_keeps_promise(cls, known[interface][1])

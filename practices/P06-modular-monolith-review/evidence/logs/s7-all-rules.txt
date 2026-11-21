@@ -1,0 +1,74 @@
+$ python3 -I practices/P06-modular-monolith-review/evidence/break_the_border.py hotel-booking
+== Rule 1 (activity sheet Step 7): Reservations names Notifications' internal sender
+   hotel_booking/reservations/booking.py:29: from hotel_booking.notifications.internal import EmailNotificationSender  # step 7
+  [8 behaviour tests] exit 0
+    Ran 8 tests in 0.002s
+    OK
+  [lint-imports look-alike] exit 1
+    Reservations uses only the public contracts of other modules BROKEN
+    Rooms does not depend on any other module KEPT
+    Payments and Notifications do not depend on Reservations KEPT
+    Reservations uses only the public contracts of other modules BROKEN
+    hotel_booking.reservations.booking is not allowed to import hotel_booking.notifications.internal:
+    -   hotel_booking.reservations.booking -> hotel_booking.notifications.internal (l.29)
+    Contracts: 2 kept, 1 broken.
+  [architecture tests] exit 1
+    E       AssertionError: Reservations uses only the public contracts of other modules BROKEN
+    E         
+    E         hotel_booking.reservations.booking is not allowed to import hotel_booking.notifications.internal:
+    E         -   hotel_booking.reservations.booking -> hotel_booking.notifications.internal (l.29)
+    E         
+    E       assert not [[Import(importer='hotel_booking.reservations.booking', imported='hotel_booking.notifications.internal', line=29)]]
+    E       AssertionError: imports of another module's internal code:
+    E         hotel_booking.reservations.booking -> hotel_booking.notifications.internal (l.29)
+    E       assert not ['hotel_booking.reservations.booking -> hotel_booking.notifications.internal (l.29)']
+    FAILED tests/test_architecture.py::test_contract_is_kept[reservations-uses-contracts-only]
+    FAILED tests/test_architecture.py::test_no_module_imports_another_modules_internal_code
+    2 failed, 11 passed in 0.08s
+
+== Rule 2: Rooms reaches into Reservations
+   hotel_booking/rooms/catalog.py:6: from hotel_booking.reservations import domain  # bad
+  [8 behaviour tests] exit 0
+    Ran 8 tests in 0.002s
+    OK
+  [lint-imports look-alike] exit 1
+    Reservations uses only the public contracts of other modules KEPT
+    Rooms does not depend on any other module BROKEN
+    Payments and Notifications do not depend on Reservations KEPT
+    Rooms does not depend on any other module BROKEN
+    hotel_booking.rooms.catalog is not allowed to import hotel_booking.reservations.domain:
+    -   hotel_booking.rooms.catalog -> hotel_booking.reservations.domain (l.6)
+    Contracts: 2 kept, 1 broken.
+  [architecture tests] exit 1
+    E       AssertionError: Rooms does not depend on any other module BROKEN
+    E         
+    E         hotel_booking.rooms.catalog is not allowed to import hotel_booking.reservations.domain:
+    E         -   hotel_booking.rooms.catalog -> hotel_booking.reservations.domain (l.6)
+    E         
+    E       assert not [[Import(importer='hotel_booking.rooms.catalog', imported='hotel_booking.reservations.domain', line=6)]]
+    FAILED tests/test_architecture.py::test_contract_is_kept[rooms-independent]
+    1 failed, 12 passed in 0.12s
+
+== Rule 3: Notifications depends on Reservations (the circle P06 removed)
+   hotel_booking/notifications/internal.py:10: from hotel_booking.reservations.domain import Reservation  # bad
+  [8 behaviour tests] exit 0
+    Ran 8 tests in 0.002s
+    OK
+  [lint-imports look-alike] exit 1
+    Reservations uses only the public contracts of other modules KEPT
+    Rooms does not depend on any other module KEPT
+    Payments and Notifications do not depend on Reservations BROKEN
+    Payments and Notifications do not depend on Reservations BROKEN
+    hotel_booking.notifications.internal is not allowed to import hotel_booking.reservations.domain:
+    -   hotel_booking.notifications.internal -> hotel_booking.reservations.domain (l.10)
+    Contracts: 2 kept, 1 broken.
+  [architecture tests] exit 1
+    E       AssertionError: Payments and Notifications do not depend on Reservations BROKEN
+    E         
+    E         hotel_booking.notifications.internal is not allowed to import hotel_booking.reservations.domain:
+    E         -   hotel_booking.notifications.internal -> hotel_booking.reservations.domain (l.10)
+    E         
+    E       assert not [[Import(importer='hotel_booking.notifications.internal', imported='hotel_booking.reservations.domain', line=10)]]
+    FAILED tests/test_architecture.py::test_contract_is_kept[nothing-depends-on-reservations]
+    1 failed, 12 passed in 0.10s
+

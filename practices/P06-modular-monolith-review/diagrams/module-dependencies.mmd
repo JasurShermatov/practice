@@ -1,0 +1,47 @@
+---
+title: As built (P06) - every import between modules, found by tests/test_architecture.py
+---
+flowchart TB
+  main["<b>main.py</b> (wiring)<br/>the only app file that names internal code"]
+  demo["hotel_booking.demo<br/>classroom scenario"]
+
+  subgraph res["hotel_booking.reservations"]
+    res_c["contract: __init__, booking, domain"]
+    res_i["internal"]
+  end
+  subgraph rms["hotel_booking.rooms"]
+    rooms_c["contract: __init__, catalog"]
+    rooms_i["internal"]
+  end
+  subgraph pay["hotel_booking.payments"]
+    pay_c["contract: __init__"]
+    pay_i["internal"]
+  end
+  subgraph ntf["hotel_booking.notifications"]
+    ntf_c["contract: __init__"]
+    ntf_i["internal"]
+  end
+
+  res_c -.->|imports| rooms_c
+  res_c -.->|imports| ntf_c
+  res_i -.->|imports| res_c
+  res_i -.->|imports| rooms_c
+  rooms_i -.->|imports| rooms_c
+  pay_i -.->|imports| pay_c
+  ntf_i -.->|imports| ntf_c
+  demo -.->|imports| res_c
+  demo -.->|imports| rooms_c
+  main -->|imports| demo
+  main -->|imports| res_c
+  main -->|imports| res_i
+  main -->|imports| rooms_i
+  main -->|imports| ntf_i
+
+  classDef owner fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#1b1b1b
+  classDef contract fill:#ffffff,stroke:#424242,color:#1b1b1b
+  classDef internal fill:#f3e5f5,stroke:#7b1fa2,stroke-dasharray:5 3,color:#1b1b1b
+  classDef wiring fill:#eeeeee,stroke:#616161,color:#1b1b1b
+  class res_c owner
+  class rooms_c,pay_c,ntf_c contract
+  class res_i,rooms_i,pay_i,ntf_i internal
+  class main,demo wiring

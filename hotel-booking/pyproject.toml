@@ -1,9 +1,14 @@
 [project]
 name = "hotel-booking"
-version = "0.4.0"
+version = "0.6.0"
 description = "Hotel booking app for the Advanced Software Design & Architecture course (grows from P03 on)."
 requires-python = ">=3.12"
 dependencies = []
+
+# The module borders (P06) live in .importlinter, which `lint-imports` reads
+# automatically and tests/test_architecture.py parses too. The course reference
+# keeps them here under [tool.importlinter]; they are kept in ONE place so the
+# two checkers can never disagree.
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "test_booking_service.py"]
@@ -13,4 +18,8 @@ addopts = "-ra"
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["hotel_booking", "main.py", "test_booking_service.py", "tests/test_substitution.py", "tests/test_dependency_rule.py"]
+files = [
+    "hotel_booking", "main.py", "test_booking_service.py",
+    "tests/test_substitution.py", "tests/test_dependency_rule.py",
+    "tests/test_architecture.py", "tests/test_modules.py",
+]

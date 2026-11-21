@@ -3,21 +3,21 @@
 ``run_demo`` prints the nine lines that prove R1-R4; ``run_race`` shows the
 double booking that P09 fixes.
 
-Since P04 these functions *receive* the service and its helpers instead of
-creating them: ``main.py`` is the composition root, the only place that picks
-the real store and sender. The scenario itself did not change.
+These functions *receive* the service and its helpers instead of creating them
+(since P04): ``main.py`` is the wiring, the only app file that names internal
+classes. Since P06 this file uses only the public contracts of Rooms and
+Reservations, so it is checked like any other module by
+``tests/test_architecture.py``. The scenario itself did not change.
 """
 from __future__ import annotations
 
 import threading
 import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from datetime import date
 
-from .booking import BookingResult, BookingService
-from .domain import DateRange, Guest, Room
-from .notifications import EmailNotificationSender
-from .stores import ReservationStore
+from hotel_booking.reservations import BookingResult, BookingService, DateRange, Guest, ReservationStore
+from hotel_booking.rooms import Room
 
 R7 = Room("R7", "Standard")
 R8 = Room("R8", "Deluxe")
@@ -39,11 +39,12 @@ def room_numbers(rooms: Iterable[Room]) -> str:
     return ", ".join(room.number for room in rooms)
 
 
-def run_demo(service: BookingService, email: EmailNotificationSender) -> None:
+def run_demo(service: BookingService, emails_sent: Callable[[], int]) -> None:
     """The normal demo: one request at a time.
 
-    ``email`` is the sender that ``service`` was built with; it is passed in only
-    so the last line can report how many confirmations it counted.
+    ``emails_sent`` reads the counter of the sender ``service`` was built with
+    (the wiring passes ``lambda: email.sent``). A function instead of the
+    sender itself, so this file never names Notifications' internal class.
     """
     print(f"Free rooms 12-14 Nov: {room_numbers(service.find_free_rooms(nov(12, 14)))}")
     print(f"Maya books R7 12-14 Nov: {service.reserve(MAYA, R7, nov(12, 14))}")
@@ -53,7 +54,7 @@ def run_demo(service: BookingService, email: EmailNotificationSender) -> None:
     print(f"Free rooms 12-14 Nov: {room_numbers(service.find_free_rooms(nov(12, 14)))}")
     print(f"Maya cancels R101: {service.cancel('R101')}")
     print(f"Free rooms 12-14 Nov: {room_numbers(service.find_free_rooms(nov(12, 14)))}")
-    print(f"Confirmation emails sent: {email.sent}")
+    print(f"Confirmation emails sent: {emails_sent()}")
 
 
 def run_race(service: BookingService, store: ReservationStore, stagger_seconds: float = 0.1) -> int:

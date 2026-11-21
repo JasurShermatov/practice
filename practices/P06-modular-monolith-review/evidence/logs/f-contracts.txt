@@ -1,0 +1,8 @@
+$ python3 -m tests.test_architecture
+Analyzed 13 files, 14 dependencies.
+Reservations uses only the public contracts of other modules KEPT
+Rooms does not depend on any other module KEPT
+Payments and Notifications do not depend on Reservations KEPT
+
+Contracts: 3 kept, 0 broken.
+(exit code 0)

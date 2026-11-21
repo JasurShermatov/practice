@@ -1,5 +1,6 @@
-# P03-P04: standard library only - no runtime dependencies.
-# The P04 tests in test_booking_service.py use unittest (built in): python -m unittest -v
-# Development / test tools for the full suite and the type check:
+# P03-P06: standard library only - no runtime dependencies.
+# The course's 8 tests in test_booking_service.py use unittest (built in): python -m unittest -v
+# Development / test tools for the full suite, the type check and the module borders:
 pytest>=8
 mypy>=1.10
+import-linter>=2.0   # P06: `lint-imports` checks the contracts in .importlinter (tests/test_architecture.py checks the same file without it)

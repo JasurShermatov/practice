@@ -1,28 +1,18 @@
-"""Hotel booking app - version 2 (P04): the P03 app with its storage and messaging behind protocols.
+"""Hotel booking app - version 3 (P06): one program, four modules.
 
-Version 1 (P03) built the domain classes and the booking workflow, in memory.
-Version 2 keeps that behaviour and lets BookingService depend only on the
-``ReservationStore`` and ``NotificationSender`` promises; ``main.py`` wires the
-real classes. New behaviour: R6 (a failed confirmation keeps the booking) and an
-SMS sender.
+The P04 app sorted into the four bounded contexts designed in P05:
+
+- ``hotel_booking.rooms``         which rooms the hotel sells
+- ``hotel_booking.reservations``  who has which room for which nights (owns the booking rule)
+- ``hotel_booking.payments``      deposits and whether they were paid (used from P17)
+- ``hotel_booking.notifications`` telling guests what happened
+
+Each module's ``__init__.py`` is its *public contract*: the only names other
+modules may import. Its ``internal.py`` holds the classes that keep that
+contract; only the module itself, the wiring (``main.py``) and the tests may
+import them. ``.importlinter`` lists the borders and
+``tests/test_architecture.py`` fails the build when one is crossed.
+
+This package root deliberately re-exports nothing (it did up to P04): importing
+``hotel_booking`` must not hand anyone a module's internal classes.
 """
-from .booking import BookingOutcome, BookingResult, BookingService
-from .domain import DateRange, Guest, Reservation, ReservationStatus, Room
-from .notifications import EmailNotificationSender, NotificationSender, SmsNotificationSender
-from .stores import InMemoryReservationStore, ReservationStore
-
-__all__ = [
-    "BookingOutcome",
-    "BookingResult",
-    "BookingService",
-    "DateRange",
-    "EmailNotificationSender",
-    "Guest",
-    "InMemoryReservationStore",
-    "NotificationSender",
-    "Reservation",
-    "ReservationStatus",
-    "ReservationStore",
-    "Room",
-    "SmsNotificationSender",
-]

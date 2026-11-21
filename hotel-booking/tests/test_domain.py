@@ -1,4 +1,7 @@
-"""DateRange, Reservation and the value/entity rules (R3, R4)."""
+"""DateRange, Reservation and the value/entity rules (R3, R4).
+
+P06 change (deliberate, imports only): the classes live in the Reservations module.
+"""
 from __future__ import annotations
 
 import dataclasses
@@ -6,7 +9,7 @@ from datetime import date
 
 import pytest
 
-from hotel_booking import DateRange, Reservation, ReservationStatus
+from hotel_booking.reservations import DateRange, Reservation, ReservationStatus
 from hotel_booking.demo import MAYA, R7, R8, nov
 
 

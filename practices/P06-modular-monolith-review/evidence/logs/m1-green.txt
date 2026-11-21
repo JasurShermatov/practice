@@ -1,0 +1,15 @@
+# Step 2: module folders rooms/, reservations/, payments/ (empty __init__.py); notifications/ is created in move 3.2 together with deleting notifications.py
+$ ls hotel_booking
+__init__.py
+booking.py
+demo.py
+domain.py
+notifications.py
+payments
+reservations
+rooms
+stores.py
+$ python3 -m unittest -v
+Ran 8 tests in 0.003s
+
+OK

@@ -5,6 +5,13 @@ code and still pass after every refactoring move. Since Step 7 they run with a
 fake sender, so the sixth test can check exactly which reservations were
 confirmed.
 
+P06 (deliberate, as the activity sheet says): the 8 test methods are unchanged;
+only the imports (classes now come from the four modules; the tests, like the
+wiring, may name internal classes), the fake sender (it receives Notifications'
+own ``Confirmation`` and records its ``reservation_id``) and the logger name in
+the R6 test (``hotel_booking.reservations.booking``, where the code now lives)
+changed.
+
 Run them from the hotel-booking folder:  python -m unittest -v
 """
 from __future__ import annotations
@@ -12,15 +19,11 @@ from __future__ import annotations
 import unittest
 from datetime import date
 
-from hotel_booking import (
-    BookingService,
-    DateRange,
-    Guest,
-    InMemoryReservationStore,
-    Reservation,
-    Room,
-    SmsNotificationSender,
-)
+from hotel_booking.notifications import Confirmation
+from hotel_booking.notifications.internal import SmsNotificationSender
+from hotel_booking.reservations import BookingService, DateRange, Guest
+from hotel_booking.reservations.internal import InMemoryReservationStore
+from hotel_booking.rooms import Room
 
 R7 = Room("R7", "Standard")
 R8 = Room("R8", "Deluxe")
@@ -41,10 +44,10 @@ class FakeNotificationSender:
         self.fail = fail
         self.sent: list[str] = []
 
-    def send_confirmation(self, reservation: Reservation) -> None:
+    def send_confirmation(self, confirmation: Confirmation) -> None:
         if self.fail:
             raise RuntimeError("The mail server is down.")
-        self.sent.append(reservation.id)
+        self.sent.append(confirmation.reservation_id)
 
 
 def new_service(
@@ -94,7 +97,7 @@ class BookingServiceTests(unittest.TestCase):
     def test_a_failed_confirmation_keeps_the_booking(self) -> None:
         """R6: the sender fails after the save; the booking stays saved and Accepted, the failure is reported."""
         service, store, _ = new_service(failing_sender=True)
-        with self.assertLogs("hotel_booking.booking", level="WARNING") as log:  # reported ...
+        with self.assertLogs("hotel_booking.reservations.booking", level="WARNING") as log:  # reported ...
             result = service.reserve(MAYA, R7, nov(12, 14))
         self.assertEqual("Accepted R101", str(result))
         self.assertTrue(result.notification_failed)                             # ... in the result too

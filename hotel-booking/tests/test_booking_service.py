@@ -1,7 +1,10 @@
-"""BookingService against requirements R1-R5 (one request at a time)."""
+"""BookingService against requirements R1-R5 (one request at a time).
+
+P06 change (deliberate, imports only): names come from the Reservations contract.
+"""
 from __future__ import annotations
 
-from hotel_booking import BookingOutcome, ReservationStatus
+from hotel_booking.reservations import BookingOutcome, ReservationStatus
 from hotel_booking.demo import MAYA, NORA, OMAR, R7, R8, nov
 
 from .conftest import Hotel

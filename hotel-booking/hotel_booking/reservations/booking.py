@@ -1,4 +1,4 @@
-"""The booking workflow: one method per use case (P03; P04: depends only on two promises).
+"""The booking workflow, owned by Reservations (P03 rules, P04 seams, P06 module).
 
 ``BookingService.reserve`` is the "Sequence - book" diagram in code and its
 two ``if`` statements are the two decisions of the "Activity - book" diagram:
@@ -7,11 +7,12 @@ two ``if`` statements are the two decisions of the "Activity - book" diagram:
 2. a Confirmed booking shares a night?  -> otherwise Unavailable, save nothing
 3. save the reservation as Confirmed, then send the confirmation, then answer.
    If sending fails, the booking stays saved and Accepted and the failure is
-   reported in the result (R6, P04 Step 7).
+   reported in the result (R6).
 
-Since P04 ``BookingService`` names no concrete helper: it asks for a
-``ReservationStore`` and a ``NotificationSender`` (both ``typing.Protocol``)
-and ``main.py`` decides which real classes to pass in (dependency inversion).
+``BookingService`` knows the other modules only by their public contracts:
+``Room`` (Rooms) and ``NotificationSender`` / ``Confirmation`` (Notifications).
+It never names an internal class of another module (architecture rule 1); the
+wiring in ``main.py`` hands it the real store and sender.
 """
 from __future__ import annotations
 
@@ -20,14 +21,39 @@ import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum
+from typing import Protocol
 
-from .domain import DateRange, Guest, Reservation, Room
-from .notifications import NotificationSender
-from .stores import ReservationStore
+from hotel_booking.notifications import Confirmation, NotificationSender
+from hotel_booking.reservations.domain import DateRange, Guest, Reservation
+from hotel_booking.rooms import Room
 
 FIRST_RESERVATION_NUMBER = 101
 
 logger = logging.getLogger(__name__)
+
+
+class ReservationStore(Protocol):
+    """What BookingService needs from storage: Reservations' private rows. A list today; a database from P07."""
+
+    def count(self) -> int:
+        """Number of saved reservations, Cancelled ones included (used to number new ids)."""
+        ...
+
+    def has_overlap(self, room: Room, stay: DateRange) -> bool:
+        """True when a saved reservation blocks ``room`` for ``stay`` (R3)."""
+        ...
+
+    def save(self, reservation: Reservation) -> None:
+        """Keep ``reservation``."""
+        ...
+
+    def find(self, reservation_id: str) -> Reservation | None:
+        """The reservation with this id, or ``None`` (R5)."""
+        ...
+
+    def count_confirmed(self, room: Room, stay: DateRange) -> int:
+        """How many Confirmed reservations block ``room`` for ``stay``; R3 requires at most 1."""
+        ...
 
 
 class BookingOutcome(Enum):
@@ -57,11 +83,10 @@ class BookingResult:
 
 
 class BookingService:
-    """Runs every request in the right order. It is handed its store and sender; it owns neither.
+    """Owns the booking rule and runs every request in the right order.
 
-    It knows them only through their promises, so any store or sender with the
-    right methods fits: the in-memory list or (P07) a database; email, SMS or a
-    fake in the tests.
+    It is handed the rooms on sale, its store and a sender; it owns none of
+    them. Same constructor as in P04, so the P04 tests did not change.
     """
 
     def __init__(
@@ -75,11 +100,11 @@ class BookingService:
         self._store = store
         self._notifications = notifications
         # Demo-only knob: widens the gap between "check" and "save" so the
-        # race condition of Step 8 becomes visible. 0 in normal use.
+        # race condition becomes visible. 0 in normal use; gone with P09.
         self._slow_step_seconds = slow_step_seconds
 
     def find_free_rooms(self, stay: DateRange) -> list[Room]:
-        """R1 - rooms of the hotel with no Confirmed booking sharing a night with ``stay``."""
+        """R1 - rooms on sale with no Confirmed booking sharing a night with ``stay``."""
         return [room for room in self._rooms if not self._store.has_overlap(room, stay)]
 
     def reserve(self, guest: Guest, room: Room, stay: DateRange) -> BookingResult:
@@ -93,7 +118,7 @@ class BookingService:
             time.sleep(self._slow_step_seconds)  # ... the gap (demo only) ...
 
         reservation = Reservation(self._next_id(), guest, room, stay)
-        self._store.save(reservation)  # ... then act. Not atomic: see design-notes "The race".
+        self._store.save(reservation)  # ... then act. Not atomic: the race P09 fixes.
         delivered = self._try_to_confirm(reservation)  # only after the save
         return BookingResult(BookingOutcome.ACCEPTED, reservation.id, notification_failed=not delivered)
 
@@ -107,16 +132,24 @@ class BookingService:
         return f"R{FIRST_RESERVATION_NUMBER + self._store.count()}"
 
     def _try_to_confirm(self, reservation: Reservation) -> bool:
-        """Ask the sender to confirm; True if it did. R6: a failure must not undo or hide the booking.
+        """Announce ReservationConfirmed to Notifications; True if the sender took it.
 
-        Any ``Exception`` from the sender is caught on purpose: whatever the
-        channel (SMTP error, SMS gateway timeout, ...), the reservation is already
-        saved and Confirmed, so the guest's answer stays Accepted. The failure is
-        logged and reported through ``BookingResult.notification_failed``.
-        ``BaseException`` (e.g. KeyboardInterrupt) is not caught.
+        The translation to Notifications' own ``Confirmation`` happens here, on
+        Reservations' side of the border, so Notifications never needs the
+        ``Reservation`` class. R6: any ``Exception`` from the sender is caught
+        on purpose - the reservation is already saved and Confirmed, so the
+        answer stays Accepted; the failure is logged and reported through
+        ``BookingResult.notification_failed``. ``BaseException`` is not caught.
         """
+        confirmation = Confirmation(
+            reservation_id=reservation.id,
+            guest_email=reservation.guest.email,
+            room_number=reservation.room.number,
+            check_in=reservation.stay.check_in,
+            check_out=reservation.stay.check_out,
+        )
         try:
-            self._notifications.send_confirmation(reservation)
+            self._notifications.send_confirmation(confirmation)
         except Exception:
             logger.warning("Confirmation for %s could not be sent; the booking stays saved.",
                            reservation.id, exc_info=True)

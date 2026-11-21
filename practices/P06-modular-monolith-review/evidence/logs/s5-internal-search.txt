@@ -1,0 +1,12 @@
+# Step 5.3: search the four module folders (and demo.py) for imports of "internal"
+$ grep -rn "import.*internal\|internal import" hotel_booking --include=*.py
+hotel_booking/__init__.py:11:modules may import. Its ``internal.py`` holds the classes that keep that
+
+$ grep -rn "internal import" main.py tests test_booking_service.py   # who does name internal code
+main.py
+test_booking_service.py
+tests/conftest.py
+tests/test_architecture.py
+tests/test_modules.py
+tests/test_sequences.py
+tests/test_substitution.py

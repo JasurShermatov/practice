@@ -1,0 +1,2 @@
+$ for i in $(seq 20); do python3 main.py --race | grep "Confirmed reservations"; done | sort | uniq -c
+     20 Confirmed reservations for R7 on 12-14 Nov: 2

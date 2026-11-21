@@ -1,0 +1,8 @@
+# Move 4.1: reservations/ (domain.py, booking.py with the ReservationStore promise, internal.py with InMemoryReservationStore); old domain.py, booking.py, stores.py deleted; imports fixed; R6 test: logger name is now hotel_booking.reservations.booking
+$ python3 -m unittest test_booking_service -v   # the course's 8 tests (the pytest suite in tests/ is adapted in Step 5)
+----------------------------------------------------------------------
+Ran 8 tests in 0.003s
+
+OK
+$ python3 main.py | diff - <expected nine lines from b1-demo.txt>
+(no difference)

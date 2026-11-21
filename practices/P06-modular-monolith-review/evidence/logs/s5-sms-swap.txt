@@ -1,0 +1,15 @@
+# S5 (modifiability) re-checked on the P06 structure: send confirmations by SMS instead of email (throw-away copy)
+$ diff -r -x __pycache__ before after
+diff -r -x __pycache__ -x .mypy_cache before/main.py after/main.py
+18c18
+< from hotel_booking.notifications.internal import EmailNotificationSender
+---
+> from hotel_booking.notifications.internal import SmsNotificationSender as EmailNotificationSender  # S5: SMS instead of email
+files changed: 1
+$ python3 main.py | tail -1
+Confirmation emails sent: 2
+$ python3 -m unittest test_booking_service
+
+OK
+$ python3 -m tests.test_architecture | tail -1
+Contracts: 3 kept, 0 broken.

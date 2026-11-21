@@ -1,0 +1,14 @@
+# Step 7 - line removed again (Observed)
+sha256 of hotel_booking/reservations/booking.py before the break: c3afa837b0d503ac8f0a0bae9e25a2f465d46130999ce213d150b6feb77541b3
+sha256 after removing the line:                                 c3afa837b0d503ac8f0a0bae9e25a2f465d46130999ce213d150b6feb77541b3
+$ python3 -m tests.test_architecture
+Analyzed 13 files, 14 dependencies.
+Reservations uses only the public contracts of other modules KEPT
+Rooms does not depend on any other module KEPT
+Payments and Notifications do not depend on Reservations KEPT
+
+Contracts: 3 kept, 0 broken.
+(exit code 0)
+$ python3 -m pytest -q -p no:cacheprovider
+..............................................                           [100%]
+118 passed in 1.74s

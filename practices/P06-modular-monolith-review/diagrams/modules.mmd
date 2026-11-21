@@ -1,0 +1,23 @@
+---
+title: Modules (P06 activity page) - which code may use which
+---
+flowchart TB
+  res["<b>Reservations module</b><br/>hotel_booking/reservations<br/>BookingService: owns the booking rule"]
+  rooms["<b>Rooms contract</b><br/>Room, RoomCatalog.all()"]
+  pay["<b>Payments contract</b><br/>PaymentService.take_deposit()<br/>PaymentStatus: Paid / Declined"]
+  ntf["<b>Notifications contract</b><br/>NotificationSender.send_confirmation()<br/>Confirmation (5 fields)"]
+  email["<b>Notifications internal</b><br/>EmailNotificationSender"]
+
+  res -.->|Uses| rooms
+  res -.->|"Uses (from P17)"| pay
+  res -.->|Uses| ntf
+  email -.->|Implements| ntf
+  res -.->|Forbidden| email
+
+  classDef owner fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px,color:#1b1b1b
+  classDef contract fill:#ffffff,stroke:#424242,color:#1b1b1b
+  classDef internal fill:#f3e5f5,stroke:#7b1fa2,stroke-dasharray:5 3,color:#1b1b1b
+  class res owner
+  class rooms,pay,ntf contract
+  class email internal
+  linkStyle 4 stroke:#c62828,stroke-width:2px,color:#c62828

@@ -1,0 +1,150 @@
+---
+title: Hotel booking app, version 3 - classes by module (P06)
+---
+classDiagram
+  direction TB
+
+  namespace rooms {
+    class Room {
+      +number: str
+      +type: str
+    }
+    class RoomCatalog {
+      <<interface>>
+      +all() list~Room~
+    }
+    class InMemoryRoomCatalog {
+      <<internal>>
+      -rooms: list~Room~
+      +all() list~Room~
+    }
+  }
+
+  namespace reservations {
+    class BookingService {
+      -rooms: list~Room~
+      -store: ReservationStore
+      -notifications: NotificationSender
+      -slow_step_seconds: float
+      +find_free_rooms(stay: DateRange) list~Room~
+      +reserve(guest: Guest, room: Room, stay: DateRange) BookingResult
+      +cancel(reservation_id: str) bool
+      -next_id() str
+      -try_to_confirm(reservation: Reservation) bool
+    }
+    class BookingResult {
+      +outcome: BookingOutcome
+      +reservation_id: str or None
+      +notification_failed: bool
+    }
+    class BookingOutcome {
+      <<enumeration>>
+      ACCEPTED
+      UNAVAILABLE
+      INVALID_DATES
+    }
+    class ReservationStore {
+      <<interface>>
+      +count() int
+      +has_overlap(room: Room, stay: DateRange) bool
+      +save(reservation: Reservation) None
+      +find(reservation_id: str) Reservation or None
+      +count_confirmed(room: Room, stay: DateRange) int
+    }
+    class InMemoryReservationStore {
+      <<internal>>
+      -rows: list~Reservation~
+      +count() int
+      +has_overlap(room: Room, stay: DateRange) bool
+      +save(reservation: Reservation) None
+      +find(reservation_id: str) Reservation or None
+      +count_confirmed(room: Room, stay: DateRange) int
+    }
+    class Reservation {
+      +id: str
+      +guest: Guest
+      +room: Room
+      +stay: DateRange
+      +status: ReservationStatus
+      +blocks(room: Room, stay: DateRange) bool
+      +cancel() bool
+    }
+    class ReservationStatus {
+      <<enumeration>>
+      CONFIRMED
+      CANCELLED
+    }
+    class Guest {
+      +name: str
+      +email: str
+    }
+    class DateRange {
+      +check_in: date
+      +check_out: date
+      +is_valid() bool
+      +overlaps(other: DateRange) bool
+    }
+  }
+
+  namespace payments {
+    class PaymentStatus {
+      <<enumeration>>
+      PAID
+      DECLINED
+    }
+    class PaymentService {
+      <<interface>>
+      +take_deposit(reservation_id: str, amount: Decimal) PaymentStatus
+    }
+    class SimulatedPaymentService {
+      <<internal>>
+      +taken: list of reservation id and amount
+      +take_deposit(reservation_id: str, amount: Decimal) PaymentStatus
+    }
+  }
+
+  namespace notifications {
+    class Confirmation {
+      +reservation_id: str
+      +guest_email: str
+      +room_number: str
+      +check_in: date
+      +check_out: date
+    }
+    class NotificationSender {
+      <<interface>>
+      +send_confirmation(confirmation: Confirmation) None
+    }
+    class EmailNotificationSender {
+      <<internal>>
+      +sent: int
+      +send_confirmation(confirmation: Confirmation) None
+    }
+    class SmsNotificationSender {
+      <<internal>>
+      +sent: int
+      +send_confirmation(confirmation: Confirmation) None
+    }
+  }
+
+  BookingService ..> ReservationStore : uses
+  BookingService ..> NotificationSender : uses
+  BookingService ..> Confirmation : creates
+  BookingService ..> Reservation : creates
+  BookingService ..> BookingResult : returns
+  BookingService --> "1..*" Room : offers
+  BookingResult --> "1" BookingOutcome : has
+  InMemoryReservationStore ..|> ReservationStore : implements
+  InMemoryRoomCatalog ..|> RoomCatalog : implements
+  SimulatedPaymentService ..|> PaymentService : implements
+  EmailNotificationSender ..|> NotificationSender : implements
+  SmsNotificationSender ..|> NotificationSender : implements
+  InMemoryReservationStore --> "0..*" Reservation : keeps
+  InMemoryRoomCatalog --> "1..*" Room : keeps
+  RoomCatalog ..> Room : lists
+  PaymentService ..> PaymentStatus : answers
+  NotificationSender ..> Confirmation : receives
+  Reservation --> "1" ReservationStatus : has
+  Guest "1" <-- "0..*" Reservation : makes
+  Reservation "0..*" --> "1" Room : reserves
+  Reservation "1" *-- "1" DateRange : owns stay dates

@@ -1,0 +1,13 @@
+$ mmdc --version
+11.16.0
+$ cat puppeteer-config.json
+{"executablePath": "/opt/pw-browsers/chromium-1243/chrome-linux64/chrome", "args": ["--no-sandbox"]}
+$ mmdc -p puppeteer-config.json -i modules.mmd -o modules.svg
+Generating single mermaid chart
+exit 0 ; 19530 bytes
+$ mmdc -p puppeteer-config.json -i module-dependencies.mmd -o module-dependencies.svg
+Generating single mermaid chart
+exit 0 ; 35625 bytes
+$ mmdc -p puppeteer-config.json -i class-diagram.mmd -o class-diagram.svg
+Generating single mermaid chart
+exit 0 ; 112756 bytes

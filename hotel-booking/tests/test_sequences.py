@@ -9,6 +9,10 @@ sequence-cancel) and practices/P04-refactor-reservation/uml/
 P04 change (deliberate): the spies now extend the renamed concrete classes
 (InMemoryReservationStore, EmailNotificationSender) - the P03 message order is
 unchanged, which is part of the proof that the refactoring kept behaviour.
+
+P06 change (deliberate): imports come from the modules, and the senders now
+receive Notifications' own ``Confirmation`` instead of the ``Reservation``, so
+the spies log ``confirmation.reservation_id``. Every expected log is unchanged.
 """
 from __future__ import annotations
 
@@ -16,7 +20,10 @@ import threading
 import time
 from dataclasses import dataclass
 
-from hotel_booking import BookingService, DateRange, EmailNotificationSender, InMemoryReservationStore, Reservation
+from hotel_booking.notifications import Confirmation
+from hotel_booking.notifications.internal import EmailNotificationSender
+from hotel_booking.reservations import BookingService, DateRange, Reservation
+from hotel_booking.reservations.internal import InMemoryReservationStore
 from hotel_booking.demo import HOTEL_ROOMS, MAYA, OMAR, R7, nov
 
 Log = list[str]
@@ -63,9 +70,9 @@ class SpyEmail(EmailNotificationSender):
         super().__init__()
         self.log = log
 
-    def send_confirmation(self, reservation: Reservation) -> None:
-        self.log.append(f"email.send_confirmation({reservation.id})")
-        super().send_confirmation(reservation)
+    def send_confirmation(self, confirmation: Confirmation) -> None:
+        self.log.append(f"email.send_confirmation({confirmation.reservation_id})")
+        super().send_confirmation(confirmation)
 
 
 def spied(log: Log, check_in: int, check_out: int) -> SpyDateRange:
@@ -166,8 +173,8 @@ class FailingSpySender:
     def __init__(self, log: Log) -> None:
         self.log = log
 
-    def send_confirmation(self, reservation: Reservation) -> None:
-        self.log.append(f"sender.send_confirmation({reservation.id}) -> error")
+    def send_confirmation(self, confirmation: Confirmation) -> None:
+        self.log.append(f"sender.send_confirmation({confirmation.reservation_id}) -> error")
         raise RuntimeError("The mail server is down.")
 
 

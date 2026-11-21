@@ -43,8 +43,8 @@ cp practices/P05-domain-context-boundaries/docs/{quality-scenarios,contexts,l03-
 ```
 
 (The relative links inside `contexts.md` to `../diagrams/` point at this practice's diagrams; after
-copying, P06 should keep the diagrams next to them or adjust the links.) **To do in P06:** copy
-the files at the start of P06, so P06 "starts from this folder" as the course intends.
+copying, P06 should keep the diagrams next to them or adjust the links.) **Done in P06:** the files
+were copied at the start of P06 and their diagram links adjusted.
 
 ## How to check
 
@@ -103,7 +103,7 @@ line by line) and the L03 parts P05 depends on (L03 activity sheet §2, §5 and 
 | 20 | Step 8: run the tests again — code unchanged, same tests pass | Worksheet § Step 8; E1/E2 | Done — Observed (P05 changed no file in `hotel-booking/`) |
 | 21 | Step 8: copy the folder to the partner's laptop; keep it for P06 | — | **To do by the student** |
 | 22 | Pair work on one laptop, swapping typist at every step; attendance | — | **To do by the student** (classroom) |
-| 23 | Files placed in `hotel-booking/docs/` (folder layout at the end of P05) | Copy command in this README | **To do at the start of P06** (deliberately not done now: P04 was editing that folder) |
+| 23 | Files placed in `hotel-booking/docs/` (folder layout at the end of P05) | Copy command in this README | Done at the start of P06 (links adjusted; see [P06 Worksheet](../P06-modular-monolith-review/Worksheet.md#your-turn--open-your-project)) |
 | 24 | L03 exit check: three answers in `docs/l03-notes.md` (P05 starts from answer 1) | [docs/l03-notes.md](docs/l03-notes.md) | Done |
 | 25 | Each context will become a module, each rule owner a place in code, each border a contract (P05 → P06 link; task brief "Implications for the code") | [Implications-for-the-code.md](Implications-for-the-code.md) | Done — Proposed (implemented in P06) |
 | 26 | Evidence labelled Proposed / Simulated / Observed; reflection | [evidence/Index.md](evidence/Index.md), [reflections/](reflections/Jasur-Shermatov.md) | Done |

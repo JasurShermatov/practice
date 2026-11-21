@@ -3,6 +3,10 @@
 P04 change (deliberate, arrange part only): ``run_demo`` and ``run_race`` no
 longer build their own store and sender - ``main.build_app`` (the composition
 root) does - so the tests build the app first. Every expected output is unchanged.
+
+P06 change (deliberate, arrange part only): ``run_demo`` takes a function that
+reads the sender's counter instead of the internal sender class, so
+``demo.py`` names no internal code. Expected outputs unchanged.
 """
 from __future__ import annotations
 
@@ -26,7 +30,7 @@ Confirmation emails sent: 2
 
 def test_demo_prints_the_nine_expected_lines(capsys: pytest.CaptureFixture[str]) -> None:
     service, _, email = build_app()
-    run_demo(service, email)
+    run_demo(service, lambda: email.sent)
     assert capsys.readouterr().out == EXPECTED_DEMO
 
 

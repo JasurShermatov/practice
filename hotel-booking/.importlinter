@@ -1,0 +1,42 @@
+# The three borders between the modules (P06 Step 6), in import-linter's INI format.
+#
+#   pip install import-linter      # dev tool, listed in requirements.txt
+#   lint-imports                   # run from the hotel-booking folder
+#
+# Expected:  Contracts: 3 kept, 0 broken.
+#
+# The same file is read by tests/test_architecture.py (standard library only:
+# configparser + ast), so the borders are also checked by `python -m pytest`
+# where import-linter is not installed. Edit the rules here, not in the test.
+
+[importlinter]
+root_package = hotel_booking
+
+[importlinter:contract:reservations-uses-contracts-only]
+name = Reservations uses only the public contracts of other modules
+type = forbidden
+source_modules =
+    hotel_booking.reservations
+forbidden_modules =
+    hotel_booking.rooms.internal
+    hotel_booking.payments.internal
+    hotel_booking.notifications.internal
+
+[importlinter:contract:rooms-independent]
+name = Rooms does not depend on any other module
+type = forbidden
+source_modules =
+    hotel_booking.rooms
+forbidden_modules =
+    hotel_booking.reservations
+    hotel_booking.payments
+    hotel_booking.notifications
+
+[importlinter:contract:nothing-depends-on-reservations]
+name = Payments and Notifications do not depend on Reservations
+type = forbidden
+source_modules =
+    hotel_booking.payments
+    hotel_booking.notifications
+forbidden_modules =
+    hotel_booking.reservations

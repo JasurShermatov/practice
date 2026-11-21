@@ -1,10 +1,11 @@
-"""Domain objects of the hotel booking app, version 1 (P03).
+"""The words of the Reservations context (P03 classes; moved here unchanged in P06).
 
 Data classes only: they keep the facts of a booking and the rules that need
-nothing but those facts. Nothing here knows about storage or email.
+nothing but those facts (rule cards 1-3). Nothing here knows about storage or
+messages; the only other module named is the Rooms contract (``Room``).
 
-- ``DateRange`` is a *value*: equal when its dates are equal, never changes.
-- ``Guest`` and ``Room`` are plain reference data.
+- ``DateRange`` (the Stay) is a *value*: equal when its dates are equal, never changes.
+- ``Guest`` is plain reference data; ``Room`` comes from the Rooms module.
 - ``Reservation`` is an *entity*: recognised by its id, its status changes
   (Confirmed -> Cancelled) only through ``cancel()``.
 """
@@ -13,6 +14,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 from enum import Enum
+
+from hotel_booking.rooms import Room
 
 
 @dataclass(frozen=True)
@@ -46,14 +49,6 @@ class Guest:
 
     name: str
     email: str
-
-
-@dataclass(frozen=True)
-class Room:
-    """A bookable hotel room. ``type`` is a label ("Standard", "Deluxe"), not a subclass."""
-
-    number: str
-    type: str
 
 
 class ReservationStatus(Enum):

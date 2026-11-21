@@ -1,0 +1,23 @@
+# Move 4.2: payments/ (PaymentStatus, PaymentService in __init__.py; SimulatedPaymentService in internal.py). Nothing calls it yet (P17).
+$ python3 -m unittest test_booking_service -v   # the course's 8 tests (the pytest suite in tests/ is adapted in Step 5)
+----------------------------------------------------------------------
+Ran 8 tests in 0.003s
+
+OK
+$ python3 main.py | diff - <expected nine lines from b1-demo.txt>
+(no difference)
+# Step 4.5: is any class left in its old place? Every .py file under hotel_booking/ and the classes it defines
+$ find hotel_booking -name "*.py" | sort | xargs grep -c "^class "
+hotel_booking/__init__.py:0
+hotel_booking/demo.py:0
+hotel_booking/notifications/__init__.py:2
+hotel_booking/notifications/internal.py:2
+hotel_booking/payments/__init__.py:2
+hotel_booking/payments/internal.py:1
+hotel_booking/reservations/__init__.py:0
+hotel_booking/reservations/booking.py:4
+hotel_booking/reservations/domain.py:4
+hotel_booking/reservations/internal.py:1
+hotel_booking/rooms/__init__.py:0
+hotel_booking/rooms/catalog.py:2
+hotel_booking/rooms/internal.py:1

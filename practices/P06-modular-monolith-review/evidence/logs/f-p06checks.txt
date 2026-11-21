@@ -1,0 +1,32 @@
+$ python3 -m pytest -v -p no:cacheprovider practices/P06-modular-monolith-review/checks
+============================= test session starts ==============================
+platform linux -- Python 3.13.18, pytest-9.1.1, pluggy-1.6.0 -- /usr/local/bin/python3
+rootdir: /mnt/attach/outputs/advanced-programming
+plugins: platformdirs-4.13.5, anyio-4.15.1
+collecting ... collected 23 items
+
+practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_drawio_file_has_the_context_map_and_the_modules_page PASSED [  4%]
+practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_modules_page_has_the_required_shape PASSED [  8%]
+practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_mermaid_modules_page_matches_the_drawio_page PASSED [ 13%]
+practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_as_built_diagram_shows_exactly_the_real_imports PASSED [ 17%]
+practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_svgs_exist_for_every_mermaid_source PASSED [ 21%]
+practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_design_notes_have_the_five_p06_sections PASSED [ 26%]
+practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_adr_001_has_status_and_the_five_sections PASSED [ 30%]
+practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_project_folder_matches_the_finished_p06_folder PASSED [ 34%]
+practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_copied_p05_docs_keep_their_content PASSED [ 39%]
+practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_every_relative_link_resolves[hotel-booking/README.md] PASSED [ 43%]
+practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_every_relative_link_resolves[hotel-booking/docs/adr-001-modular-monolith.md] PASSED [ 47%]
+practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_every_relative_link_resolves[hotel-booking/docs/contexts.md] PASSED [ 52%]
+practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_every_relative_link_resolves[hotel-booking/docs/design-notes.md] PASSED [ 56%]
+practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_every_relative_link_resolves[hotel-booking/docs/l02-notes.md] PASSED [ 60%]
+practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_every_relative_link_resolves[hotel-booking/docs/l03-notes.md] PASSED [ 65%]
+practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_every_relative_link_resolves[hotel-booking/docs/quality-scenarios.md] PASSED [ 69%]
+practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_every_relative_link_resolves[hotel-booking/docs/requirements.md] PASSED [ 73%]
+practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_every_relative_link_resolves[practices/P06-modular-monolith-review/Architecture-review.md] PASSED [ 78%]
+practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_every_relative_link_resolves[practices/P06-modular-monolith-review/README.md] PASSED [ 82%]
+practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_every_relative_link_resolves[practices/P06-modular-monolith-review/Worksheet.md] PASSED [ 86%]
+practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_every_relative_link_resolves[practices/P06-modular-monolith-review/evidence/Index.md] PASSED [ 91%]
+practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_every_relative_link_resolves[practices/P06-modular-monolith-review/evidence/observed-runs.md] PASSED [ 95%]
+practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_every_relative_link_resolves[practices/P06-modular-monolith-review/reflections/Jasur-Shermatov.md] PASSED [100%]
+
+============================== 23 passed in 0.80s ==============================

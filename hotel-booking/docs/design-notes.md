@@ -130,3 +130,70 @@ All three are **Observed** (Linux container, Python 3.13.18), recorded in
   `Accepted R101`. 7 green.
 - **SMS without touching BookingService:** `SmsNotificationSender` is a new class next to the email
   sender; `booking.py` has the same SHA-256 before and after the step. 8 green.
+
+# P06 design notes
+
+P06 turns the four P05 contexts into four modules with checked borders. Like P04 it is a
+refactoring: what the app does for a guest must not change. Evidence:
+[practices/P06-modular-monolith-review/](../../practices/P06-modular-monolith-review/README.md).
+
+## Before
+
+- Tests: `python -m unittest -v` → **Ran 8 tests … OK** (full suite `python -m pytest`: 82 passed).
+- Demo: `python main.py` → the nine lines, ending `Confirmation emails sent: 2`.
+- Race: `python main.py --race` → `Confirmed reservations for R7 on 12-14 Nov: 2` — **Double booking!**
+
+## Modules
+
+| Module | Public contract (others may use) | Internal code (only the module, the wiring and the tests) |
+| --- | --- | --- |
+| Rooms | `Room`, `RoomCatalog` (the room catalog promise) | `InMemoryRoomCatalog` |
+| Reservations | `BookingService`, `BookingResult` (+ `BookingOutcome`), `Reservation`, `DateRange`, `Guest`, `ReservationStatus`, `ReservationStore` (the store promise) | `InMemoryReservationStore` |
+| Payments | `PaymentStatus`, `PaymentService` (the payment service promise) | `SimulatedPaymentService` |
+| Notifications | `Confirmation`, `NotificationSender` (the notification sender promise) | `EmailNotificationSender`, `SmsNotificationSender` |
+
+In Python a module is a package: `hotel_booking/<module>/__init__.py` is the contract,
+`internal.py` the internal code. `hotel_booking/__init__.py` no longer re-exports anything.
+
+## Architecture rules
+
+1. **Reservations uses only the public contracts of other modules.** BookingService may use the
+   Notifications contract (`NotificationSender`, `Confirmation`), never the email sender.
+2. **Rooms does not depend on any other module.** Rooms knows nothing about reservations, money or
+   messages; it is the base the others build on.
+3. **Payments and Notifications do not depend on Reservations.** Every arrow points away from
+   Reservations, so there is no dependency circle.
+
+Written once in `../.importlinter`; checked by `lint-imports` and, without installing anything, by
+`tests/test_architecture.py` (stdlib `ast`, reads the same file). Two extra checks there: no module
+imports another module's internal code, and every class lives in one of the four modules.
+
+## Broken on purpose
+
+Rule 1 failed: adding `from hotel_booking.notifications.internal import EmailNotificationSender` to
+`reservations/booking.py` gave "Reservations uses only the public contracts of other modules
+BROKEN — `hotel_booking.reservations.booking -> hotel_booking.notifications.internal (l.29)`",
+while the 8 booking tests stayed green; removing the line made all checks green again.
+
+## After
+
+- Tests: `python -m unittest -v` → **Ran 8 tests … OK**, same 8 test methods (only imports, the fake
+  sender and the R6 logger name adapted); plus **3 contracts kept** (`python -m tests.test_architecture`;
+  `lint-imports` on a machine with import-linter). Full suite: see the practice README.
+- Demo: the **same nine lines** as in "Before" (`diff`: no difference).
+- Race: **still double-booked** (`Confirmed reservations for R7 on 12-14 Nov: 2`). Moving code into
+  modules does not fix the race; P09 does — and only inside Reservations.
+
+Same as "Before": yes, all three.
+
+## Decisions made while moving
+
+- `Confirmation` is built inside `BookingService._try_to_confirm`, on Reservations' side of the
+  border, after `save` — Notifications never sees a `Reservation`, so a sender can no longer
+  cancel or change a booking (the P04 "cancelling sender" counter-example is now impossible).
+- The wiring asks `InMemoryRoomCatalog.all()` for the rooms; `BookingService` keeps its P04
+  constructor (a room list), so the 8 tests did not change.
+- `demo.py` stays in the package as the classroom scenario but now names only contracts:
+  `run_demo` receives `lambda: email.sent` instead of the internal sender.
+- Payments' amount is `Decimal`, not `float` (P05 recommendation). Payments is not wired yet —
+  nothing calls it before the P17 saga. P05 decision D1 (`deposit_for`) is deferred to P17.

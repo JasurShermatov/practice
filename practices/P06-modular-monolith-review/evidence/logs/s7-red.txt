@@ -1,0 +1,81 @@
+# Step 7 - break the border on purpose (Observed)
+# Prediction written before running: only rule 1 'Reservations uses only the public contracts of other modules' fails;
+# it names hotel_booking.reservations.booking -> hotel_booking.notifications.internal; the 8 booking tests stay green.
+$ grep -n "notifications" hotel_booking/reservations/booking.py
+26:from hotel_booking.notifications import Confirmation, NotificationSender
+29:from hotel_booking.notifications.internal import EmailNotificationSender  # step 7: undo after the check fails
+97:        notifications: NotificationSender,
+102:        self._notifications = notifications
+153:            self._notifications.send_confirmation(confirmation)
+
+$ python3 -m unittest test_booking_service    # behaviour: still green
+Ran 8 tests in 0.004s
+
+OK
+$ python3 main.py | tail -1                     # the app still runs
+Confirmation emails sent: 2
+
+$ python3 -m tests.test_architecture           # lint-imports look-alike
+Analyzed 13 files, 15 dependencies.
+Reservations uses only the public contracts of other modules BROKEN
+Rooms does not depend on any other module KEPT
+Payments and Notifications do not depend on Reservations KEPT
+
+Reservations uses only the public contracts of other modules BROKEN
+
+hotel_booking.reservations.booking is not allowed to import hotel_booking.notifications.internal:
+-   hotel_booking.reservations.booking -> hotel_booking.notifications.internal (l.29)
+
+Contracts: 2 kept, 1 broken.
+(exit code 1)
+
+$ python3 -m pytest -q -p no:cacheprovider tests/test_architecture.py
+___________ test_contract_is_kept[reservations-uses-contracts-only] ____________
+
+contract = ForbiddenContract(key='reservations-uses-contracts-only', name='Reservations uses only the public contracts of other m... forbidden=['hotel_booking.rooms.internal', 'hotel_booking.payments.internal', 'hotel_booking.notifications.internal'])
+graph = ({'hotel_booking', 'hotel_booking.demo', 'hotel_booking.notifications', 'hotel_booking.notifications.internal', 'hotel..._booking.reservations', line=19), Import(importer='hotel_booking.demo', imported='hotel_booking.rooms', line=20), ...])
+
+    @pytest.mark.parametrize("contract", CONTRACTS, ids=[contract.key for contract in CONTRACTS])
+    def test_contract_is_kept(contract: ForbiddenContract, graph: tuple[set[str], list[Import]]) -> None:
+        known, edges = graph
+        for package in [*contract.sources, *contract.forbidden]:
+            assert package in known, f"{contract.name}: {package} does not exist (typo in .importlinter?)"
+        chains = broken_chains(known, edges, contract.sources, contract.forbidden)
+>       assert not chains, report(contract, chains)
+E       AssertionError: Reservations uses only the public contracts of other modules BROKEN
+E         
+E         hotel_booking.reservations.booking is not allowed to import hotel_booking.notifications.internal:
+E         -   hotel_booking.reservations.booking -> hotel_booking.notifications.internal (l.29)
+E         
+E       assert not [[Import(importer='hotel_booking.reservations.booking', imported='hotel_booking.notifications.internal', line=29)]]
+
+tests/test_architecture.py:229: AssertionError
+_____________ test_no_module_imports_another_modules_internal_code _____________
+
+graph = ({'hotel_booking', 'hotel_booking.demo', 'hotel_booking.notifications', 'hotel_booking.notifications.internal', 'hotel..._booking.reservations', line=19), Import(importer='hotel_booking.demo', imported='hotel_booking.rooms', line=20), ...])
+
+    def test_no_module_imports_another_modules_internal_code(graph: tuple[set[str], list[Import]]) -> None:
+        """Only a module itself (and, outside the package, main.py and the tests) may import its internal.py."""
+        _, edges = graph
+        offending = []
+        for edge in edges:
+            for owner in MODULES:
+                if within(edge.imported, f"hotel_booking.{owner}.internal") and not within(
+                    edge.importer, f"hotel_booking.{owner}"
+                ):
+                    offending.append(str(edge))
+>       assert not offending, "imports of another module's internal code:\n" + "\n".join(offending)
+E       AssertionError: imports of another module's internal code:
+E         hotel_booking.reservations.booking -> hotel_booking.notifications.internal (l.29)
+E       assert not ['hotel_booking.reservations.booking -> hotel_booking.notifications.internal (l.29)']
+
+tests/test_architecture.py:254: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_architecture.py::test_contract_is_kept[reservations-uses-contracts-only]
+FAILED tests/test_architecture.py::test_no_module_imports_another_modules_internal_code
+2 failed, 11 passed in 0.12s
+
+$ python3 -m pytest -q -p no:cacheprovider     # whole suite (tail -3: the third FAILED line, test_contract_is_kept[reservations-uses-contracts-only], scrolled above the cut)
+FAILED tests/test_architecture.py::test_no_module_imports_another_modules_internal_code
+FAILED tests/test_dependency_rule.py::test_booking_rules_name_only_the_promises
+3 failed, 115 passed in 2.01s
