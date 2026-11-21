@@ -1,0 +1,3 @@
+# Linux container, Python 3.13.18, run from hotel-booking/
+$ python3 -m mypy
+Success: no issues found in 37 source files

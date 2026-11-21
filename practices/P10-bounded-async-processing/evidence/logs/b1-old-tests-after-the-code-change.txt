@@ -1,0 +1,16 @@
+# b1 - the old tests after the P10 code change (notifications, main.py, api.py), before any test was touched
+# Linux container, Python 3.13.18
+$ python3 -m pytest -q -p no:cacheprovider
+FAILED tests/test_openapi_contract.py::test_answer_fields_match_the_pydantic_models
+FAILED tests/test_uml_conformance.py::test_diagram_has_exactly_the_classes_of_the_four_modules
+FAILED tests/test_uml_conformance.py::test_every_box_is_drawn_in_the_module_that_defines_it
+FAILED tests/test_uml_conformance.py::test_internal_boxes_are_exactly_the_classes_of_the_internal_files
+FAILED tests/test_uml_conformance.py::test_class_members_match_the_diagram[EmailNotificationSender]
+5 failed, 474 passed in 11.33s
+$ python3 -m unittest
+Ran 16 tests in 0.361s
+
+OK
+$ python3 -m pytest -q -p no:cacheprovider ../practices/*/checks
+FAILED ../practices/P08-cache-scale-experiment/checks/test_p08_docs.py::test_as_built_diagram_shows_exactly_the_real_imports
+1 failed, 184 passed in 1.80s

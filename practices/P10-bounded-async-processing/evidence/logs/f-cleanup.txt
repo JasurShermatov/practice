@@ -1,0 +1,19 @@
+# after every run: is anything still running? (Linux container)
+$ pgrep -f main.py
+(none)
+$ pgrep -f uvicorn
+(none)
+$ pgrep -f redis-server
+(none)
+$ pgrep -f postgres
+(none)
+$ pgrep -f serve_pg.py
+(none)
+$ pgrep -f burst.py
+(none)
+$ pgrep -f race_http.py
+(none)
+$ ls -d /tmp/p10-* /tmp/p09-pg.* 2>/dev/null
+(none)
+$ ls hotel-booking/*.sqlite3
+(none)

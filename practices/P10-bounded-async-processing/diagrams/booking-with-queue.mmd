@@ -1,0 +1,48 @@
+---
+title: After (P10) - the request ends at 201; the email is held, published after COMMIT, sent by a worker
+---
+sequenceDiagram
+  autonumber
+  actor Guest
+  participant API as api.py reserve
+  participant UoW as unit of work (main.py)
+  participant BS as BookingService.reserve
+  participant DB as SQLite / PostgreSQL
+  participant Held as HeldConfirmations (this request)
+  participant Q as QueuedNotificationSender (capacity 10)
+  participant W as worker thread (HOTEL_WORKERS=1)
+  participant Mail as EmailNotificationSender
+
+  Guest->>API: POST /reservations
+  API->>UoW: with unit_of_work() as service
+  UoW->>BS: reserve(guest, room, stay)
+  BS->>DB: has_overlap, next_reservation_id, INSERT
+  BS->>Held: send_confirmation(Confirmation)
+  Held->>Q: reserve(confirmation) - one attempt, never waits
+  alt a place is free
+    Q-->>Held: True (place held, counts against the bound)
+    Held-->>BS: returns
+    BS-->>UoW: Accepted, notification_failed=False
+  else the queue is full or closing
+    Q-->>Held: False, rejected += 1, status REJECTED, logged
+    Held-->>BS: raises ConfirmationRefused
+    BS-->>UoW: Accepted, notification_failed=True (R6: the booking is kept)
+  end
+  UoW->>DB: save_changes + COMMIT
+  alt the COMMIT succeeded
+    UoW->>Held: publish()
+    Held->>Q: publish(confirmation) - put_nowait, accepted += 1, status QUEUED
+  else the COMMIT failed (rollback)
+    UoW->>Held: discard()
+    Held->>Q: release(confirmation) - place given back, nothing sent
+  end
+  API-->>Guest: 201 Created in milliseconds, notificationFailed true or false
+  Note over Q,Mail: away from the request - nobody is waiting
+  W->>Q: get(timeout=0.05) - one job, status SENDING (in flight - neither queued nor completed)
+  W->>Mail: send_confirmation (bounded by HOTEL_EMAIL_TIMEOUT)
+  alt sent
+    Mail-->>W: returns after 1 s
+    W->>Q: completed += 1, status SENT
+  else raised (after HOTEL_SEND_ATTEMPTS attempts, backoff between them)
+    W->>Q: failed += 1, status FAILED, logged with the reservation id
+  end

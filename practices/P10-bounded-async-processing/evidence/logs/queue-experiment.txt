@@ -1,0 +1,516 @@
+# P10 queue experiment - Linux container, Python 3.13.18, SQLite 3.53.1, v=7.0.15
+# every server below is `python main.py` in its own process (HOTEL_DB_PATH = a fresh file, cache = redis);
+# the client is tools/burst.py or tools/race_http.py in another process.
+
+====================================================================================================
+Step 1 - before: the email sent inside the request (--no-queue), HOTEL_EMAIL_SECONDS=1
+====================================================================================================
+$ HOTEL_EMAIL_SECONDS=1 python main.py --no-queue
+$ python tools/burst.py --count 1   (exit 0)
+Sending 1 bookings, one after another...
+
+Accepted: 1
+Rejected: 0
+Slowest booking: 1.04 s
+Total: 1.0 s
+
+GET /stats
+{"searches":0,"databaseQueries":3,"cacheHits":0,"cacheMisses":0,"cacheErrors":0}
+
+Booking latency: p50 1044.7 ms, p95 1044.7 ms, max 1044.7 ms
+Answers with notificationFailed: true: 0
+$ HOTEL_EMAIL_SECONDS=1 python main.py --no-queue
+$ python tools/burst.py --count 30   (exit 0)
+Sending 30 bookings, one after another...
+
+Accepted: 30
+Rejected: 0
+Slowest booking: 1.04 s
+Total: 30.2 s
+
+GET /stats
+{"searches":0,"databaseQueries":90,"cacheHits":0,"cacheMisses":0,"cacheErrors":0}
+
+Booking latency: p50 1004.8 ms, p95 1005.7 ms, max 1037.1 ms
+Answers with notificationFailed: true: 0
+
+====================================================================================================
+Step 2 - after: the same booking with the queue (default capacity 10, 1 worker)
+====================================================================================================
+$ HOTEL_EMAIL_SECONDS=1 python main.py
+$ python tools/burst.py --count 1 --wait   (exit 0)
+Sending 1 bookings, one after another...
+
+Accepted: 1
+Rejected: 0
+Slowest booking: 35 ms
+Total: 0.0 s
+
+GET /stats
+{"searches":0,"databaseQueries":3,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":1,"notificationsRejected":0,"notificationsCompleted":0,"notificationsQueued":0,"notificationsFailed":0}
+
+Booking latency: p50 35.2 ms, p95 35.2 ms, max 35.2 ms
+Answers with notificationFailed: true: 0
+accepted + rejected = 1 (bookings: 1); queued 0
+
+GET /stats, 1.0 seconds later
+{"searches":0,"databaseQueries":3,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":1,"notificationsRejected":0,"notificationsCompleted":1,"notificationsQueued":0,"notificationsFailed":0}
+
+accepted 1 = completed 1 + failed 0 + queued 0. Everything the queue took, it finished.
+Worker throughput: 1 emails in 1.1 s = 0.92 per second
+
+Server output after Ctrl+C:
+Stopping the app with 2 confirmations accepted and 2 sent so far...
+Draining the notification queue: 0 to go (at most 30 s)
+Notification workers stopped after 0.0 s.
+accepted=2  rejected=0  completed=2  failed=0  dropped=0  queued=0  in_flight=0
+Nobody was owed an email.
+
+====================================================================================================
+Step 3 - a queue so big it never refuses (HOTEL_QUEUE_CAPACITY=10000); stopped with a 3 s drain limit
+====================================================================================================
+$ HOTEL_EMAIL_SECONDS=1 HOTEL_QUEUE_CAPACITY=10000 HOTEL_DRAIN_SECONDS=3 python main.py
+$ python tools/burst.py   (exit 0)
+Sending 30 bookings, one after another...
+
+Accepted: 30
+Rejected: 0
+Slowest booking: 39 ms
+Total: 0.2 s
+
+GET /stats
+{"searches":0,"databaseQueries":90,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":30,"notificationsRejected":0,"notificationsCompleted":0,"notificationsQueued":29,"notificationsFailed":0}
+
+Booking latency: p50 3.4 ms, p95 9.0 ms, max 38.9 ms
+Answers with notificationFailed: true: 0
+accepted + rejected = 30 (bookings: 30); queued 29
+
+Server output after Ctrl+C (drain limited to 3 s):
+Stopping the app with 30 confirmations accepted and 1 sent so far...
+Draining the notification queue: 29 to go (at most 3 s)
+Notification workers stopped after 3.7 s.
+accepted=30  rejected=0  completed=5  failed=0  dropped=25  queued=0  in_flight=0
+25 guests are owed an email that will not be sent: R106, R107, R108, R109, R110, R111, R112, R113, R114, R115, R116, R117, R118, R119, R120, R121, R122, R123, R124, R125, R126, R127, R128, R129, R130
+Confirmed rows in the database: 30
+
+====================================================================================================
+Steps 4-5 - the bound (default HOTEL_QUEUE_CAPACITY=10, HOTEL_WORKERS=1): refuse, count, catch up
+====================================================================================================
+$ HOTEL_EMAIL_SECONDS=1 python main.py
+$ python tools/burst.py   (exit 0)
+Sending 30 bookings, one after another...
+
+Accepted: 30
+Rejected: 0
+Slowest booking: 37 ms
+Total: 0.1 s
+
+GET /stats
+{"searches":0,"databaseQueries":90,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":11,"notificationsRejected":19,"notificationsCompleted":0,"notificationsQueued":10,"notificationsFailed":0}
+
+Booking latency: p50 3.4 ms, p95 6.5 ms, max 36.9 ms
+Answers with notificationFailed: true: 19
+accepted + rejected = 30 (bookings: 30); queued 10
+
+Queue depth, GET /stats every 0.5 s after the burst:
+  t= 0.00 s  queued=10  completed= 0
+  t= 0.50 s  queued=10  completed= 0
+  t= 1.00 s  queued= 9  completed= 1
+  t= 1.51 s  queued= 9  completed= 1
+  t= 2.01 s  queued= 8  completed= 2
+  t= 2.51 s  queued= 8  completed= 2
+  t= 3.01 s  queued= 7  completed= 3
+  t= 3.52 s  queued= 7  completed= 3
+  t= 4.02 s  queued= 6  completed= 4
+  t= 4.53 s  queued= 6  completed= 4
+  t= 5.03 s  queued= 5  completed= 5
+  t= 5.53 s  queued= 5  completed= 5
+  t= 6.03 s  queued= 4  completed= 6
+  t= 6.53 s  queued= 4  completed= 6
+  t= 7.03 s  queued= 3  completed= 7
+  t= 7.54 s  queued= 3  completed= 7
+  t= 8.04 s  queued= 2  completed= 8
+  t= 8.54 s  queued= 2  completed= 8
+  t= 9.04 s  queued= 1  completed= 9
+  t= 9.54 s  queued= 1  completed= 9
+  t=10.05 s  queued= 0  completed=10
+  t=10.55 s  queued= 0  completed=10
+  t=11.05 s  queued= 0  completed=11
+
+GET /stats, 11.1 seconds later
+{"searches":0,"databaseQueries":90,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":11,"notificationsRejected":19,"notificationsCompleted":11,"notificationsQueued":0,"notificationsFailed":0}
+
+Server output after Ctrl+C:
+Stopping the app with 11 confirmations accepted and 11 sent so far...
+Draining the notification queue: 0 to go (at most 30 s)
+Notification workers stopped after 0.0 s.
+accepted=11  rejected=19  completed=11  failed=0  dropped=0  queued=0  in_flight=0
+Nobody was owed an email.
+Confirmed rows in the database: 30
+
+The same burst five more times (fresh server each), accepted/rejected/queued and latency:
+  run 1: accepted 11, rejected 19, queued 10; p50 4.4 ms, p95 6.9 ms, max 33.8 ms; total 0.162 s
+  run 2: accepted 11, rejected 19, queued 10; p50 4.2 ms, p95 22.9 ms, max 36.9 ms; total 0.259 s
+  run 3: accepted 11, rejected 19, queued 10; p50 3.7 ms, p95 14.7 ms, max 33.2 ms; total 0.16 s
+  run 4: accepted 11, rejected 19, queued 10; p50 3.4 ms, p95 6.5 ms, max 46.7 ms; total 0.155 s
+  run 5: accepted 11, rejected 19, queued 10; p50 3.4 ms, p95 5.6 ms, max 36.7 ms; total 0.139 s
+
+====================================================================================================
+Step 6 - stopping the app: drain, no drain, SIGTERM, kill -9 (10 bookings, 1 s sender, stop after ~3 s)
+====================================================================================================
+$ HOTEL_EMAIL_SECONDS=1 python main.py
+$ python tools/burst.py --count 10
+Accepted: 10
+Rejected: 0
+Slowest booking: 41 ms
+Total: 0.1 s
+GET /stats just before the stop: {"searches":0,"databaseQueries":30,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":10,"notificationsRejected":0,"notificationsCompleted":2,"notificationsQueued":7,"notificationsFailed":0}
+$ kill -SIGINT   -> the process ended 7.5 s later; it printed:
+Stopping the app with 10 confirmations accepted and 2 sent so far...
+Draining the notification queue: 8 to go (at most 30 s)
+Notification workers stopped after 7.3 s.
+accepted=10  rejected=0  completed=10  failed=0  dropped=0  queued=0  in_flight=0
+Nobody was owed an email.
+Confirmed rows in the database afterwards: 10
+
+$ HOTEL_EMAIL_SECONDS=1 python main.py --no-drain
+$ python tools/burst.py --count 10
+Accepted: 10
+Rejected: 0
+Slowest booking: 36 ms
+Total: 0.1 s
+GET /stats just before the stop: {"searches":0,"databaseQueries":30,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":10,"notificationsRejected":0,"notificationsCompleted":2,"notificationsQueued":7,"notificationsFailed":0}
+$ kill -SIGINT   -> the process ended 0.4 s later; it printed:
+Stopping the app with 10 confirmations accepted and 2 sent so far...
+(no drain) 8 confirmations are queued or being sent
+Notification workers stopped after 0.2 s.
+accepted=10  rejected=0  completed=3  failed=0  dropped=7  queued=0  in_flight=0
+7 guests are owed an email that will not be sent: R104, R105, R106, R107, R108, R109, R110
+Confirmed rows in the database afterwards: 10
+
+$ HOTEL_EMAIL_SECONDS=1 python main.py
+$ python tools/burst.py --count 10
+Accepted: 10
+Rejected: 0
+Slowest booking: 34 ms
+Total: 0.1 s
+GET /stats just before the stop: {"searches":0,"databaseQueries":30,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":10,"notificationsRejected":0,"notificationsCompleted":2,"notificationsQueued":7,"notificationsFailed":0}
+$ kill -SIGTERM   -> the process ended 7.4 s later; it printed:
+Stopping the app with 10 confirmations accepted and 2 sent so far...
+Draining the notification queue: 8 to go (at most 30 s)
+Notification workers stopped after 7.2 s.
+accepted=10  rejected=0  completed=10  failed=0  dropped=0  queued=0  in_flight=0
+Nobody was owed an email.
+Confirmed rows in the database afterwards: 10
+
+$ HOTEL_EMAIL_SECONDS=1 python main.py
+$ python tools/burst.py --count 10
+Accepted: 10
+Rejected: 0
+Slowest booking: 34 ms
+Total: 0.1 s
+GET /stats just before the stop: {"searches":0,"databaseQueries":30,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":10,"notificationsRejected":0,"notificationsCompleted":2,"notificationsQueued":7,"notificationsFailed":0}
+$ kill -SIGKILL   -> the process ended 0.0 s later; it printed:
+  (nothing - the process was killed; no shutdown code ran)
+Confirmed rows in the database afterwards: 10
+
+
+====================================================================================================
+Workers: HOTEL_WORKERS 1, 2, 4 - the bound decides what is accepted, the workers how fast it is finished
+====================================================================================================
+$ HOTEL_EMAIL_SECONDS=1 HOTEL_WORKERS=1 python main.py
+$ python tools/burst.py --count 30 --wait   (exit 0)
+Sending 30 bookings, one after another...
+
+Accepted: 30
+Rejected: 0
+Slowest booking: 35 ms
+Total: 0.1 s
+
+GET /stats
+{"searches":0,"databaseQueries":90,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":11,"notificationsRejected":19,"notificationsCompleted":0,"notificationsQueued":10,"notificationsFailed":0}
+
+Booking latency: p50 3.2 ms, p95 5.5 ms, max 34.7 ms
+Answers with notificationFailed: true: 19
+accepted + rejected = 30 (bookings: 30); queued 10
+
+GET /stats, 10.9 seconds later
+{"searches":0,"databaseQueries":90,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":11,"notificationsRejected":19,"notificationsCompleted":11,"notificationsQueued":0,"notificationsFailed":0}
+
+accepted 11 = completed 11 + failed 0 + queued 0. Everything the queue took, it finished.
+Worker throughput: 11 emails in 11.1 s = 0.99 per second
+
+$ HOTEL_EMAIL_SECONDS=0.2 HOTEL_QUEUE_CAPACITY=100 HOTEL_WORKERS=1 python main.py
+$ python tools/burst.py --count 50 --wait   (exit 0)
+Sending 50 bookings, one after another...
+
+Accepted: 50
+Rejected: 0
+Slowest booking: 42 ms
+Total: 0.2 s
+
+GET /stats
+{"searches":0,"databaseQueries":150,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":50,"notificationsRejected":0,"notificationsCompleted":0,"notificationsQueued":49,"notificationsFailed":0}
+
+Booking latency: p50 2.8 ms, p95 3.3 ms, max 41.8 ms
+Answers with notificationFailed: true: 0
+accepted + rejected = 50 (bookings: 50); queued 49
+
+GET /stats, 9.9 seconds later
+{"searches":0,"databaseQueries":150,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":50,"notificationsRejected":0,"notificationsCompleted":50,"notificationsQueued":0,"notificationsFailed":0}
+
+accepted 50 = completed 50 + failed 0 + queued 0. Everything the queue took, it finished.
+Worker throughput: 50 emails in 10.1 s = 4.95 per second
+
+$ HOTEL_EMAIL_SECONDS=1 HOTEL_WORKERS=2 python main.py
+$ python tools/burst.py --count 30 --wait   (exit 0)
+Sending 30 bookings, one after another...
+
+Accepted: 30
+Rejected: 0
+Slowest booking: 34 ms
+Total: 0.1 s
+
+GET /stats
+{"searches":0,"databaseQueries":90,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":12,"notificationsRejected":18,"notificationsCompleted":0,"notificationsQueued":10,"notificationsFailed":0}
+
+Booking latency: p50 3.5 ms, p95 5.3 ms, max 34.1 ms
+Answers with notificationFailed: true: 18
+accepted + rejected = 30 (bookings: 30); queued 10
+
+GET /stats, 5.9 seconds later
+{"searches":0,"databaseQueries":90,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":12,"notificationsRejected":18,"notificationsCompleted":12,"notificationsQueued":0,"notificationsFailed":0}
+
+accepted 12 = completed 12 + failed 0 + queued 0. Everything the queue took, it finished.
+Worker throughput: 12 emails in 6.1 s = 1.98 per second
+
+$ HOTEL_EMAIL_SECONDS=0.2 HOTEL_QUEUE_CAPACITY=100 HOTEL_WORKERS=2 python main.py
+$ python tools/burst.py --count 50 --wait   (exit 0)
+Sending 50 bookings, one after another...
+
+Accepted: 50
+Rejected: 0
+Slowest booking: 40 ms
+Total: 0.2 s
+
+GET /stats
+{"searches":0,"databaseQueries":150,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":50,"notificationsRejected":0,"notificationsCompleted":0,"notificationsQueued":48,"notificationsFailed":0}
+
+Booking latency: p50 3.5 ms, p95 4.3 ms, max 39.9 ms
+Answers with notificationFailed: true: 0
+accepted + rejected = 50 (bookings: 50); queued 48
+
+GET /stats, 4.8 seconds later
+{"searches":0,"databaseQueries":150,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":50,"notificationsRejected":0,"notificationsCompleted":50,"notificationsQueued":0,"notificationsFailed":0}
+
+accepted 50 = completed 50 + failed 0 + queued 0. Everything the queue took, it finished.
+Worker throughput: 50 emails in 5.1 s = 9.90 per second
+
+$ HOTEL_EMAIL_SECONDS=1 HOTEL_WORKERS=4 python main.py
+$ python tools/burst.py --count 30 --wait   (exit 0)
+Sending 30 bookings, one after another...
+
+Accepted: 30
+Rejected: 0
+Slowest booking: 36 ms
+Total: 0.1 s
+
+GET /stats
+{"searches":0,"databaseQueries":90,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":14,"notificationsRejected":16,"notificationsCompleted":0,"notificationsQueued":10,"notificationsFailed":0}
+
+Booking latency: p50 3.2 ms, p95 9.2 ms, max 35.9 ms
+Answers with notificationFailed: true: 16
+accepted + rejected = 30 (bookings: 30); queued 10
+
+GET /stats, 3.9 seconds later
+{"searches":0,"databaseQueries":90,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":14,"notificationsRejected":16,"notificationsCompleted":14,"notificationsQueued":0,"notificationsFailed":0}
+
+accepted 14 = completed 14 + failed 0 + queued 0. Everything the queue took, it finished.
+Worker throughput: 14 emails in 4.1 s = 3.44 per second
+
+$ HOTEL_EMAIL_SECONDS=0.2 HOTEL_QUEUE_CAPACITY=100 HOTEL_WORKERS=4 python main.py
+$ python tools/burst.py --count 50 --wait   (exit 0)
+Sending 50 bookings, one after another...
+
+Accepted: 50
+Rejected: 0
+Slowest booking: 34 ms
+Total: 0.2 s
+
+GET /stats
+{"searches":0,"databaseQueries":150,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":50,"notificationsRejected":0,"notificationsCompleted":0,"notificationsQueued":46,"notificationsFailed":0}
+
+Booking latency: p50 2.8 ms, p95 3.3 ms, max 34.3 ms
+Answers with notificationFailed: true: 0
+accepted + rejected = 50 (bookings: 50); queued 46
+
+GET /stats, 2.5 seconds later
+{"searches":0,"databaseQueries":150,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":50,"notificationsRejected":0,"notificationsCompleted":50,"notificationsQueued":0,"notificationsFailed":0}
+
+accepted 50 = completed 50 + failed 0 + queued 0. Everything the queue took, it finished.
+Worker throughput: 50 emails in 2.7 s = 18.75 per second
+
+
+====================================================================================================
+Failures: a flaky mail server (every 3rd attempt fails) without and with retry; a hanging one (timeout)
+====================================================================================================
+$ HOTEL_EMAIL_SECONDS=0.05 HOTEL_QUEUE_CAPACITY=100 HOTEL_EMAIL_FAIL_EVERY=3 HOTEL_SEND_ATTEMPTS=1 python main.py
+$ python tools/burst.py --count 30 --wait   (exit 0)
+Sending 30 bookings, one after another...
+
+Accepted: 30
+Rejected: 0
+Slowest booking: 34 ms
+Total: 0.1 s
+
+GET /stats
+{"searches":0,"databaseQueries":90,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":30,"notificationsRejected":0,"notificationsCompleted":1,"notificationsQueued":28,"notificationsFailed":0}
+
+Booking latency: p50 3.2 ms, p95 3.6 ms, max 34.0 ms
+Answers with notificationFailed: true: 0
+accepted + rejected = 30 (bookings: 30); queued 28
+
+GET /stats, 1.5 seconds later
+{"searches":0,"databaseQueries":90,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":30,"notificationsRejected":0,"notificationsCompleted":20,"notificationsQueued":0,"notificationsFailed":10}
+
+accepted 30 = completed 20 + failed 10 + queued 0. Everything the queue took, it finished.
+Worker throughput: 30 emails in 1.6 s = 18.98 per second
+Server log (failures and retries, first 6):
+confirmation for R103 failed after 1 attempt(s): the mail server dropped the connection (R103)
+confirmation for R106 failed after 1 attempt(s): the mail server dropped the connection (R106)
+confirmation for R109 failed after 1 attempt(s): the mail server dropped the connection (R109)
+confirmation for R112 failed after 1 attempt(s): the mail server dropped the connection (R112)
+confirmation for R115 failed after 1 attempt(s): the mail server dropped the connection (R115)
+confirmation for R118 failed after 1 attempt(s): the mail server dropped the connection (R118)
+... 10 such lines in all
+Server output after Ctrl+C:
+Stopping the app with 30 confirmations accepted and 20 sent so far...
+Draining the notification queue: 0 to go (at most 30 s)
+Notification workers stopped after 0.0 s.
+accepted=30  rejected=0  completed=20  failed=10  dropped=0  queued=0  in_flight=0
+Nobody is owed an email that was not tried; 10 failed and are logged.
+
+$ HOTEL_EMAIL_SECONDS=0.05 HOTEL_QUEUE_CAPACITY=100 HOTEL_EMAIL_FAIL_EVERY=3 HOTEL_SEND_ATTEMPTS=3 python main.py
+$ python tools/burst.py --count 30 --wait   (exit 0)
+Sending 30 bookings, one after another...
+
+Accepted: 30
+Rejected: 0
+Slowest booking: 34 ms
+Total: 0.1 s
+
+GET /stats
+{"searches":0,"databaseQueries":90,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":30,"notificationsRejected":0,"notificationsCompleted":1,"notificationsQueued":28,"notificationsFailed":0}
+
+Booking latency: p50 2.9 ms, p95 3.9 ms, max 34.1 ms
+Answers with notificationFailed: true: 0
+accepted + rejected = 30 (bookings: 30); queued 28
+
+GET /stats, 9.1 seconds later
+{"searches":0,"databaseQueries":90,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":30,"notificationsRejected":0,"notificationsCompleted":30,"notificationsQueued":0,"notificationsFailed":0}
+
+accepted 30 = completed 30 + failed 0 + queued 0. Everything the queue took, it finished.
+Worker throughput: 30 emails in 9.2 s = 3.24 per second
+Server log (failures and retries, first 6):
+... 0 such lines in all
+Server output after Ctrl+C:
+Stopping the app with 30 confirmations accepted and 30 sent so far...
+Draining the notification queue: 0 to go (at most 30 s)
+Notification workers stopped after 0.0 s.
+accepted=30  rejected=0  completed=30  failed=0  dropped=0  queued=0  in_flight=0
+Nobody was owed an email.
+
+$ HOTEL_EMAIL_SECONDS=5 HOTEL_EMAIL_TIMEOUT=0.5 python main.py
+$ python tools/burst.py --count 4 --wait   (exit 0)
+Sending 4 bookings, one after another...
+
+Accepted: 4
+Rejected: 0
+Slowest booking: 34 ms
+Total: 0.0 s
+
+GET /stats
+{"searches":0,"databaseQueries":12,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":4,"notificationsRejected":0,"notificationsCompleted":0,"notificationsQueued":3,"notificationsFailed":0}
+
+Booking latency: p50 3.4 ms, p95 34.0 ms, max 34.0 ms
+Answers with notificationFailed: true: 0
+accepted + rejected = 4 (bookings: 4); queued 3
+
+GET /stats, 2.0 seconds later
+{"searches":0,"databaseQueries":12,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":4,"notificationsRejected":0,"notificationsCompleted":0,"notificationsQueued":0,"notificationsFailed":4}
+
+accepted 4 = completed 0 + failed 4 + queued 0. Everything the queue took, it finished.
+Worker throughput: 4 emails in 2.1 s = 1.93 per second
+Server log (failures and retries, first 6):
+confirmation for R101 failed after 1 attempt(s): the mail server did not answer within 0.5 s (R101)
+confirmation for R102 failed after 1 attempt(s): the mail server did not answer within 0.5 s (R102)
+confirmation for R103 failed after 1 attempt(s): the mail server did not answer within 0.5 s (R103)
+confirmation for R104 failed after 1 attempt(s): the mail server did not answer within 0.5 s (R104)
+... 4 such lines in all
+Server output after Ctrl+C:
+Stopping the app with 4 confirmations accepted and 0 sent so far...
+Draining the notification queue: 0 to go (at most 30 s)
+Notification workers stopped after 0.0 s.
+accepted=4  rejected=0  completed=0  failed=4  dropped=0  queued=0  in_flight=0
+Nobody is owed an email that was not tried; 4 failed and are logged.
+
+
+====================================================================================================
+P09 still holds with the queue: tools/race_http.py --repeat 20 (HOTEL_SLOW_STEP=1, HOTEL_EMAIL_SECONDS=1)
+====================================================================================================
+$ HOTEL_SLOW_STEP=1 HOTEL_EMAIL_SECONDS=1 python main.py
+$ python tools/race_http.py --repeat 20   (one instance; exit 0)
+Double bookings: 0 of 20 rounds; one 201 and one 409: 20; anything else: 0.
+$ HOTEL_SLOW_STEP=1 HOTEL_EMAIL_SECONDS=1 HOTEL_DB_PATH=/tmp/p10-queue-1k8a4u4w/race.sqlite3 python main.py   (a second instance, same database file)
+$ python tools/race_http.py <second instance> --repeat 20   (Omar to the second; exit 0)
+Double bookings: 0 of 20 rounds; one 201 and one 409: 20; anything else: 0.
+
+Second instance after Ctrl+C:
+Stopping the app with 0 confirmations accepted and 0 sent so far...
+Draining the notification queue: 0 to go (at most 30 s)
+Notification workers stopped after 0.0 s.
+accepted=0  rejected=0  completed=0  failed=0  dropped=0  queued=0  in_flight=0
+Nobody was owed an email.
+First instance after Ctrl+C:
+Stopping the app with 40 confirmations accepted and 39 sent so far...
+Draining the notification queue: 1 to go (at most 30 s)
+Notification workers stopped after 0.1 s.
+accepted=40  rejected=0  completed=40  failed=0  dropped=0  queued=0  in_flight=0
+Nobody was owed an email.
+
+====================================================================================================
+PostgreSQL 16 (throw-away cluster, pg_wire instead of psycopg): bounded burst, drain, race
+====================================================================================================
+PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1); schema: db/postgres/init.sql (exclusion constraint + sequence)
+$ HOTEL_EMAIL_SECONDS=1 python serve_pg.py   (= python main.py --db postgres)
+$ python tools/burst.py --wait   (exit 0)
+Sending 30 bookings, one after another...
+
+Accepted: 30
+Rejected: 0
+Slowest booking: 41 ms
+Total: 0.4 s
+
+GET /stats
+{"searches":0,"databaseQueries":90,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":11,"notificationsRejected":19,"notificationsCompleted":0,"notificationsQueued":10,"notificationsFailed":0}
+
+Booking latency: p50 9.1 ms, p95 31.2 ms, max 40.5 ms
+Answers with notificationFailed: true: 19
+accepted + rejected = 30 (bookings: 30); queued 10
+
+GET /stats, 10.7 seconds later
+{"searches":0,"databaseQueries":90,"cacheHits":0,"cacheMisses":0,"cacheErrors":0,"notificationsAccepted":11,"notificationsRejected":19,"notificationsCompleted":11,"notificationsQueued":0,"notificationsFailed":0}
+
+accepted 11 = completed 11 + failed 0 + queued 0. Everything the queue took, it finished.
+Worker throughput: 11 emails in 11.0 s = 1.00 per second
+Server output after Ctrl+C:
+Stopping the app with 11 confirmations accepted and 11 sent so far...
+Draining the notification queue: 0 to go (at most 30 s)
+Notification workers stopped after 0.0 s.
+accepted=11  rejected=19  completed=11  failed=0  dropped=0  queued=0  in_flight=0
+Nobody was owed an email.
+psql: Confirmed reservations: 30
+$ HOTEL_SLOW_STEP=1 HOTEL_EMAIL_SECONDS=1 python serve_pg.py   x 2 instances, one database
+$ python tools/race_http.py <second instance> --repeat 20   (exit 0)
+Double bookings: 0 of 20 rounds; one 201 and one 409: 20; anything else: 0.
+psql: rooms with two Confirmed reservations for one stay: none

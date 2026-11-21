@@ -85,9 +85,12 @@ def test_project_folder_matches_the_finished_p09_folder() -> None:
 
 
 def test_the_contract_adds_the_race_example_and_is_1_2_0() -> None:
+    """P10 change (deliberate): P10 raised the contract to 1.3.0 (optional GET /stats counters, a
+    201 example), so this check asks for "1.2.0 or a later 1.x"; the race example must still be there."""
     yaml = pytest.importorskip("yaml")
     contract = yaml.safe_load(read(DOCS / "openapi.yaml"))
-    assert contract["info"]["version"] == "1.2.0"
+    major, minor, _ = (int(part) for part in contract["info"]["version"].split("."))
+    assert major == 1 and minor >= 2
     conflict = contract["paths"]["/reservations"]["post"]["responses"]["409"]
     examples = conflict["content"]["application/problem+json"]["examples"]
     assert set(examples) == {"sharedNight", "lostTheRace"}

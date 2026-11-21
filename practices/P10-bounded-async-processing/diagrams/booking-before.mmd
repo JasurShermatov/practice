@@ -1,0 +1,25 @@
+---
+title: Before (P09, --no-queue) - the confirmation email is sent inside the booking request
+---
+sequenceDiagram
+  autonumber
+  actor Guest
+  participant API as api.py reserve (thread pool)
+  participant UoW as unit of work (main.py)
+  participant BS as BookingService.reserve
+  participant DB as SQLite / PostgreSQL
+  participant Mail as EmailNotificationSender (HOTEL_EMAIL_SECONDS=1)
+
+  Guest->>API: POST /reservations (R7, one night in December)
+  API->>UoW: with unit_of_work() as service
+  UoW->>BS: reserve(guest, room, stay)
+  BS->>DB: has_overlap (pre-check) - about 1 ms
+  BS->>DB: next_reservation_id + INSERT (exclusion constraint / trigger) - about 1 ms
+  Note over BS,DB: the room is the guest's from here on (not committed yet)
+  BS->>Mail: send_confirmation(Confirmation)
+  Note over BS,Mail: the request waits a full second for the mail server
+  Mail-->>BS: returns after 1 s
+  BS-->>UoW: BookingResult Accepted
+  UoW->>DB: save_changes + COMMIT (SQLite write lock held for the whole second)
+  UoW-->>API: result
+  API-->>Guest: 201 Created after about 1 s (measured: see docs/queue-trace.md)

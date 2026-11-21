@@ -84,3 +84,10 @@ Tests: `test_a_failed_confirmation_keeps_the_booking`, `tests/test_sequences.py:
 How it is reported: the result carries `notification_failed=True` (so a screen or the receptionist
 can offer to resend), and the service logs a warning with the reservation id. The demo never sees
 this case: its simulated email sender does not fail.
+P10 (version 7): in the web app the confirmation is no longer sent inside the request. R6 still
+holds, in two places: a confirmation the bounded queue refuses (full or closing) is reported at once
+the same way (`notificationFailed: true`, booking kept - `test_a_full_queue_never_fails_a_booking`),
+and a send that fails later, in a worker, can no longer change the answer the guest already has: it
+is counted (`notificationsFailed` on GET /stats), recorded (`DeliveryStatus.FAILED`) and logged with
+the reservation id (`test_a_failing_mail_server_never_fails_a_booking`). No email is sent for a booking
+that was not committed (`test_a_booking_that_rolls_back_is_never_emailed`).

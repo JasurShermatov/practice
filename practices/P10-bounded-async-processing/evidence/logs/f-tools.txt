@@ -1,0 +1,17 @@
+# tools in the build container (Linux)
+Python 3.13.18
+starlette 1.7.0 | pydantic 2.13.5 | uvicorn 0.54.0 | SQLite 3.53.1
+pytest 9.1.1
+mypy 2.3.1 (compiled: yes)
+Redis server v=7.0.15 sha=00000000:0 malloc=jemalloc-5.3.0 bits=64 build=d064f9f48c901a92
+postgres (PostgreSQL) 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
+mmdc 11.16.0
+$ docker --version
+Docker version 29.10.0, build fdd4b8e   (the CLI only)
+$ docker info
+failed to connect to the docker API at unix:///var/run/docker.sock ... (no daemon: docker compose cannot run here)
+$ python3 -c "import psycopg"
+ModuleNotFoundError: No module named 'psycopg'
+$ lint-imports --version
+/bin/bash: line 1: lint-imports: command not found
+(not available)

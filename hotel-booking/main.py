@@ -1,4 +1,4 @@
-"""Entry point of the hotel booking app (version 6, P09: the booking rule protected by the database).
+"""Entry point of the hotel booking app (version 7, P10: confirmations sent from a bounded queue).
 
     python main.py                  -> the HTTP API on http://localhost:5080, reservations in SQLite
                                        (file hotel.sqlite3 next to this file; HOTEL_DB_PATH changes it),
@@ -15,6 +15,15 @@
     HOTEL_PORT=5081 python main.py  -> P09: a second instance on another port (or --port 5081)
     HOTEL_SLOW_STEP=1 python main.py   P09: every booking waits 1 s between its check and its save,
                                        so tools/race_http.py lands in the gap on every run
+    HOTEL_EMAIL_SECONDS=1 python main.py
+                                    -> P10: the email sender is as slow as a real mail server; the
+                                       booking does not wait for it (bounded queue, background worker)
+    python main.py --no-queue       -> P10 "before": the confirmation is sent inside the request again
+    HOTEL_QUEUE_CAPACITY=10000 python main.py   P10 Step 3: a queue so big it never refuses
+    HOTEL_WORKERS=3, HOTEL_SEND_ATTEMPTS=3, HOTEL_DRAIN_SECONDS=30, HOTEL_EMAIL_TIMEOUT=10,
+    HOTEL_EMAIL_FAIL_EVERY=3        -> workers, retry policy, shutdown drain limit, the sender's own
+                                       timeout, a flaky mail server (each also a --flag)
+    python main.py --no-drain       -> P10 Step 6 comparison: Ctrl+C stops the workers without draining
 
 This file is the *wiring* (composition root): the only application file that names internal
 classes of the modules. P07 adds the web app's wiring: it reads the rooms once from the rooms
@@ -36,6 +45,17 @@ version 5 is upgraded when it is opened - after checking that no room is already
 because the rule cannot honestly be switched on over data that breaks it. ``HOTEL_SLOW_STEP`` and
 ``HOTEL_PORT`` (or ``--slow-step`` / ``--port``) set the experiment's gap and the second
 instance's port.
+
+P10 change: the confirmation email leaves the request. ``build_notifications`` creates the one
+``QueuedNotificationSender`` of the process (a bounded queue + a fixed number of worker threads,
+around the email sender); the wiring owns it, and nothing else in the app starts a thread. Every
+booking request gets a ``HeldConfirmations`` over it: the reservation holds a place in the queue
+inside its transaction, and the confirmation is handed to the workers only after ``save_changes``
+has committed (a rollback gives the place back). When uvicorn is asked to stop (Ctrl+C or SIGTERM)
+it first finishes the open requests, then the app's shutdown hook calls ``shut_down_notifications``:
+stop accepting, drain for at most ``HOTEL_DRAIN_SECONDS``, stop the workers, and print what - if
+anything - is still owed. ``--no-queue`` keeps the P09 behaviour for the "before" measurement. The
+demo and the race still send synchronously, so their printed output did not change.
 """
 from __future__ import annotations
 
@@ -44,7 +64,7 @@ import os
 import sqlite3
 from collections.abc import Callable, Iterator
 from contextlib import closing, contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
@@ -56,7 +76,13 @@ from hotel_booking.api_redis import RedisKeyValueStore
 from hotel_booking.api_stats import CountingReservationStore, Stats
 from hotel_booking.demo import HOTEL_ROOMS, run_demo, run_race
 from hotel_booking.notifications import NotificationSender
-from hotel_booking.notifications.internal import EmailNotificationSender
+from hotel_booking.notifications.internal import (
+    EmailNotificationSender,
+    HeldConfirmations,
+    QueuedNotificationSender,
+    ShutdownReport,
+    named,
+)
 from hotel_booking.reservations import BookingService, ReservationStore
 from hotel_booking.reservations.internal import InMemoryReservationStore, SqlReservationStore
 from hotel_booking.rooms import Room
@@ -77,6 +103,21 @@ CACHE_KINDS: tuple[CacheKind, ...] = ("redis", "memory", "off")
 
 
 @dataclass(frozen=True)
+class NotificationOptions:
+    """P10: how confirmations are sent (each from a HOTEL_* variable or a --flag)."""
+
+    queue: bool = True                 # False: --no-queue, the P09 behaviour (sent inside the request)
+    email_seconds: float = 0.0         # HOTEL_EMAIL_SECONDS: how slow the (simulated) mail server is
+    email_timeout: float = 10.0        # HOTEL_EMAIL_TIMEOUT: the sender gives up on one message after this
+    email_fail_every: int = 0          # HOTEL_EMAIL_FAIL_EVERY: every n-th attempt fails (0: never)
+    capacity: int = 10                 # HOTEL_QUEUE_CAPACITY: the bound
+    workers: int = 1                   # HOTEL_WORKERS: the fixed number of worker threads
+    send_attempts: int = 1             # HOTEL_SEND_ATTEMPTS: 1 = no retry (the course's policy)
+    drain: bool = True                 # False: --no-drain (Step 6 comparison)
+    drain_seconds: float = 30.0        # HOTEL_DRAIN_SECONDS: the longest a shutdown waits for the queue
+
+
+@dataclass(frozen=True)
 class ServerOptions:
     """What ``python main.py`` was asked to serve."""
 
@@ -85,6 +126,7 @@ class ServerOptions:
     cache: CacheKind = "redis"
     invalidation: bool = True
     slow_step_seconds: float = 0.0  # P09: HOTEL_SLOW_STEP, the widened check-then-save gap
+    notifications: NotificationOptions = field(default_factory=NotificationOptions)  # P10
 
 
 # --------------------------------------------------------------------------- console demo and race (lists)
@@ -164,22 +206,31 @@ def postgres_connector(port: int) -> Connect:  # pragma: no cover - needs psycop
 
 def sql_unit_of_work(
     connect: Connect, rooms: list[Room], sender: NotificationSender, slow_step_seconds: float = 0.0,
-    stats: Stats | None = None,
+    stats: Stats | None = None, notifications: QueuedNotificationSender | None = None,
 ) -> UnitOfWork:
     """One request = one connection, one store, one BookingService; save at the end or roll back.
 
     P08: with ``stats`` the booking service gets the store wrapped in a ``CountingReservationStore``,
     so GET /stats counts every database question; ``save_changes`` is called on the real store.
+
+    P10: with ``notifications`` (the queue) the booking service gets this request's
+    ``HeldConfirmations`` instead of ``sender``: a confirmation holds a place in the queue while the
+    transaction is open and reaches the workers only after the COMMIT; a rollback gives it back.
     """
     @contextmanager
     def unit_of_work() -> Iterator[BookingService]:
         connection = connect()
+        held = HeldConfirmations(notifications) if notifications is not None else None
         try:
             store = SqlReservationStore(connection, rooms)
             counted: ReservationStore = store if stats is None else CountingReservationStore(store, stats)
-            yield BookingService(rooms, counted, sender, slow_step_seconds=slow_step_seconds)
+            yield BookingService(rooms, counted, held or sender, slow_step_seconds=slow_step_seconds)
             store.save_changes()  # UPDATE what changed, then COMMIT
+            if held is not None:
+                held.publish()    # only now may a worker tell the guest
         except BaseException:
+            if held is not None:
+                held.discard()    # rolled back: nobody is told about a booking that does not exist
             connection.rollback()
             raise
         finally:
@@ -191,18 +242,71 @@ def sql_unit_of_work(
 def build_api(
     connect: Connect, slow_step_seconds: float = 0.0, sender: NotificationSender | None = None, *,
     cache: AvailabilityCache | None = None, stats: Stats | None = None,
+    notifications: QueuedNotificationSender | None = None, on_shutdown: Callable[[], object] | None = None,
 ) -> tuple[Starlette, NotificationSender]:
     """The web app over a database: the rooms are read once, the reservations once per request.
 
     The email sender is the default; tests may hand in another ``NotificationSender``. P08: one
     ``Stats`` is shared by GET /stats and the counting store; ``cache=None`` means no cache.
+
+    P10: ``notifications`` is the process's queue. With it, bookings hand their confirmations to
+    the queue after the commit, GET /stats shows its counters, and the returned sender is the queue;
+    ``on_shutdown`` runs when the server stops (``shut_down_notifications`` in ``run_api``).
     """
     with closing(connect()) as connection:
         rooms = SqlRoomCatalog(connection).all()
-    sender = sender or EmailNotificationSender()
+    chosen: NotificationSender = notifications or sender or EmailNotificationSender()
     stats = stats if stats is not None else Stats()
-    app = create_app(rooms, sql_unit_of_work(connect, rooms, sender, slow_step_seconds, stats), stats, cache)
-    return app, sender
+    unit_of_work = sql_unit_of_work(connect, rooms, chosen, slow_step_seconds, stats, notifications)
+    app = create_app(rooms, unit_of_work, stats, cache,
+                     notification_counts=notifications.counts if notifications is not None else None,
+                     on_shutdown=on_shutdown)
+    return app, chosen
+
+
+# --------------------------------------------------------------------------- P10: the notification queue
+
+
+def build_email_sender(options: NotificationOptions) -> EmailNotificationSender:
+    """The (simulated) mail server with the costs the options ask for."""
+    return EmailNotificationSender(options.email_seconds, timeout_seconds=options.email_timeout,
+                                   fail_every=options.email_fail_every)
+
+
+def build_notifications(options: NotificationOptions) -> QueuedNotificationSender:
+    """The one bounded queue of this process and its fixed workers (started here, stopped at shutdown)."""
+    return QueuedNotificationSender(build_email_sender(options), capacity=options.capacity, workers=options.workers,
+                                    max_attempts=options.send_attempts)
+
+
+def shut_down_notifications(notifications: QueuedNotificationSender, drain: bool = True,
+                            timeout: float | None = 30.0, say: Callable[[str], object] = print) -> ShutdownReport:
+    """Stop the queue politely and say what it did - the lines the course's Step 6 prints.
+
+    New work is refused from the first moment; with ``drain`` the workers finish the queue for at
+    most ``timeout`` seconds; whatever is still queued after that is dropped *and named*. A killed
+    process (kill -9) never gets here: that loss is not recorded anywhere (docs/queue-trace.md).
+    """
+    before = notifications.counts()
+    say(f"Stopping the app with {before.accepted} confirmations accepted and {before.completed} sent so far...")
+    owed = before.queued + before.in_flight
+    if drain:
+        limit = "" if timeout is None else f" (at most {timeout:g} s)"
+        say(f"Draining the notification queue: {owed} to go{limit}")
+    else:
+        say(f"(no drain) {owed} confirmations are queued or being sent")
+    report = notifications.close(drain=drain, timeout=timeout)
+    after = report.counts
+    say(f"Notification workers stopped after {report.seconds:.1f} s.")
+    say(f"accepted={after.accepted}  rejected={after.rejected}  completed={after.completed}  "
+        f"failed={after.failed}  dropped={after.dropped}  queued={after.queued}  in_flight={after.in_flight}")
+    if report.owes_nobody():
+        say("Nobody was owed an email." if after.failed == 0
+            else f"Nobody is owed an email that was not tried; {after.failed} failed and are logged.")
+    else:
+        say(f"{len(report.dropped)} guests are owed an email that will not be sent: {named(report.dropped) or '-'}"
+            + (f"; {report.workers_still_running} send(s) still in progress" if report.workers_still_running else ""))
+    return report
 
 
 def build_cache(kind: CacheKind, invalidation: bool = True,
@@ -235,8 +339,23 @@ def run_api(options: ServerOptions) -> None:  # pragma: no cover - starts a serv
         connect = postgres_connector(int(os.getenv("HOTEL_DB_PORT", "5432")))
     else:
         connect = sqlite_connector(Path(os.getenv("HOTEL_DB_PATH", str(DEFAULT_SQLITE_PATH))))
-    app, _ = build_api(connect, options.slow_step_seconds, cache=build_cache(options.cache, options.invalidation))
-    uvicorn.run(app, host=HOST, port=options.port)
+    sending = options.notifications
+    notifications = build_notifications(sending) if sending.queue else None
+    sender = None if sending.queue else build_email_sender(sending)  # --no-queue: inside the request (P09)
+
+    def stop_notifications() -> None:
+        if notifications is not None:
+            shut_down_notifications(notifications, sending.drain, sending.drain_seconds)
+
+    try:
+        app, _ = build_api(connect, options.slow_step_seconds, sender, notifications=notifications,
+                           cache=build_cache(options.cache, options.invalidation), on_shutdown=stop_notifications)
+        # Ctrl+C / SIGTERM: uvicorn stops accepting, finishes the open requests, then runs the app's
+        # shutdown hook (the drain above) - before it re-raises the signal.
+        uvicorn.run(app, host=HOST, port=options.port)
+    finally:
+        if notifications is not None:
+            notifications.close(drain=False)  # no-op after the hook; stops the workers if start-up failed
 
 
 # --------------------------------------------------------------------------- command line
@@ -244,7 +363,8 @@ def run_api(options: ServerOptions) -> None:  # pragma: no cover - starts a serv
 
 def main(argv: list[str] | None = None, serve: Callable[[ServerOptions], None] | None = None) -> None:
     parser = argparse.ArgumentParser(
-        description="Hotel booking app, version 6 (P09: HTTP API + database that keeps the booking rule + search cache).")
+        description="Hotel booking app, version 7 (P10: HTTP API + database that keeps the booking rule + "
+                    "search cache + confirmations from a bounded queue).")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--demo", action="store_true", help="print the nine demo lines (data in lists)")
     mode.add_argument("--race", action="store_true",
@@ -261,6 +381,7 @@ def main(argv: list[str] | None = None, serve: Callable[[ServerOptions], None] |
                         help="the search cache: redis (default, docker compose), memory (this process only) or off")
     parser.add_argument("--no-invalidation", dest="invalidation", action="store_false",
                         help="P08 Step 5 experiment only: bookings and cancels do not invalidate the cache")
+    add_notification_arguments(parser)
     args = parser.parse_args(argv)
     if args.race:
         service, store, _ = build_app(slow_step_seconds=RACE_SLOW_STEP_SECONDS)
@@ -269,7 +390,41 @@ def main(argv: list[str] | None = None, serve: Callable[[ServerOptions], None] |
         service, _, email = build_app()
         run_demo(service, lambda: email.sent)
     else:
-        (serve or run_api)(ServerOptions(args.db, args.port, args.cache, args.invalidation, args.slow_step_seconds))
+        sending = NotificationOptions(
+            queue=args.queue, email_seconds=args.email_seconds, email_timeout=args.email_timeout,
+            email_fail_every=args.email_fail_every, capacity=args.queue_capacity, workers=args.workers,
+            send_attempts=args.send_attempts, drain=args.drain, drain_seconds=args.drain_seconds)
+        (serve or run_api)(ServerOptions(args.db, args.port, args.cache, args.invalidation, args.slow_step_seconds,
+                                         sending))
+
+
+def add_notification_arguments(parser: argparse.ArgumentParser) -> None:
+    """P10: the queue's settings; each flag defaults to its HOTEL_* variable, then to NotificationOptions."""
+    defaults = NotificationOptions()
+
+    def env(name: str, default: object) -> str:
+        return os.getenv(name, str(default))
+
+    group = parser.add_argument_group("P10 confirmation emails")
+    group.add_argument("--no-queue", dest="queue", action="store_false",
+                       help="send the confirmation inside the booking request (the P09 behaviour, for comparison)")
+    group.add_argument("--email-seconds", type=float, default=float(env("HOTEL_EMAIL_SECONDS", defaults.email_seconds)),
+                       help="seconds the simulated mail server takes per email (default: HOTEL_EMAIL_SECONDS, else 0)")
+    group.add_argument("--email-timeout", type=float, default=float(env("HOTEL_EMAIL_TIMEOUT", defaults.email_timeout)),
+                       help="the sender gives up on one email after this many seconds (HOTEL_EMAIL_TIMEOUT, else 10)")
+    group.add_argument("--email-fail-every", type=int,
+                       default=int(env("HOTEL_EMAIL_FAIL_EVERY", defaults.email_fail_every)),
+                       help="every n-th send attempt fails - a flaky mail server (HOTEL_EMAIL_FAIL_EVERY, else 0)")
+    group.add_argument("--queue-capacity", type=int, default=int(env("HOTEL_QUEUE_CAPACITY", defaults.capacity)),
+                       help="the bound: most confirmations waiting at once (HOTEL_QUEUE_CAPACITY, else 10)")
+    group.add_argument("--workers", type=int, default=int(env("HOTEL_WORKERS", defaults.workers)),
+                       help="fixed number of worker threads (HOTEL_WORKERS, else 1)")
+    group.add_argument("--send-attempts", type=int, default=int(env("HOTEL_SEND_ATTEMPTS", defaults.send_attempts)),
+                       help="attempts per email, 1 = no retry (HOTEL_SEND_ATTEMPTS, else 1)")
+    group.add_argument("--no-drain", dest="drain", action="store_false",
+                       help="Step 6 comparison: at shutdown stop the workers without finishing the queue")
+    group.add_argument("--drain-seconds", type=float, default=float(env("HOTEL_DRAIN_SECONDS", defaults.drain_seconds)),
+                       help="the longest a shutdown waits for the queue (HOTEL_DRAIN_SECONDS, else 30)")
 
 
 if __name__ == "__main__":

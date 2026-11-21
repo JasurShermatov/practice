@@ -5,11 +5,15 @@
 #   - P08: the edge grew three files (api_stats.py: counters + counting store, api_cache.py: the
 #     search cache, api_redis.py: the Redis adapter); the two API borders cover them too, and one
 #     new border keeps the cache free of the hotel's modules: it stores text, it knows no rule.
+#   - P10: Notifications now owns the app's only background threads (the bounded queue). One new
+#     border keeps it a leaf: it depends on no other module, so a worker can never reach into
+#     Reservations' rows or Rooms' catalogue behind the booking's back - it only knows Confirmation.
+#     (Who may start a thread at all is checked by tests/test_architecture.py; import-linter cannot.)
 #
 #   pip install import-linter      # dev tool, listed in requirements.txt
 #   lint-imports                   # run from the hotel-booking folder
 #
-# Expected:  Contracts: 6 kept, 0 broken.   (the course's P08 reference expects 3; see the P08 README)
+# Expected:  Contracts: 7 kept, 0 broken.   (the course's P10 reference expects 3; see the P10 README)
 #
 # The same file is read by tests/test_architecture.py (standard library only:
 # configparser + ast), so the borders are also checked by `python -m pytest`
@@ -87,3 +91,13 @@ forbidden_modules =
     hotel_booking.reservations
     hotel_booking.payments
     hotel_booking.notifications
+
+[importlinter:contract:notifications-independent]
+name = Notifications depends on no other module
+type = forbidden
+source_modules =
+    hotel_booking.notifications
+forbidden_modules =
+    hotel_booking.rooms
+    hotel_booking.reservations
+    hotel_booking.payments

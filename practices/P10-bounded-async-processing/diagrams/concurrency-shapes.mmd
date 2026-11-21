@@ -1,0 +1,19 @@
+---
+title: Step 7 - four questions about the work, and the shape they force
+---
+flowchart TD
+  work["The work: send one confirmation email<br/>after a booking has committed"] --> q1{"Does the request OWN it?<br/>(must it finish before the answer?)"}
+  q1 -- "yes" --> sc["Structured concurrency<br/>(task cannot outlive its scope)"]
+  q1 -- "no: the request only CAUSES it;<br/>the email outlives the request" --> q2{"One stage or several?"}
+  q2 -- "several, with demand between them" --> rx["Reactive pipeline<br/>(backpressure in the protocol)"]
+  q2 -- "one stage: send" --> q3{"Is it one piece of work<br/>split into parts we wait for?"}
+  q3 -- "yes" --> fj["Fork-join"]
+  q3 -- "no: nobody waits for it at all" --> q4{"Does it share mutable state<br/>that needs composing?"}
+  q4 -- "yes, per-entity state" --> actor["Actor per room<br/>(also STM for shared memory)"]
+  q4 -- "no: the queue is the only shared thing,<br/>and it is already thread-safe" --> q5{"Does it need a limit?"}
+  q5 -- "yes: the consumer (mail server)<br/>is slower than the producer (bookings)" --> keep["KEPT: bounded queue + fixed workers,<br/>refuse and count when full"]
+  q5 -- "no limit" --> unb["Unbounded queue:<br/>the limit becomes the machine"]
+  classDef kept fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#1b1b1b
+  classDef rejected fill:#fafafa,stroke:#9e9e9e,stroke-dasharray:4 3,color:#424242
+  class keep kept
+  class sc,rx,fj,actor,unb rejected

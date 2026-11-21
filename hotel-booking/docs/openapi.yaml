@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Hotel booking API
-  version: 1.2.0
+  version: 1.3.0
   summary: Search free rooms, book a room, cancel a reservation, and read what the searches cost.
   description: |
     The contract of the hotel booking app (P07). It was written before the code; the app serves
@@ -27,6 +27,15 @@ info:
     removed in version 1. Clients must ignore fields they do not know. Version 1.1.0 (P08) adds
     GET /stats and the X-Cache header of the search - additions only, so no client breaks.
     Version 1.2.0 (P09) adds a promise and no shape: simultaneous bookings (below).
+    Version 1.3.0 (P10) adds five optional counters to GET /stats and one promise about the
+    confirmation email (below); no existing field changed.
+
+    Confirmation emails (P10, docs/adr-004-notification-concurrency.md): a 201 does not wait for
+    the confirmation email. The booking is answered as soon as it is committed; the email is
+    handed to a bounded queue and sent shortly afterwards by a background worker. A booking never
+    fails because of the email: when the queue is full (or the app is stopping) the booking is
+    still saved and answered 201, with notificationFailed true - that guest will not get an email.
+    No email is ever sent for a booking that was not committed.
 
     Simultaneous bookings (P09, docs/adr-003-booking-concurrency.md): a room never has two
     Confirmed reservations for the same night, however many requests arrive at the same moment
@@ -138,6 +147,7 @@ paths:
         Calls BookingService.reserve. Not idempotent: sent twice, the second answer is 409 for
         the guest's own stay (an Idempotency-Key header is planned for P11). Safe to send at the
         same moment as another booking for the same room: at most one of them is accepted (P09).
+        The answer does not wait for the confirmation email (P10): it is queued after the commit.
       requestBody:
         required: true
         content:
@@ -153,6 +163,9 @@ paths:
               examples:
                 booked:
                   value: { id: R101, status: Confirmed, notificationFailed: false }
+                confirmationRefused:
+                  summary: P10 - booked, but the notification queue was full, so no email will follow
+                  value: { id: R103, status: Confirmed, notificationFailed: true }
         "400":
           description: >-
             InvalidRequest when the body is not JSON (or not sent as application/json) or a field
@@ -221,7 +234,8 @@ paths:
       description: >-
         Counters for measuring the search (P08). They start at 0 when the app starts and count this
         running app only - every instance has its own. tools/measure.py reads them before and after
-        a run and prints the difference.
+        a run and prints the difference. P10: when the app sends confirmations from its queue, five
+        more counters say how far behind it is (tools/burst.py prints them).
       responses:
         "200":
           description: The counters.
@@ -232,6 +246,20 @@ paths:
                 twoSearches:
                   summary: Two searches for the same stay - one miss (2 rooms, 2 queries), one hit
                   value: { searches: 2, databaseQueries: 2, cacheHits: 1, cacheMisses: 1, cacheErrors: 0 }
+                withQueue:
+                  summary: >-
+                    P10 - queue of 1, one worker busy with R101: R102 waits, R103's email is refused
+                  value:
+                    searches: 0
+                    databaseQueries: 9
+                    cacheHits: 0
+                    cacheMisses: 0
+                    cacheErrors: 0
+                    notificationsAccepted: 2
+                    notificationsRejected: 1
+                    notificationsCompleted: 0
+                    notificationsQueued: 1
+                    notificationsFailed: 0
   /openapi.yaml:
     get:
       tags: [contract]
@@ -285,7 +313,10 @@ components:
         status: { type: string, enum: [Confirmed] }
         notificationFailed:
           type: boolean
-          description: True when the booking is saved but its confirmation could not be sent (R6).
+          description: >-
+            True when the booking is saved but its confirmation will not be sent: the sender failed
+            (R6) or, since P10, the notification queue was full or closing. False means the
+            confirmation was handed over; it is sent after this answer, not before it.
     Stats:
       type: object
       required: [searches, databaseQueries, cacheHits, cacheMisses, cacheErrors]
@@ -296,6 +327,11 @@ components:
         cacheHits: { type: integer, minimum: 0, description: Searches answered from a copy in the cache. }
         cacheMisses: { type: integer, minimum: 0, description: Searches that found no copy, asked the database and kept a copy. }
         cacheErrors: { type: integer, minimum: 0, description: Cache commands that failed; the request went on without the cache. }
+        notificationsAccepted: { type: integer, minimum: 0, description: "P10, only with the queue: confirmation emails the queue took." }
+        notificationsRejected: { type: integer, minimum: 0, description: "P10: confirmation emails refused because the queue was full (or closing). The booking still succeeded." }
+        notificationsCompleted: { type: integer, minimum: 0, description: "P10: confirmation emails the workers have finished sending." }
+        notificationsQueued: { type: integer, minimum: 0, description: "P10: confirmation emails waiting right now; never above the queue's capacity." }
+        notificationsFailed: { type: integer, minimum: 0, description: "P10: confirmation emails given up after every allowed attempt (logged with the reservation id)." }
     Problem:
       type: object
       required: [title, status, detail]

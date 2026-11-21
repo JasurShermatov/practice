@@ -1,0 +1,604 @@
+{
+  "before_one": {
+    "count": 1,
+    "accepted": 1,
+    "rejected": 0,
+    "notification_failed": 0,
+    "latencies_ms": [
+      1014.4030480005313
+    ],
+    "total_seconds": 1.0146070579994557,
+    "stats": {
+      "searches": 0,
+      "databaseQueries": 6,
+      "cacheHits": 0,
+      "cacheMisses": 0,
+      "cacheErrors": 0
+    },
+    "drained_after_seconds": null,
+    "final_stats": null,
+    "throughput_per_second": null,
+    "exit": 0
+  },
+  "before_burst": {
+    "count": 30,
+    "accepted": 30,
+    "rejected": 0,
+    "notification_failed": 0,
+    "latencies_ms": [
+      1013.161801998649,
+      1004.484377001063,
+      1004.636727999241,
+      1004.8310589991161,
+      1004.7866510012682,
+      1005.3753609990963,
+      1004.6616820000054,
+      1004.9040659996535,
+      1004.9578950001887,
+      1004.7558209989802,
+      1004.5292109989532,
+      1011.2314529997093,
+      1007.9282410006272,
+      1004.0705489991524,
+      1006.7674299989449,
+      1007.0334939991881,
+      1004.2277350003133,
+      1012.0180300000357,
+      1004.7694810000394,
+      1017.4023470008251,
+      1005.1092080011585,
+      1004.8429399994347,
+      1005.5667890010227,
+      1004.5786240007146,
+      1005.2734380005859,
+      1005.1752290000877,
+      1009.9716280001303,
+      1006.8647019998025,
+      1011.3893500001723,
+      1004.7550880008203
+    ],
+    "total_seconds": 30.203597591998914,
+    "stats": {
+      "searches": 0,
+      "databaseQueries": 180,
+      "cacheHits": 0,
+      "cacheMisses": 0,
+      "cacheErrors": 0
+    },
+    "drained_after_seconds": null,
+    "final_stats": null,
+    "throughput_per_second": null,
+    "exit": 0
+  },
+  "after_one": {
+    "count": 1,
+    "accepted": 1,
+    "rejected": 0,
+    "notification_failed": 0,
+    "latencies_ms": [
+      22.930709001229843
+    ],
+    "total_seconds": 0.023143365000578342,
+    "stats": {
+      "searches": 0,
+      "databaseQueries": 6,
+      "cacheHits": 0,
+      "cacheMisses": 0,
+      "cacheErrors": 0,
+      "notificationsAccepted": 2,
+      "notificationsRejected": 0,
+      "notificationsCompleted": 1,
+      "notificationsQueued": 0,
+      "notificationsFailed": 0
+    },
+    "drained_after_seconds": 1.047558123998897,
+    "final_stats": {
+      "searches": 0,
+      "databaseQueries": 6,
+      "cacheHits": 0,
+      "cacheMisses": 0,
+      "cacheErrors": 0,
+      "notificationsAccepted": 2,
+      "notificationsRejected": 0,
+      "notificationsCompleted": 2,
+      "notificationsQueued": 0,
+      "notificationsFailed": 0
+    },
+    "throughput_per_second": 1.8679342660379734,
+    "exit": 0
+  },
+  "unbounded": {
+    "searches": 0,
+    "databaseQueries": 90,
+    "cacheHits": 0,
+    "cacheMisses": 0,
+    "cacheErrors": 0,
+    "notificationsAccepted": 30,
+    "notificationsRejected": 0,
+    "notificationsCompleted": 0,
+    "notificationsQueued": 29,
+    "notificationsFailed": 0
+  },
+  "unbounded_shutdown": [
+    "Stopping the app with 30 confirmations accepted and 1 sent so far...",
+    "Draining the notification queue: 29 to go (at most 3 s)",
+    "Notification workers stopped after 3.7 s.",
+    "accepted=30  rejected=0  completed=5  failed=0  dropped=25  queued=0  in_flight=0",
+    "25 guests are owed an email that will not be sent: R106, R107, R108, R109, R110, R111, R112, R113, R114, R115, R116, R117, R118, R119, R120, R121, R122, R123, R124, R125, R126, R127, R128, R129, R130"
+  ],
+  "unbounded_rows": 30,
+  "bounded": {
+    "burst": {
+      "searches": 0,
+      "databaseQueries": 90,
+      "cacheHits": 0,
+      "cacheMisses": 0,
+      "cacheErrors": 0,
+      "notificationsAccepted": 11,
+      "notificationsRejected": 19,
+      "notificationsCompleted": 0,
+      "notificationsQueued": 10,
+      "notificationsFailed": 0
+    },
+    "series": [
+      {
+        "t": 0.0,
+        "queued": 10,
+        "completed": 0,
+        "failed": 0,
+        "accepted": 11
+      },
+      {
+        "t": 0.5,
+        "queued": 10,
+        "completed": 0,
+        "failed": 0,
+        "accepted": 11
+      },
+      {
+        "t": 1.0,
+        "queued": 9,
+        "completed": 1,
+        "failed": 0,
+        "accepted": 11
+      },
+      {
+        "t": 1.51,
+        "queued": 9,
+        "completed": 1,
+        "failed": 0,
+        "accepted": 11
+      },
+      {
+        "t": 2.01,
+        "queued": 8,
+        "completed": 2,
+        "failed": 0,
+        "accepted": 11
+      },
+      {
+        "t": 2.51,
+        "queued": 8,
+        "completed": 2,
+        "failed": 0,
+        "accepted": 11
+      },
+      {
+        "t": 3.01,
+        "queued": 7,
+        "completed": 3,
+        "failed": 0,
+        "accepted": 11
+      },
+      {
+        "t": 3.52,
+        "queued": 7,
+        "completed": 3,
+        "failed": 0,
+        "accepted": 11
+      },
+      {
+        "t": 4.02,
+        "queued": 6,
+        "completed": 4,
+        "failed": 0,
+        "accepted": 11
+      },
+      {
+        "t": 4.53,
+        "queued": 6,
+        "completed": 4,
+        "failed": 0,
+        "accepted": 11
+      },
+      {
+        "t": 5.03,
+        "queued": 5,
+        "completed": 5,
+        "failed": 0,
+        "accepted": 11
+      },
+      {
+        "t": 5.53,
+        "queued": 5,
+        "completed": 5,
+        "failed": 0,
+        "accepted": 11
+      },
+      {
+        "t": 6.03,
+        "queued": 4,
+        "completed": 6,
+        "failed": 0,
+        "accepted": 11
+      },
+      {
+        "t": 6.53,
+        "queued": 4,
+        "completed": 6,
+        "failed": 0,
+        "accepted": 11
+      },
+      {
+        "t": 7.03,
+        "queued": 3,
+        "completed": 7,
+        "failed": 0,
+        "accepted": 11
+      },
+      {
+        "t": 7.54,
+        "queued": 3,
+        "completed": 7,
+        "failed": 0,
+        "accepted": 11
+      },
+      {
+        "t": 8.04,
+        "queued": 2,
+        "completed": 8,
+        "failed": 0,
+        "accepted": 11
+      },
+      {
+        "t": 8.54,
+        "queued": 2,
+        "completed": 8,
+        "failed": 0,
+        "accepted": 11
+      },
+      {
+        "t": 9.04,
+        "queued": 1,
+        "completed": 9,
+        "failed": 0,
+        "accepted": 11
+      },
+      {
+        "t": 9.54,
+        "queued": 1,
+        "completed": 9,
+        "failed": 0,
+        "accepted": 11
+      },
+      {
+        "t": 10.05,
+        "queued": 0,
+        "completed": 10,
+        "failed": 0,
+        "accepted": 11
+      },
+      {
+        "t": 10.55,
+        "queued": 0,
+        "completed": 10,
+        "failed": 0,
+        "accepted": 11
+      },
+      {
+        "t": 11.05,
+        "queued": 0,
+        "completed": 11,
+        "failed": 0,
+        "accepted": 11
+      }
+    ],
+    "later": {
+      "searches": 0,
+      "databaseQueries": 90,
+      "cacheHits": 0,
+      "cacheMisses": 0,
+      "cacheErrors": 0,
+      "notificationsAccepted": 11,
+      "notificationsRejected": 19,
+      "notificationsCompleted": 11,
+      "notificationsQueued": 0,
+      "notificationsFailed": 0
+    },
+    "latency": "p50 3.4 ms, p95 6.5 ms, max 36.9 ms",
+    "rows": 30,
+    "refused_answers": 19
+  },
+  "bounded_repeats": [
+    {
+      "accepted": 11,
+      "rejected": 19,
+      "queued": 10,
+      "p50": 4.4,
+      "p95": 6.9,
+      "max": 33.8,
+      "total": 0.162
+    },
+    {
+      "accepted": 11,
+      "rejected": 19,
+      "queued": 10,
+      "p50": 4.2,
+      "p95": 22.9,
+      "max": 36.9,
+      "total": 0.259
+    },
+    {
+      "accepted": 11,
+      "rejected": 19,
+      "queued": 10,
+      "p50": 3.7,
+      "p95": 14.7,
+      "max": 33.2,
+      "total": 0.16
+    },
+    {
+      "accepted": 11,
+      "rejected": 19,
+      "queued": 10,
+      "p50": 3.4,
+      "p95": 6.5,
+      "max": 46.7,
+      "total": 0.155
+    },
+    {
+      "accepted": 11,
+      "rejected": 19,
+      "queued": 10,
+      "p50": 3.4,
+      "p95": 5.6,
+      "max": 36.7,
+      "total": 0.139
+    }
+  ],
+  "stop_drain": {
+    "before": {
+      "searches": 0,
+      "databaseQueries": 30,
+      "cacheHits": 0,
+      "cacheMisses": 0,
+      "cacheErrors": 0,
+      "notificationsAccepted": 10,
+      "notificationsRejected": 0,
+      "notificationsCompleted": 2,
+      "notificationsQueued": 7,
+      "notificationsFailed": 0
+    },
+    "shutdown": [
+      "Stopping the app with 10 confirmations accepted and 2 sent so far...",
+      "Draining the notification queue: 8 to go (at most 30 s)",
+      "Notification workers stopped after 7.3 s.",
+      "accepted=10  rejected=0  completed=10  failed=0  dropped=0  queued=0  in_flight=0",
+      "Nobody was owed an email."
+    ],
+    "rows": 10,
+    "seconds": 7.49
+  },
+  "stop_no_drain": {
+    "before": {
+      "searches": 0,
+      "databaseQueries": 30,
+      "cacheHits": 0,
+      "cacheMisses": 0,
+      "cacheErrors": 0,
+      "notificationsAccepted": 10,
+      "notificationsRejected": 0,
+      "notificationsCompleted": 2,
+      "notificationsQueued": 7,
+      "notificationsFailed": 0
+    },
+    "shutdown": [
+      "Stopping the app with 10 confirmations accepted and 2 sent so far...",
+      "(no drain) 8 confirmations are queued or being sent",
+      "Notification workers stopped after 0.2 s.",
+      "accepted=10  rejected=0  completed=3  failed=0  dropped=7  queued=0  in_flight=0",
+      "7 guests are owed an email that will not be sent: R104, R105, R106, R107, R108, R109, R110"
+    ],
+    "rows": 10,
+    "seconds": 0.42
+  },
+  "stop_sigterm": {
+    "before": {
+      "searches": 0,
+      "databaseQueries": 30,
+      "cacheHits": 0,
+      "cacheMisses": 0,
+      "cacheErrors": 0,
+      "notificationsAccepted": 10,
+      "notificationsRejected": 0,
+      "notificationsCompleted": 2,
+      "notificationsQueued": 7,
+      "notificationsFailed": 0
+    },
+    "shutdown": [
+      "Stopping the app with 10 confirmations accepted and 2 sent so far...",
+      "Draining the notification queue: 8 to go (at most 30 s)",
+      "Notification workers stopped after 7.2 s.",
+      "accepted=10  rejected=0  completed=10  failed=0  dropped=0  queued=0  in_flight=0",
+      "Nobody was owed an email."
+    ],
+    "rows": 10,
+    "seconds": 7.44
+  },
+  "stop_kill9": {
+    "before": {
+      "searches": 0,
+      "databaseQueries": 30,
+      "cacheHits": 0,
+      "cacheMisses": 0,
+      "cacheErrors": 0,
+      "notificationsAccepted": 10,
+      "notificationsRejected": 0,
+      "notificationsCompleted": 2,
+      "notificationsQueued": 7,
+      "notificationsFailed": 0
+    },
+    "shutdown": [],
+    "rows": 10,
+    "seconds": 0.0
+  },
+  "workers": {
+    "1|1 s sender, capacity 10, burst 30": {
+      "accepted": 11,
+      "rejected": 19,
+      "completed": 11,
+      "drained_after": 10.9,
+      "throughput": 0.99
+    },
+    "1|0.2 s sender, capacity 100, burst 50": {
+      "accepted": 50,
+      "rejected": 0,
+      "completed": 50,
+      "drained_after": 9.9,
+      "throughput": 4.95
+    },
+    "2|1 s sender, capacity 10, burst 30": {
+      "accepted": 12,
+      "rejected": 18,
+      "completed": 12,
+      "drained_after": 5.9,
+      "throughput": 1.98
+    },
+    "2|0.2 s sender, capacity 100, burst 50": {
+      "accepted": 50,
+      "rejected": 0,
+      "completed": 50,
+      "drained_after": 4.8,
+      "throughput": 9.9
+    },
+    "4|1 s sender, capacity 10, burst 30": {
+      "accepted": 14,
+      "rejected": 16,
+      "completed": 14,
+      "drained_after": 3.9,
+      "throughput": 3.44
+    },
+    "4|0.2 s sender, capacity 100, burst 50": {
+      "accepted": 50,
+      "rejected": 0,
+      "completed": 50,
+      "drained_after": 2.5,
+      "throughput": 18.75
+    }
+  },
+  "failures": {
+    "fail_every_3_attempts_1": {
+      "final": {
+        "searches": 0,
+        "databaseQueries": 90,
+        "cacheHits": 0,
+        "cacheMisses": 0,
+        "cacheErrors": 0,
+        "notificationsAccepted": 30,
+        "notificationsRejected": 0,
+        "notificationsCompleted": 20,
+        "notificationsQueued": 0,
+        "notificationsFailed": 10
+      },
+      "log_lines": 10,
+      "drained_after": 1.5,
+      "bookings": 30
+    },
+    "fail_every_3_attempts_3": {
+      "final": {
+        "searches": 0,
+        "databaseQueries": 90,
+        "cacheHits": 0,
+        "cacheMisses": 0,
+        "cacheErrors": 0,
+        "notificationsAccepted": 30,
+        "notificationsRejected": 0,
+        "notificationsCompleted": 30,
+        "notificationsQueued": 0,
+        "notificationsFailed": 0
+      },
+      "log_lines": 0,
+      "drained_after": 9.1,
+      "bookings": 30
+    },
+    "timeout": {
+      "final": {
+        "searches": 0,
+        "databaseQueries": 12,
+        "cacheHits": 0,
+        "cacheMisses": 0,
+        "cacheErrors": 0,
+        "notificationsAccepted": 4,
+        "notificationsRejected": 0,
+        "notificationsCompleted": 0,
+        "notificationsQueued": 0,
+        "notificationsFailed": 4
+      },
+      "log_lines": 4,
+      "drained_after": 2.0,
+      "bookings": 4
+    }
+  },
+  "race": {
+    "one_instance": {
+      "exit": 0,
+      "summary": "Double bookings: 0 of 20 rounds; one 201 and one 409: 20; anything else: 0."
+    },
+    "two_instances": {
+      "exit": 0,
+      "summary": "Double bookings: 0 of 20 rounds; one 201 and one 409: 20; anything else: 0."
+    }
+  },
+  "postgres": {
+    "bounded": {
+      "burst": {
+        "searches": 0,
+        "databaseQueries": 90,
+        "cacheHits": 0,
+        "cacheMisses": 0,
+        "cacheErrors": 0,
+        "notificationsAccepted": 11,
+        "notificationsRejected": 19,
+        "notificationsCompleted": 0,
+        "notificationsQueued": 10,
+        "notificationsFailed": 0
+      },
+      "final": {
+        "searches": 0,
+        "databaseQueries": 90,
+        "cacheHits": 0,
+        "cacheMisses": 0,
+        "cacheErrors": 0,
+        "notificationsAccepted": 11,
+        "notificationsRejected": 19,
+        "notificationsCompleted": 11,
+        "notificationsQueued": 0,
+        "notificationsFailed": 0
+      },
+      "latency": "p50 9.1 ms, p95 31.2 ms, max 40.5 ms",
+      "rows": 30,
+      "shutdown": [
+        "Stopping the app with 11 confirmations accepted and 11 sent so far...",
+        "Draining the notification queue: 0 to go (at most 30 s)",
+        "Notification workers stopped after 0.0 s.",
+        "accepted=11  rejected=19  completed=11  failed=0  dropped=0  queued=0  in_flight=0",
+        "Nobody was owed an email."
+      ]
+    },
+    "race_two_instances": {
+      "exit": 0,
+      "summary": "Double bookings: 0 of 20 rounds; one 201 and one 409: 20; anything else: 0."
+    },
+    "double_booked_pairs": "none"
+  }
+}

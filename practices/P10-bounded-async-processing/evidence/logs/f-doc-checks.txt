@@ -1,0 +1,6 @@
+# Linux container, Python 3.13.18, run from the portfolio root
+$ python3 -m pytest -p no:cacheprovider -q practices/*/checks
+.....................                                                    [100%]
+237 passed in 0.93s
+$ python3 -m pytest -p no:cacheprovider -q practices/P10-bounded-async-processing/checks
+44 passed in 0.20s

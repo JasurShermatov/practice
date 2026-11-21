@@ -4,7 +4,8 @@ what the searches cost, and the cache for the search.
     GET    /rooms/availability?checkIn=&checkOut=[&limit=&after=]  -> find_free_rooms   200 | 400
     POST   /reservations           (JSON body, five text fields)     -> reserve           201 | 400 | 409
     DELETE /reservations/{id}                                         -> cancel            204 | 404
-    GET    /stats                  P08: the counters (searches, database queries, cache hits ...)
+    GET    /stats                  P08: the counters (searches, database queries, cache hits ...);
+                                   P10: + the notification queue's counters when the app has a queue
     GET    /openapi.yaml           the contract itself (docs/openapi.yaml, written first, by hand)
 
 The API is an *edge*, not a module: it lives outside the four module folders and uses only their
@@ -34,6 +35,12 @@ including an unknown path, a wrong method and an unexpected failure, has the one
 RFC 9457 problem details: ``{"title", "status", "detail"}`` as ``application/problem+json``.
 Clients compare ``title``; ``detail`` is a sentence for people and may change.
 
+P10 - the confirmation email is no longer the API's concern at all: the booking hands it to
+Notifications inside the unit of work, and the wiring decides that this means a bounded queue. The
+API only *publishes* the queue's counters on GET /stats (``notification_counts``, read through the
+Notifications contract) and runs the wiring's ``on_shutdown`` when the server stops - after
+uvicorn has finished the open requests - so the queue can be drained before the process exits.
+
 Framework: Starlette (the ASGI toolkit FastAPI is built on) + pydantic; served by uvicorn.
 """
 from __future__ import annotations
@@ -41,8 +48,8 @@ from __future__ import annotations
 import json
 import logging
 import re
-from collections.abc import Callable, Iterable, Mapping
-from contextlib import AbstractContextManager
+from collections.abc import AsyncIterator, Callable, Iterable, Mapping
+from contextlib import AbstractContextManager, asynccontextmanager
 from datetime import date
 from pathlib import Path
 from typing import Annotated, Literal, TypeVar
@@ -58,6 +65,7 @@ from starlette.routing import Route
 
 from hotel_booking.api_cache import AvailabilityCache, CacheError
 from hotel_booking.api_stats import Stats
+from hotel_booking.notifications import NotificationCounts
 from hotel_booking.reservations import BookingOutcome, BookingResult, BookingService, DateRange, Guest
 from hotel_booking.rooms import Room
 
@@ -133,13 +141,22 @@ class ReservationCreated(AnswerModel):
 
 
 class StatsView(AnswerModel):
-    """The body of GET /stats (P08): what the searches cost since the app started."""
+    """The body of GET /stats (P08): what the searches cost since the app started.
+
+    P10: plus the notification queue's counters - present only when the app is wired with a queue
+    (``None`` fields are left out of the answer, and the contract marks them optional).
+    """
 
     searches: int
     database_queries: int
     cache_hits: int
     cache_misses: int
     cache_errors: int
+    notifications_accepted: int | None = None
+    notifications_rejected: int | None = None
+    notifications_completed: int | None = None
+    notifications_queued: int | None = None
+    notifications_failed: int | None = None
 
 
 class Problem(AnswerModel):
@@ -153,8 +170,9 @@ class Problem(AnswerModel):
 # --------------------------------------------------------------------------- small helpers
 
 
-def answer(model: AnswerModel, status_code: int) -> JSONResponse:
-    return JSONResponse(model.model_dump(mode="json"), status_code=status_code)
+def answer(model: AnswerModel, status_code: int, *, omit_unset: bool = False) -> JSONResponse:
+    """The model as JSON; ``omit_unset`` leaves out optional fields that are None (P10: GET /stats)."""
+    return JSONResponse(model.model_dump(mode="json", exclude_none=omit_unset), status_code=status_code)
 
 
 def problem(status: int, title: str, detail: str, headers: Mapping[str, str] | None = None) -> JSONResponse:
@@ -269,11 +287,15 @@ def cache_failed(stats: Stats, step: str, error: CacheError) -> None:
 
 
 def create_app(rooms: Iterable[Room], unit_of_work: UnitOfWork, stats: Stats | None = None,
-               cache: AvailabilityCache | None = None, *, contract: Path = DEFAULT_CONTRACT) -> Starlette:
+               cache: AvailabilityCache | None = None, *, contract: Path = DEFAULT_CONTRACT,
+               notification_counts: Callable[[], NotificationCounts] | None = None,
+               on_shutdown: Callable[[], object] | None = None) -> Starlette:
     """The web app over the rooms on sale and the unit of work the wiring chose.
 
     ``stats`` are the counters GET /stats shows (the wiring shares them with the counting store);
     ``cache`` is the search cache, or None for no cache (P07 behaviour, the "No cache" run).
+    P10: ``notification_counts`` reads the queue's counters for GET /stats; ``on_shutdown`` runs
+    (in a worker thread, it may block while the queue drains) when the server shuts down.
     """
     rooms_by_number = {room.number: room for room in rooms}
     stats = stats if stats is not None else Stats()
@@ -337,7 +359,19 @@ def create_app(rooms: Iterable[Room], unit_of_work: UnitOfWork, stats: Stats | N
         return Response(status_code=204)
 
     async def read_stats(request: Request) -> Response:
-        return answer(StatsView.model_validate(stats.snapshot()), status_code=200)
+        counted: dict[str, int] = {name: value for name, value in stats.snapshot().items()}
+        if notification_counts is not None:
+            queue = notification_counts()
+            counted |= {"notificationsAccepted": queue.accepted, "notificationsRejected": queue.rejected,
+                        "notificationsCompleted": queue.completed, "notificationsQueued": queue.queued,
+                        "notificationsFailed": queue.failed}
+        return answer(StatsView.model_validate(counted), status_code=200, omit_unset=True)
+
+    @asynccontextmanager
+    async def lifespan(app: Starlette) -> AsyncIterator[None]:
+        yield
+        if on_shutdown is not None:  # uvicorn has finished the open requests by now
+            await run_in_threadpool(on_shutdown)
 
     async def http_error(request: Request, error: Exception) -> Response:
         """Starlette's own 404 (no such path) and 405 (method not allowed), as problem details."""
@@ -361,4 +395,5 @@ def create_app(rooms: Iterable[Room], unit_of_work: UnitOfWork, stats: Stats | N
             Route("/stats", read_stats, methods=["GET"]),
         ],
         exception_handlers={HTTPException: http_error, Exception: server_error},
+        lifespan=lifespan,
     )

@@ -1,0 +1,52 @@
+# Linux container, Python 3.13.18, run from hotel-booking/
+$ python3 -m unittest -v
+test_a_booking_and_a_cancel_make_the_next_search_fresh (test_api.ApiTests.test_a_booking_and_a_cancel_make_the_next_search_fresh) ... ok
+test_booking_answers_201_then_409_for_a_shared_night (test_api.ApiTests.test_booking_answers_201_then_409_for_a_shared_night) ... ok
+test_cancel_answers_204_then_404 (test_api.ApiTests.test_cancel_answers_204_then_404) ... ok
+test_search_answers_200_with_the_free_rooms (test_api.ApiTests.test_search_answers_200_with_the_free_rooms) ... ok
+test_the_second_search_is_answered_by_the_cache (test_api.ApiTests.test_the_second_search_is_answered_by_the_cache) ... ok
+test_the_store_refuses_an_overlapping_save_even_without_the_pre_check (test_api.ApiTests.test_the_store_refuses_an_overlapping_save_even_without_the_pre_check)
+The promise the exclusion constraint keeps in PostgreSQL, kept by the list store too. ... ok
+test_two_bookings_at_the_same_moment_give_the_room_one_reservation (test_api.ApiTests.test_two_bookings_at_the_same_moment_give_the_room_one_reservation)
+Step 1's race, as a test. Both requests pass the pre-check; only one may be saved. ... ok
+test_wrong_dates_answer_400_with_problem_details (test_api.ApiTests.test_wrong_dates_answer_400_with_problem_details) ... ok
+test_a_booking_does_not_wait_for_a_slow_confirmation (test_api.QueueTests.test_a_booking_does_not_wait_for_a_slow_confirmation)
+The point of the queue: a one-second email must not cost the guest a second. ... ok
+test_a_burst_larger_than_the_bound_is_refused_and_counted (test_api.QueueTests.test_a_burst_larger_than_the_bound_is_refused_and_counted)
+Thirty confirmations into a queue of ten: refused and counted, never waited for. ... confirmation for R111 refused: the queue is full (the booking itself is kept)
+confirmation for R113 refused: the queue is full (the booking itself is kept)
+confirmation for R114 refused: the queue is full (the booking itself is kept)
+confirmation for R115 refused: the queue is full (the booking itself is kept)
+confirmation for R116 refused: the queue is full (the booking itself is kept)
+confirmation for R117 refused: the queue is full (the booking itself is kept)
+confirmation for R118 refused: the queue is full (the booking itself is kept)
+confirmation for R119 refused: the queue is full (the booking itself is kept)
+confirmation for R120 refused: the queue is full (the booking itself is kept)
+confirmation for R121 refused: the queue is full (the booking itself is kept)
+confirmation for R122 refused: the queue is full (the booking itself is kept)
+confirmation for R123 refused: the queue is full (the booking itself is kept)
+confirmation for R124 refused: the queue is full (the booking itself is kept)
+confirmation for R125 refused: the queue is full (the booking itself is kept)
+confirmation for R126 refused: the queue is full (the booking itself is kept)
+confirmation for R127 refused: the queue is full (the booking itself is kept)
+confirmation for R128 refused: the queue is full (the booking itself is kept)
+confirmation for R129 refused: the queue is full (the booking itself is kept)
+confirmation for R130 refused: the queue is full (the booking itself is kept)
+shutdown cancelled 10 queued confirmations, owed and not sent: R102, R103, R104, R105, R106, R107, R108, R109, R110, R112
+ok
+test_a_drained_shutdown_finishes_everything_it_accepted (test_api.QueueTests.test_a_drained_shutdown_finishes_everything_it_accepted)
+accepted == completed and nothing left queued: what "owes nobody an email" means. ... ok
+test_a_failed_confirmation_keeps_the_booking (test_booking_service.BookingServiceTests.test_a_failed_confirmation_keeps_the_booking)
+R6: the sender fails after the save; the booking stays saved and Accepted, the failure is reported. ... ok
+test_cancelling_frees_the_room_again (test_booking_service.BookingServiceTests.test_cancelling_frees_the_room_again) ... ok
+test_check_out_must_be_after_check_in (test_booking_service.BookingServiceTests.test_check_out_must_be_after_check_in) ... ok
+test_maya_gets_r7_when_it_is_free (test_booking_service.BookingServiceTests.test_maya_gets_r7_when_it_is_free) ... ok
+test_nora_can_arrive_on_the_day_maya_leaves (test_booking_service.BookingServiceTests.test_nora_can_arrive_on_the_day_maya_leaves) ... ok
+test_omar_is_refused_when_a_night_is_shared (test_booking_service.BookingServiceTests.test_omar_is_refused_when_a_night_is_shared) ... ok
+test_one_confirmation_per_accepted_booking (test_booking_service.BookingServiceTests.test_one_confirmation_per_accepted_booking) ... ok
+test_sms_confirmations_need_no_change_to_booking_service (test_booking_service.BookingServiceTests.test_sms_confirmations_need_no_change_to_booking_service) ... ok
+
+----------------------------------------------------------------------
+Ran 19 tests in 1.635s
+
+OK

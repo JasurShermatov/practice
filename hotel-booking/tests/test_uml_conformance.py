@@ -33,6 +33,15 @@ P09 change (deliberate): CLASS_DIAGRAM now points at the P09 diagram
 store has its lock, counter and ``blocked`` helper, the SQL store its ``insert`` helper, and the
 contract exports ``OverlapRejected``, drawn as an ``<<exception>>`` box with two lines (the store's
 save raises it, BookingService answers Unavailable for it): 18 -> 20 non-"implements" lines.
+
+P10 change (deliberate): CLASS_DIAGRAM now points at the P10 diagram
+(``practices/P10-bounded-async-processing/diagrams/class-diagram.mmd``). Notifications' contract
+exports ``NotificationCounts`` (a value with a computed ``in_flight``), ``DeliveryStatus``
+(``<<enumeration>>``) and ``ConfirmationRefused`` (``<<exception>>``); its internal code gained
+``QueuedNotificationSender``, ``HeldConfirmations`` and ``ShutdownReport``, and the email sender
+its delay, timeout and failure settings. Two new "implements" lines (the queue and the per-request
+sender keep the ``NotificationSender`` promise) and 8 new other lines, all inside Notifications:
+20 -> 28. The sample queue is closed again at once, so the members test leaves no thread running.
 """
 from __future__ import annotations
 
@@ -51,7 +60,7 @@ from typing import Any
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CLASS_DIAGRAM = REPO_ROOT / "practices" / "P09-protect-the-last-seat" / "diagrams" / "class-diagram.mmd"
+CLASS_DIAGRAM = REPO_ROOT / "practices" / "P10-bounded-async-processing" / "diagrams" / "class-diagram.mmd"
 CLASSES_AFTER = REPO_ROOT / "practices" / "P04-refactor-reservation" / "uml" / "classes-after.mmd"
 
 MODULES = ("rooms", "reservations", "payments", "notifications")
@@ -176,6 +185,8 @@ def sample_instances() -> dict[str, object]:
     email = notifications_internal.EmailNotificationSender()
     payments = payments_internal.SimulatedPaymentService()
     payments.take_deposit("R101", Decimal("60.00"))
+    queue = notifications_internal.QueuedNotificationSender(email, capacity=2, workers=1)
+    report = queue.close(drain=False)  # P10: a real queue, stopped again at once
     return {
         "BookingService": res.BookingService([room], store, email),
         "BookingResult": res.BookingResult(res.BookingOutcome.ACCEPTED, "R101"),
@@ -186,6 +197,10 @@ def sample_instances() -> dict[str, object]:
         "SimulatedPaymentService": payments,
         "EmailNotificationSender": email,
         "SmsNotificationSender": notifications_internal.SmsNotificationSender(),
+        "QueuedNotificationSender": queue,
+        "HeldConfirmations": notifications_internal.HeldConfirmations(queue),
+        "ShutdownReport": report,
+        "NotificationCounts": report.counts,
         "Confirmation": ntf.Confirmation("R101", guest.email, room.number, stay.check_in, stay.check_out),
         "Reservation": res.Reservation("R101", guest, room, stay),
         "Guest": guest,
@@ -196,15 +211,17 @@ def sample_instances() -> dict[str, object]:
 
 CONCRETE_CLASSES = [
     "BookingResult", "BookingService", "Confirmation", "DateRange", "Guest", "Reservation", "Room",
+    "NotificationCounts",  # P10
 ]
 INTERNAL_CLASSES = [
     "EmailNotificationSender", "InMemoryReservationStore", "InMemoryRoomCatalog",
     "SimulatedPaymentService", "SmsNotificationSender",
     "SqlReservationStore", "SqlRoomCatalog",  # P07
+    "QueuedNotificationSender", "HeldConfirmations", "ShutdownReport",  # P10
 ]
 INTERFACES = ["NotificationSender", "PaymentService", "ReservationStore", "RoomCatalog"]
-ENUMERATIONS = ["BookingOutcome", "PaymentStatus", "ReservationStatus"]
-EXCEPTIONS = ["OverlapRejected"]  # P09
+ENUMERATIONS = ["BookingOutcome", "PaymentStatus", "ReservationStatus", "DeliveryStatus"]  # P10: + DeliveryStatus
+EXCEPTIONS = ["OverlapRejected", "ConfirmationRefused"]  # P09, P10
 
 
 def code_members(obj: object) -> dict[str, set[str]]:
@@ -293,8 +310,10 @@ def test_every_implements_line_holds_in_the_code(diagram: Diagram) -> None:
     implements = diagram.links(IMPLEMENTS)
     assert sorted(implements) == [
         ("EmailNotificationSender", "NotificationSender"),
+        ("HeldConfirmations", "NotificationSender"),  # P10
         ("InMemoryReservationStore", "ReservationStore"),
         ("InMemoryRoomCatalog", "RoomCatalog"),
+        ("QueuedNotificationSender", "NotificationSender"),  # P10
         ("SimulatedPaymentService", "PaymentService"),
         ("SmsNotificationSender", "NotificationSender"),
         ("SqlReservationStore", "ReservationStore"),
@@ -308,7 +327,7 @@ def test_every_implements_line_holds_in_the_code(diagram: Diagram) -> None:
 def test_every_other_relationship_is_visible_in_the_source(diagram: Diagram) -> None:
     """Each non-"implements" line must correspond to a reference in the code of one end."""
     others = [(left, right) for left, kind, right in diagram.relations if kind != IMPLEMENTS]
-    assert len(others) == 20  # P06: 16; P07: + 2 (SQL store/catalog); P09: + 2 (OverlapRejected)
+    assert len(others) == 28  # P06: 16; P07: + 2 (SQL store/catalog); P09: + 2 (OverlapRejected); P10: + 8 (queue)
     for left, right in others:
         left_src = inspect.getsource(lookup(left))
         right_src = inspect.getsource(lookup(right))

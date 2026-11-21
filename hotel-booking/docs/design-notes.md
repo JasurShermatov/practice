@@ -377,3 +377,54 @@ The table refuses a double booking. The code only translates the refusal.
   will not switch the rule on while `db/find-double-bookings.sql` returns a pair.
 - **A refused booking uses up its id**, as a sequence does. This makes gaps, never duplicates. The
   list store and SQLite behave the same way, so all three stores agree.
+
+# P10 design notes
+
+Session: Saturday 14 November 2026 (P10 — Bounded async processing). Starting state: the P09 project with
+every check green (16 unittest tests, 6 border contracts, 479 pytest tests, mypy clean:
+[b0-baseline](../../practices/P10-bounded-async-processing/evidence/logs/b0-baseline.txt)).
+The booking rule does not change today. The reservation is committed before any of this happens.
+
+## The cost, measured
+
+With a one-second mail server and the email sent inside the request, one booking took 1.04 s and 30
+bookings took 30.2 s. The booking itself is about 3 ms. Numbers and outputs: [queue-trace.md](queue-trace.md).
+
+## Six shapes, one line each (Step 7)
+
+- Structured concurrency - rejected: the request does not own this work, and the email must outlive the request.
+- Fork-join - rejected: the email is not a part of the booking, and nobody waits for it.
+- Reactive pipeline - rejected: there is only one stage, and one bounded queue already gives one stage its backpressure.
+- Actor per room - rejected: there is no per-room state in sending an email, and putting bookings in a line per room would move the rule out of the database (ADR-003).
+- Software transactional memory - rejected: there is no shared mutable state to compose; the queue is the only shared thing and it is already safe.
+- Kept: a bounded queue with a fixed number of workers, because the work is one stage, nobody waits for it, and its consumer can be slower than its producer, so it needs a limit that I chose.
+- What it still cannot do: survive the process being killed. The queue is in memory (transactional outbox, P17).
+
+(An unbounded queue, the sixth option the sheet's table names in Step 3, was rejected by
+measurement: 29 jobs waiting after 30 bookings, 9.8 MB after 30,000, nothing refused.)
+
+## After
+
+- Checks: `python -m unittest` ran **19 tests … OK** (8 behaviour + 11 API/queue); border contracts:
+  **7 kept**; the full pytest suite, mypy and every document check are green (numbers in the P10 README).
+- The booking went from 1.04 s to a few milliseconds (p50 3.4 ms under a burst of 30). The burst gave
+  11 accepted, 19 rejected and 10 queued, with all 30 bookings 201. Ctrl+C and SIGTERM drain the
+  queue (10 of 10 sent). kill -9 loses what was queued.
+
+## Decisions made while building
+
+- **Publish after the COMMIT.** Version 6 sent the email before the commit. With a queue that would
+  let a worker email a guest about a booking that later rolls back. The request now holds a place
+  and publishes only after `save_changes`.
+- **Hold the place inside the transaction.** A full queue is then known before the guest is
+  answered, and R6's existing `notificationFailed: true` reports it. Reservations did not change.
+- **A fifth counter, `notificationsFailed`.** In the course's version a failed send leaves the
+  invariant unbalanced. I count it, so "failed" and "lost" are never the same signal.
+- **Drop and name at shutdown.** Jobs left behind by a drain limit or `--no-drain` are removed
+  and listed in the log, not left on a queue that is about to vanish.
+- **The drain lives in the app's shutdown hook**, not after `uvicorn.run`, because uvicorn
+  re-raises SIGTERM after its shutdown and the code after `run` never runs for it.
+- **No retry by default.** A retry after a timeout can make a duplicate at the mail server. It
+  can be switched on (`HOTEL_SEND_ATTEMPTS`) and is tested.
+- **Threads, not asyncio tasks.** The sender is blocking I/O, and the bookings run in the thread
+  pool. Only the queue may start threads (an architecture test).

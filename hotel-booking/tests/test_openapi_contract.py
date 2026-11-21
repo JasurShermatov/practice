@@ -30,6 +30,15 @@ second example, ``lostTheRace``, and its probe really runs the race: two simulta
 R7 through the real wiring on SQLite (``main.build_api`` with a slow step), and the answer of the
 request the database refused must be exactly that example. The 500 description no longer names the
 duplicate-id case (it cannot happen any more). Everything else is unchanged, in both directions.
+
+P10 change (deliberate): the contract is version 1.3.0. GET /stats has five *optional* counters
+(``notificationsAccepted`` ... ``notificationsFailed``), present only when the app is wired with the
+notification queue, so ``test_answer_fields_match_the_pydantic_models`` now compares the schema's
+``required`` list with the model's fields that have no default (the optional ones are exactly the
+fields that default to None). Two new examples are produced by the real wiring with a real queue
+(``main.build_api`` + ``QueuedNotificationSender``, capacity 1, one worker held inside a send): the
+third booking's 201 with ``notificationFailed: true`` (``confirmationRefused``) and the counters
+after it (``withQueue``). The probe app without a queue still answers ``twoSearches`` without them.
 """
 from __future__ import annotations
 
@@ -226,6 +235,7 @@ PROBES: dict[tuple[str, str], Probe] = {
     ("findFreeRooms 400", "badLimit"): lambda: new_client().get(f"{SEARCH}&limit=0"),
     ("findFreeRooms 500", "serverFailed"): lambda: new_client(broken=True).get(SEARCH),
     ("reserve 201", "booked"): lambda: new_client().post("/reservations", json=MAYA),
+    ("reserve 201", "confirmationRefused"): lambda: queue_full()[0],
     ("reserve 400", "notJson"): lambda: new_client().post("/reservations", content="Maya, R7", headers={"content-type": "text/plain"}),
     ("reserve 400", "notADate"): lambda: new_client().post("/reservations", json={**MAYA, "checkIn": "12.11.2026"}),
     ("reserve 400", "noNight"): lambda: new_client().post("/reservations", json={**MAYA, "checkOut": "2026-11-12"}),
@@ -238,6 +248,7 @@ PROBES: dict[tuple[str, str], Probe] = {
     ("cancel 500", "serverFailed"): lambda: new_client(broken=True).delete("/reservations/R101"),
     ("getContract 200", "-"): lambda: new_client().get("/openapi.yaml"),
     ("getStats 200", "twoSearches"): lambda: twice(lambda client: client.get(SEARCH), then="/stats"),
+    ("getStats 200", "withQueue"): lambda: queue_full()[1],
     ("UnknownPath", "noSuchPath"): lambda: new_client().get("/bookings"),
     ("MethodNotAllowed", "wrongMethod"): lambda: new_client().put("/reservations"),
 }
@@ -260,6 +271,41 @@ def race_loser() -> Any:
             thread.join()
     assert sorted(answer.status_code for answer in answers) == [201, 409]
     return next(answer for answer in answers if answer.status_code == 409)
+
+
+def queue_full() -> tuple[Any, Any]:
+    """P10: three bookings through the real wiring with a queue of 1 and one worker held inside a send.
+
+    Booking 1 is taken by the worker (and stays in flight), booking 2 waits in the one place,
+    booking 3 finds the queue full: 201 with notificationFailed true. Returns that answer and GET /stats.
+    """
+    import main  # the wiring: SQLite file, unit of work, HeldConfirmations over the queue
+
+    from hotel_booking.notifications import DeliveryStatus
+    from hotel_booking.notifications.internal import QueuedNotificationSender
+
+    release = threading.Event()
+
+    class HeldSender:
+        def send_confirmation(self, confirmation: Any) -> None:
+            release.wait(5)
+
+    queue = QueuedNotificationSender(HeldSender(), capacity=1, workers=1)
+    try:
+        with tempfile.TemporaryDirectory() as folder:
+            app, _ = main.build_api(main.sqlite_connector(Path(folder) / "hotel.sqlite3"), notifications=queue)
+            client = TestClient(app, raise_server_exceptions=False)
+            assert client.post("/reservations", json=MAYA).json()["id"] == "R101"
+            for _ in range(200):  # wait until the worker has taken R101 (it stays inside the send)
+                if queue.status_of("R101") is DeliveryStatus.SENDING:
+                    break
+                threading.Event().wait(0.01)
+            client.post("/reservations", json={**MAYA, "room": "R8"})
+            refused = client.post("/reservations", json={**MAYA, "checkIn": "2026-12-01", "checkOut": "2026-12-03"})
+            return refused, client.get("/stats")
+    finally:
+        release.set()
+        queue.close(drain=True, timeout=5)
 
 
 def twice(request: Callable[[TestClient], Any], then: str | None = None) -> Any:
@@ -406,4 +452,5 @@ def test_answer_fields_match_the_pydantic_models() -> None:
                         (api_module.StatsView, "Stats")]:
         aliases = [field.alias for field in model.model_fields.values()]
         assert aliases == list(schemas[name]["properties"]), name
-        assert set(schemas[name]["required"]) == set(aliases), name
+        always = {field.alias for field in model.model_fields.values() if field.is_required()}
+        assert set(schemas[name]["required"]) == always, name  # P10: optional = defaults to None

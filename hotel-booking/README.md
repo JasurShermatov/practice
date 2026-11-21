@@ -13,8 +13,9 @@ codebase**; each practice evolves it and keeps earlier behaviour (and tests) wor
 | 4 | [P07](../practices/P07-capacity-api-design/README.md) | **HTTP API + database**, same booking rule: capacity estimate (`docs/capacity.md`, `capacity.py`); hand-written contract `docs/openapi.yaml` checked against the code both ways; `hotel_booking/api.py` (Starlette + pydantic, uvicorn on :5080) with problem-details errors and cursor paging; `SqlReservationStore` / `SqlRoomCatalog` behind the same promises, a unit of work per request; SQLite by default, the same `db/postgres/init.sql` for PostgreSQL in `docker-compose.yml`; `docs/api-check.md` run against the real server |
 | 5 | [P08](../practices/P08-cache-scale-experiment/README.md) | **Measured, then cached**, same booking rule: `GET /stats` (searches, database queries, cache hits/misses/errors) with a counting store around the SQL store; `tools/measure.py` (1,000 searches: average, p95, counters); cache-aside for the search only in Redis (`hotel_booking/api_cache.py` + `api_redis.py`, key `availability:v{version}:{checkIn}:{checkOut}`, TTL 30 s, version raised after every committed booking/cancel, fail-open); contract 1.1.0; `docs/cache-experiment.md` (real runs) and ADR-002 |
 | 6 | [P09](../practices/P09-protect-the-last-seat/README.md) | **The last seat protected** - the race of P03-P08 fixed: `ReservationStore.save` now *promises* to refuse a double booking (`OverlapRejected`, answered 409 Unavailable) and the store hands out ids (`next_reservation_id`). PostgreSQL keeps the rule with the exclusion constraint `reservations_no_overlap` (btree_gist) and a sequence; SQLite with triggers of the same name and a one-row id table (`db/sqlite/init.sql`); the list store with a lock. `tools/race_http.py`, `HOTEL_SLOW_STEP`/`HOTEL_PORT`; upgrade scripts for version-5 databases; contract 1.2.0; `docs/interleaving.md`, ADR-003 |
+| 7 | [P10](../practices/P10-bounded-async-processing/README.md) | **Confirmations from a bounded queue** - the email left the booking request: `QueuedNotificationSender` (bounded queue, default 10; a fixed number of worker threads, default 1; a full queue *refuses and counts*, never waits; retry policy `HOTEL_SEND_ATTEMPTS` (default 1 = no retry); the sender's own timeout; `close()` stops accepting, drains with a time limit and names every guest still owed); `HeldConfirmations` holds a place inside the transaction and hands the email over only after COMMIT (a refusal answers `notificationFailed: true`, a rollback is never emailed); counters + `DeliveryStatus` in the Notifications contract; GET /stats + 5 optional counters; shutdown hook (Ctrl+C and SIGTERM drain); `HOTEL_EMAIL_SECONDS`, `HOTEL_QUEUE_CAPACITY`, `HOTEL_WORKERS`, `--no-queue`, `--no-drain`; `tools/burst.py`; contract 1.3.0; 7 border contracts + "only the queue starts threads"; `docs/queue-trace.md`, ADR-004 |
 
-Planned by the course (not implemented yet): P10 asynchronous notifications, P11 idempotency key for
+Planned by the course (not implemented yet): P11 idempotency key for
 `POST /reservations`, P17 booking saga with the Payments deposit.
 
 ## Requirements
@@ -52,10 +53,16 @@ python main.py --race               # two guests book R7 for the same nights at 
 HOTEL_SLOW_STEP=1 python main.py    # P09: every booking waits 1 s between check and save (the race is easy to hit)
 HOTEL_SLOW_STEP=1 HOTEL_PORT=5081 python main.py   # P09 Step 4: a second instance on the same database
 python tools/race_http.py           # P09: two bookings for R7 at the same moment -> one 201, one 409
+HOTEL_EMAIL_SECONDS=1 python main.py           # P10: a one-second mail server; the booking does not wait for it
+HOTEL_EMAIL_SECONDS=1 python main.py --no-queue   # P10 "before": the email is sent inside the request again
+HOTEL_EMAIL_SECONDS=1 HOTEL_QUEUE_CAPACITY=10000 python main.py   # P10 Step 3: a queue that never refuses
+python tools/burst.py               # P10, second terminal: 30 bookings, then GET /stats (queue counters)
+python tools/burst.py --wait        # ... and wait for the workers: drain time and emails per second
+HOTEL_WORKERS=3 HOTEL_SEND_ATTEMPTS=3 HOTEL_DRAIN_SECONDS=30 python main.py   # P10: workers, retry, drain limit
 python tools/race_http.py http://localhost:5081 --repeat 20   # Omar to the second instance, 20 rounds
 python capacity.py                  # the capacity estimate, line by line (docs/capacity.md)
-python -m unittest -v               # the course's 16 tests: 8 behaviour (test_booking_service.py) + 8 API (test_api.py)
-lint-imports                        # the 6 borders in .importlinter (needs import-linter)
+python -m unittest -v               # the course's 19 tests: 8 behaviour (test_booking_service.py) + 11 API/queue (test_api.py)
+lint-imports                        # the 7 borders in .importlinter (needs import-linter)
 python -m tests.test_architecture   # the same 6 borders, standard library only, lint-imports-style output
 python -m pytest                    # everything: unittest tests + the pytest suite in tests/
 python -m mypy                      # strict type check, incl. that every class keeps its protocol
@@ -117,8 +124,9 @@ Payments and Notifications do not depend on Reservations KEPT
 The HTTP API uses only the public contracts of the modules KEPT
 No module depends on the HTTP API KEPT
 The availability cache depends on no module KEPT
+Notifications depends on no other module KEPT
 
-Contracts: 6 kept, 0 broken.
+Contracts: 7 kept, 0 broken.
 ```
 
 ## Layout
@@ -129,6 +137,7 @@ hotel-booking/
 ├── capacity.py                 P07: the capacity estimate as a program (docs/capacity.md is checked against it)
 ├── tools/measure.py            P08: N searches against the running app -> average, p50/p95/p99, total, GET /stats difference
 ├── tools/race_http.py          P09: two bookings for R7 at the same moment (Omar optionally to a second instance); --repeat
+├── tools/burst.py              P10: N bookings one after another, then GET /stats; --wait: drain time + worker throughput
 ├── test_booking_service.py     the course's 8 unittest tests (P04) + FakeNotificationSender (receives a Confirmation)
 ├── test_api.py                 P07/P08/P09: the course's 8 API tests (Starlette TestClient, list store, cache in a dictionary)
 ├── .importlinter               the 3 module borders (P06) + 2 API borders (P07, now covering the 4 edge files) + 1 cache border (P08)
@@ -150,7 +159,9 @@ hotel-booking/
 │   │                           booking.py (ReservationStore, OverlapRejected, BookingOutcome, BookingResult, BookingService),
 │   │                           internal.py (InMemoryReservationStore, SqlReservationStore, is_overlap_refusal)
 │   ├── payments/               Payments: __init__.py (contract: PaymentStatus, PaymentService), internal.py (SimulatedPaymentService)
-│   ├── notifications/          Notifications: __init__.py (contract: Confirmation, NotificationSender), internal.py (Email/Sms senders)
+│   ├── notifications/          Notifications: __init__.py (contract: Confirmation, NotificationSender; P10: NotificationCounts,
+│   │                           DeliveryStatus, ConfirmationRefused), internal.py (Email/Sms senders; P10: QueuedNotificationSender -
+│   │                           the bounded queue and the app's only threads -, HeldConfirmations, ShutdownReport)
 │   └── demo.py                 the classroom scenario (R7, R8, Maya, Omar, Nora) and the race; uses contracts only
 ├── tests/                      pytest suite (P03 on; every deliberate change noted in the module docstring)
 │   ├── test_domain.py          DateRange half-open rule, Reservation status/encapsulation
@@ -172,7 +183,10 @@ hotel-booking/
 │   ├── test_api_cache.py       P08: hit/miss/expiry/invalidation over HTTP, stale result pinned, fail-open, "booking never reads the cache" (ast)
 │   ├── test_redis_store.py     P08: RESP2 wire format; GET/SET EX/INCR/expiry/outage on a real redis-server
 │   ├── test_cache_wiring.py    P08: Steps 5 and 6 through main.build_api on SQLite + real Redis; SQL statements counted; CLI flags
-│   └── test_measure.py         P08: tools/measure.py against a real uvicorn server; nearest-rank p95
+│   ├── test_measure.py         P08: tools/measure.py against a real uvicorn server; nearest-rank p95
+│   ├── test_notification_queue.py P10: bound, backpressure, workers, retry, timeout, no duplicates, drain/cancel, status
+│   ├── test_queue_wiring.py    P10: through main.build_api: no wait, 201 when full/failing, after-commit, race, shutdown, real process
+│   └── test_burst.py           P10: tools/burst.py against a real uvicorn server with a queue
 ├── docs/
 │   ├── requirements.md         R1-R6 with Check and Proof lines, invariant
 │   ├── design-notes.md         P03, P04, P06 and P07 sections
@@ -184,6 +198,8 @@ hotel-booking/
 │   ├── adr-002-cache-availability.md  P08: why the search (only) is cached in Redis, TTL 30 s + version
 │   ├── interleaving.md         P09: the race traced statement by statement; the four repairs and what each cost (measured)
 │   ├── adr-003-booking-concurrency.md P09: why the rule lives in the database (exclusion constraint), alternatives with costs
+│   ├── queue-trace.md          P10: the email measured inside the request, on a queue, unbounded, bounded, at shutdown; what it still loses
+│   ├── adr-004-notification-concurrency.md P10: a bounded queue with fixed workers; five rejected shapes; the accepted loss
 │   ├── openapi.yaml            P07: the API contract (OpenAPI 3.1), served at GET /openapi.yaml
 │   ├── api-check.md            P07: every request with curl and its exact answer; SQLite run observed
 │   ├── requests/               P07: request bodies for curl (maya-r7, omar-r7, omar-r8 + three error bodies); P08: maya-newyear
@@ -241,7 +257,34 @@ the INSERT runs in a savepoint so the refused statement does not poison the tran
 from the store: `nextval('reservation_ids')`, SQLite's one-row counter, or the list's counter.
 `docs/interleaving.md` has the trace and the measured cost of the four repairs, ADR-003 the decision.
 
-## Known limitations of version 6
+**P10:** the confirmation email no longer runs inside the booking request. `BookingService` did not
+change - it still calls `send_confirmation` once, after the save. The wiring decides what that call
+does: each request gets a `HeldConfirmations`, which only *holds a place* in the process's one
+`QueuedNotificationSender` (no waiting; a full or closing queue raises `ConfirmationRefused`, which R6
+turns into `notificationFailed: true` with the booking kept). After `save_changes` has committed, the
+unit of work publishes the held confirmation to the queue; a rollback gives the place back. A fixed
+pool of worker threads (owned by the queue, started by the wiring, stopped by the shutdown hook) sends
+the emails, retries as `HOTEL_SEND_ATTEMPTS` allows, and records each outcome (`DeliveryStatus`,
+counters on GET /stats, a log line for every refusal, failure and drop). `docs/queue-trace.md` has the
+measurements, ADR-004 the decision.
+
+## Known limitations of version 7
+
+- **The queue is in memory (P10, ADR-004).** A polite stop (Ctrl+C, SIGTERM, a normal deploy) drains
+  it for up to `HOTEL_DRAIN_SECONDS` and names anyone still owed; `kill -9`, a crash or a power cut
+  loses every queued confirmation and nothing records it. The reservations survive (they are in the
+  database), the jobs do not. Fix: the transactional outbox (P17).
+- **Under a burst some guests get a room and no email** - by design, counted (`notificationsRejected`)
+  and visible in the answer (`notificationFailed: true`), but nothing resends it later.
+- **Retries are in memory and in the worker:** a retried email holds its worker (the bound does not
+  grow), and a send that timed out may in truth have reached the mail server, so a retry can make a
+  duplicate *at the mail server* (the queue itself never sends a job twice). Default: no retry.
+- **A send in progress cannot be interrupted** (Python threads cannot be stopped); it is bounded by
+  the sender's timeout (`HOTEL_EMAIL_TIMEOUT`), and a worker still busy after the join limit is
+  reported, not waited for.
+- **Every instance has its own queue and counters** (two instances = two bounds, two sets of numbers).
+- Under a burst the server log shows one warning with a traceback per refused confirmation (R6's log
+  line in `BookingService`, unchanged on purpose: Reservations did not change in P10).
 
 - **Fixed in P09 (was the main limitation of versions 1-5):** the race on the last seat. Check and
   save are still two steps, but the store's `save` refuses a double booking - PostgreSQL by the
@@ -255,9 +298,9 @@ from the store: `nextval('reservation_ids')`, SQLite's one-row counter, or the l
   need a guard-row lock or Serializable (ADR-003, "When to revisit").
 - **Ids can have gaps** (a refused booking uses up its number, like any sequence): R101, R103 ... is
   normal, not lost data.
-- **SQLite holds its single write lock from the id until COMMIT**, and the confirmation is still sent
-  inside that transaction: a mail server that hangs for more than the 5 s busy timeout makes other
-  bookings fail with 500 ("database is locked"). P10 moves the email out of the request.
+- **Fixed in P10:** SQLite held its write lock while the confirmation was sent inside the
+  transaction; the email is now handed over after the COMMIT, so a slow mail server no longer holds
+  the lock (still true with `--no-queue`, which exists only for the "before" measurement).
 - **The PostgreSQL path ran through a stand-in driver:** psycopg cannot be installed in the build
   container; the app's own SQL store ran against a real PostgreSQL 16 through a small stdlib protocol
   client (`practices/P09-…/evidence/pg_wire.py`). With psycopg on the Mac: to do by the student.
@@ -274,10 +317,11 @@ from the store: `nextval('reservation_ids')`, SQLite's one-row counter, or the l
   no alerting yet.
 - The PostgreSQL path (`--db postgres`, psycopg) was not run in the build container (no driver,
   no Docker daemon); its SQL was run on PostgreSQL 16 with psql. To run on the student's Mac.
-- The confirmation is sent before the commit: if the commit then fails, the guest has an email for
-  a booking that was rolled back (P10 moves sending after the commit / to a queue).
+- **Fixed in P10:** the confirmation was sent before the commit. It is now published only after a
+  successful COMMIT; a rolled-back booking is never emailed (`test_a_booking_that_rolls_back_is_never_emailed`).
 - The experiment pause `slow_step_seconds` still sits inside `reserve()` (0 in normal use; `HOTEL_SLOW_STEP`).
-- R6 reports a failed confirmation but nothing resends it yet (P10).
+- R6 reports a failed confirmation; since P10 the queue can retry (`HOTEL_SEND_ATTEMPTS`), but a
+  confirmation that finally failed or was refused is only counted and logged, not resent later (P17).
 - Python cannot *hide* internal code: `internal.py` is a naming convention, and the border holds
   only because the architecture tests run with every test run (CI from P25).
 - Payments exists but is not called; the 30% deposit rule arrives with P17.

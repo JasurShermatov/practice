@@ -1,0 +1,21 @@
+---
+title: Stopping the app - what the drain covers, and what it cannot (kill -9)
+---
+flowchart TD
+  start([Ctrl+C or SIGTERM]) --> uv["uvicorn: stop accepting connections,<br/>finish the open requests"]
+  uv --> hook["app shutdown hook (lifespan)<br/>shut_down_notifications()"]
+  hook --> closing["close(): closing = True<br/>new confirmations are REJECTED at once"]
+  closing --> drain{"drain?<br/>(default yes; --no-drain = no)"}
+  drain -- yes --> wait["workers keep sending;<br/>wait until queued + in flight = 0<br/>or HOTEL_DRAIN_SECONDS (30 s) passed"]
+  drain -- no --> stop
+  wait --> stop["stopping.set(): workers take no new job;<br/>a retry that is waiting gives up (DROPPED)"]
+  stop --> join["join each worker (join_seconds = 5 s);<br/>a send in progress cannot be interrupted -<br/>it is bounded by HOTEL_EMAIL_TIMEOUT"]
+  join --> cancel["whatever is still queued: DROPPED,<br/>each reservation id logged"]
+  cancel --> report["print: accepted / rejected / completed / failed / dropped / queued<br/>'Nobody was owed an email.' or the list of who is owed"]
+  report --> exit([process exits])
+  kill([kill -9, crash, power cut]) --> lost["the process vanishes: no hook runs,<br/>the queued confirmations are gone,<br/>no counter changes, nothing is logged"]
+  lost --> outbox["the reservations are in the database,<br/>the jobs were only in memory -<br/>fix: transactional outbox (P17)"]
+  classDef bad fill:#ffebee,stroke:#c62828,color:#1b1b1b
+  classDef good fill:#e8f5e9,stroke:#2e7d32,color:#1b1b1b
+  class kill,lost,outbox bad
+  class report,exit good

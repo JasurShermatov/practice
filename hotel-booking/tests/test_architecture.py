@@ -41,6 +41,15 @@ the hotel's modules ("The availability cache depends on no module"), so the CLI 
 "Contracts: 6 kept". ``api.py`` itself still defines pydantic shapes only. Three new self-test
 cases (stats reaching internal code, cache reaching a module, a module reaching the cache) and the
 new design arrows (api -> api_cache, api_stats -> reservations) are checked.
+
+P10 change (deliberate): Notifications owns the app's background work (a bounded queue with a fixed
+number of worker threads). A seventh contract keeps it a leaf - "Notifications depends on no other
+module" - so the CLI prints "Contracts: 7 kept". The P06 self-test case "rule3" (Notifications
+importing Reservations) now breaks this contract too, so the self-tests accept a set of expected
+broken contracts. New design arrow: the API reads the queue's counters from the Notifications
+contract (api -> notifications). New portfolio extra, which import-linter cannot express: only
+``notifications/internal.py`` may start a thread (or an executor / asyncio task) inside the
+package - concurrency has one owner, and the wiring creates and stops it.
 """
 from __future__ import annotations
 
@@ -69,6 +78,15 @@ API_CONTRACTS = {  # P07
 CACHE_CONTRACTS = {  # P08
     "The availability cache depends on no module",
 }
+QUEUE_CONTRACTS = {  # P10
+    "Notifications depends on no other module",
+}
+THREAD_OWNER = "notifications/internal.py"  # P10: the only file in the package that starts threads
+# demo.py's --race starts two threads that *play two guests* clicking at once and joins them before it
+# returns: they are the clients of the scenario, not work the app keeps running in the background.
+CLIENT_SIMULATIONS = {"demo.py"}
+STARTS_CONCURRENCY = {"Thread", "ThreadPoolExecutor", "ProcessPoolExecutor", "create_task", "start_new_thread",
+                      "Timer"}
 EDGE_FILES = {"api.py", "api_stats.py", "api_cache.py", "api_redis.py"}  # P07 + P08: the HTTP edge
 
 
@@ -238,10 +256,12 @@ def graph() -> tuple[set[str], list[Import]]:
 
 
 def test_contracts_file_holds_the_three_course_rules_the_two_api_rules_and_the_cache_rule() -> None:
+    """P10: ... and the queue rule (seven in all)."""
     parser = configparser.ConfigParser()
     parser.read(CONTRACTS_FILE, encoding="utf-8")
     assert parser["importlinter"]["root_package"] == "hotel_booking"
-    assert {contract.name for contract in CONTRACTS} == COURSE_CONTRACTS | API_CONTRACTS | CACHE_CONTRACTS
+    assert {contract.name for contract in CONTRACTS} == (COURSE_CONTRACTS | API_CONTRACTS | CACHE_CONTRACTS
+                                                          | QUEUE_CONTRACTS)
 
 
 @pytest.mark.parametrize("contract", CONTRACTS, ids=[contract.key for contract in CONTRACTS])
@@ -264,6 +284,7 @@ def test_the_checker_sees_the_allowed_dependencies(graph: tuple[set[str], list[I
     assert ("hotel_booking.api", "hotel_booking.rooms") in pairs
     assert ("hotel_booking.api", "hotel_booking.api_cache") in pairs  # P08: the search uses the cache
     assert ("hotel_booking.api_stats", "hotel_booking.reservations") in pairs  # the counting store keeps the promise
+    assert ("hotel_booking.api", "hotel_booking.notifications") in pairs  # P10: GET /stats reads NotificationCounts
 
 
 # --------------------------------------------------------------------------- portfolio extras
@@ -296,6 +317,33 @@ def test_every_class_lives_in_one_of_the_four_modules_or_the_api_edge() -> None:
         if classes and top not in MODULES and top not in EDGE_FILES:
             outside.append(f"{path.relative_to(PROJECT)}: {classes}")
     assert not outside, outside
+
+
+def concurrency_starts(path: Path) -> list[str]:
+    """Calls in ``path`` that start concurrent work: Thread(...), threading.Thread(...), executors, tasks."""
+    found = []
+    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.Call):
+            name = node.func.attr if isinstance(node.func, ast.Attribute) else getattr(node.func, "id", "")
+            if name in STARTS_CONCURRENCY:
+                found.append(f"{path.name}:{node.lineno} {name}(...)")
+    return found
+
+
+def test_only_the_notification_queue_starts_threads() -> None:
+    """P10: the package has one owner of background concurrency - Notifications' internal queue."""
+    elsewhere = [start for path in sorted(PACKAGE_DIR.rglob("*.py"))
+                 if path.relative_to(PACKAGE_DIR).as_posix() not in {THREAD_OWNER, *CLIENT_SIMULATIONS}
+                 for start in concurrency_starts(path)]
+    assert not elsewhere, f"only {THREAD_OWNER} may start threads: {elsewhere}"
+    assert concurrency_starts(PACKAGE_DIR / THREAD_OWNER), "the queue's workers are expected to be started there"
+
+
+def test_the_thread_rule_notices_a_thread_started_elsewhere(tmp_path: Path) -> None:
+    """The rule's own red case: a thread started in Reservations is found."""
+    bad = tmp_path / "booking.py"
+    bad.write_text("import threading\nthreading.Thread(target=print).start()\n", encoding="utf-8")
+    assert concurrency_starts(bad) == ["booking.py:2 Thread(...)"]
 
 
 def test_api_edge_classes_are_only_http_shapes() -> None:
@@ -347,7 +395,7 @@ MINI_APP = {
         ("rooms/internal.py", "import hotel_booking.reservations\n",
          "Rooms does not depend on any other module"),
         ("notifications/__init__.py", "from hotel_booking.reservations.booking import BookingService\n",
-         "Payments and Notifications do not depend on Reservations"),
+         {"Payments and Notifications do not depend on Reservations", "Notifications depends on no other module"}),
         ("api.py", "from hotel_booking.reservations.internal import SqlReservationStore\n",
          "The HTTP API uses only the public contracts of the modules"),
         ("reservations/booking.py", "from hotel_booking import api\n",
@@ -358,17 +406,19 @@ MINI_APP = {
          "The availability cache depends on no module"),
         ("reservations/booking.py", "from hotel_booking.api_cache import AvailabilityCache\n",
          "No module depends on the HTTP API"),
+        ("notifications/internal.py", "from hotel_booking.rooms import Room\n",
+         "Notifications depends on no other module"),
     ],
     ids=["rule1-direct", "rule1-relative", "rule2", "rule3", "api-reaches-internal", "module-uses-api",
-         "stats-reaches-internal", "cache-reaches-module", "module-reads-cache"],
+         "stats-reaches-internal", "cache-reaches-module", "module-reads-cache", "queue-reaches-rooms"],
 )
 def test_checker_catches_each_kind_of_bad_import(
-    tmp_path: Path, bad_file: str, bad_line: str, broken: str
+    tmp_path: Path, bad_file: str, bad_line: str, broken: str | set[str]
 ) -> None:
     package_dir = write_package(tmp_path, {**MINI_APP, bad_file: MINI_APP[bad_file] + bad_line})
     known, edges = build_import_graph(package_dir)
     failing = {c.name for c in CONTRACTS if broken_chains(known, edges, c.sources, c.forbidden)}
-    assert failing == {broken}
+    assert failing == ({broken} if isinstance(broken, str) else broken)
 
 
 def test_checker_catches_an_indirect_bad_import(tmp_path: Path) -> None:

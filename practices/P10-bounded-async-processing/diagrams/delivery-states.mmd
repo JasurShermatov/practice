@@ -1,0 +1,23 @@
+---
+title: DeliveryStatus - what becomes of one guest's confirmation (every one ends in exactly one final state)
+---
+stateDiagram-v2
+  direction LR
+  [*] --> Held: reserve() inside the booking's transaction
+  Held --> REJECTED: queue full or closing - counted rejected, answer notificationFailed true
+  Held --> [*]: rollback - release(), never counted, never sent
+  Held --> QUEUED: COMMIT, then publish() (accepted += 1)
+  QUEUED --> SENDING: a worker takes it (place freed)
+  QUEUED --> DROPPED: shutdown after the drain limit, or --no-drain (named in the log)
+  SENDING --> SENT: the sender returned (completed += 1)
+  SENDING --> SENDING: attempt failed, attempts left - wait 0.5 s, 1 s, ... in the same worker
+  SENDING --> FAILED: last attempt failed or timed out (failed += 1, logged)
+  SENDING --> DROPPED: shutdown during the retry wait
+  REJECTED --> [*]
+  SENT --> [*]
+  FAILED --> [*]
+  DROPPED --> [*]
+  note right of SENDING
+    in flight - at most one job per worker,
+    accepted = completed + failed + dropped + queued + in flight
+  end note

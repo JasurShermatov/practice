@@ -1,8 +1,8 @@
-"""The eight API tests: HTTP in, HTTP out, with the reservations in a list and the cache in a dictionary.
+"""The eleven API tests: HTTP in, HTTP out, with the reservations in a list and the cache in a dictionary.
 
-The four tests of P07 Step 6, the two cache tests of P08 Step 6 and the two concurrency tests of
-P09 Step 7 (the last two). Run them with the 8 booking tests from the hotel-booking folder:
-python -m unittest -v   (16 tests)
+The four tests of P07 Step 6, the two cache tests of P08 Step 6, the two concurrency tests of
+P09 Step 7 and the three queue tests of P10 Step 5 (the last three). Run them with the 8 booking
+tests from the hotel-booking folder: python -m unittest -v   (19 tests)
 
 Starlette's TestClient sends each request straight to the app inside the test: no server, no
 network, no database. The list store is used on purpose - these tests check the HTTP answers;
@@ -20,8 +20,16 @@ step, so a test can send two bookings into the gap between check and save and th
 The list store keeps the promise PostgreSQL's exclusion constraint keeps (``save`` raises
 ``OverlapRejected`` instead of double-booking), so these two tests need no database and still test
 the rule the constraint protects. The first six tests did not change.
+
+P10 addition: the course's three queue tests, on ``QueuedNotificationSender`` directly (the course
+drives the queue in-process, not over HTTP). They assert what the bound *promises* - every
+confirmation accounted for, never more than the capacity waiting, at most one job per worker in
+flight, a drained shutdown owing nobody - not an exact split, which depends on whether the worker got
+a turn during the burst. The first eight tests did not change. The full queue suite is
+tests/test_notification_queue.py and tests/test_queue_wiring.py.
 """
 import threading
+import time
 import unittest
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -32,7 +40,8 @@ from starlette.testclient import TestClient
 from hotel_booking.api import create_app
 from hotel_booking.api_cache import AvailabilityCache, InMemoryKeyValueStore
 from hotel_booking.api_stats import CountingReservationStore, Stats
-from hotel_booking.notifications.internal import EmailNotificationSender
+from hotel_booking.notifications import Confirmation
+from hotel_booking.notifications.internal import EmailNotificationSender, QueuedNotificationSender
 from hotel_booking.reservations import BookingService, DateRange, Guest, OverlapRejected, Reservation
 from hotel_booking.reservations.internal import InMemoryReservationStore
 from hotel_booking.rooms import Room
@@ -150,6 +159,60 @@ class ApiTests(unittest.TestCase):
         with self.assertRaises(OverlapRejected):
             store.save(overlapping)
         self.assertEqual(1, store.count_confirmed(R7, stay))
+
+
+class QueueTests(unittest.TestCase):
+    """P10 Step 5: the bounded queue in front of a slow sender."""
+
+    @staticmethod
+    def _confirmation(number: int) -> Confirmation:
+        night = date(2026, 12, 1 + number % 28)
+        return Confirmation(f"R{101 + number}", f"guest{number}@example.com", "R7", night, night)
+
+    def test_a_booking_does_not_wait_for_a_slow_confirmation(self) -> None:
+        """The point of the queue: a one-second email must not cost the guest a second."""
+        slow = EmailNotificationSender(send_seconds=1)
+        notifications = QueuedNotificationSender(slow, capacity=10, workers=1)
+        self.addCleanup(notifications.close, False)
+
+        started = time.monotonic()
+        notifications.send_confirmation(self._confirmation(1))
+        handed_over = time.monotonic() - started
+
+        self.assertLess(handed_over, 0.1, "handing the email to the queue must be immediate")
+        self.assertEqual(0, slow.sent, "and the email has not been sent yet")
+        self.assertEqual(1, notifications.counts().accepted)
+
+    def test_a_burst_larger_than_the_bound_is_refused_and_counted(self) -> None:
+        """Thirty confirmations into a queue of ten: refused and counted, never waited for."""
+        notifications = QueuedNotificationSender(EmailNotificationSender(send_seconds=1), capacity=10, workers=1)
+        self.addCleanup(notifications.close, False)
+
+        for number in range(30):
+            notifications.send_confirmation(self._confirmation(number))
+
+        counts = notifications.counts()
+        self.assertEqual(30, counts.accepted + counts.rejected, "every confirmation is accounted for")
+        self.assertLessEqual(counts.queued, 10, "the queue never grows past its bound")
+        self.assertGreater(counts.rejected, 0, "and the bound really did refuse some")
+        # Not an equality: the worker may be part-way through sending one job, so it is neither
+        # queued nor completed yet. At most one per worker can be in flight.
+        self.assertGreaterEqual(counts.in_flight, 0)
+        self.assertLessEqual(counts.in_flight, 1, "at most one job per worker can be in flight")
+
+    def test_a_drained_shutdown_finishes_everything_it_accepted(self) -> None:
+        """accepted == completed and nothing left queued: what "owes nobody an email" means."""
+        slow = EmailNotificationSender(send_seconds=0.02)
+        notifications = QueuedNotificationSender(slow, capacity=10, workers=1)
+        for number in range(10):
+            notifications.send_confirmation(self._confirmation(number))
+
+        report = notifications.close(drain=True)
+
+        counts = notifications.counts()
+        self.assertEqual((10, 10, 0), (counts.accepted, counts.completed, counts.queued))
+        self.assertEqual(10, slow.sent)
+        self.assertTrue(report.owes_nobody())
 
 
 if __name__ == "__main__":

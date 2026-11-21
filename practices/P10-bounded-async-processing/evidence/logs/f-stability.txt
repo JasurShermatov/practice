@@ -1,0 +1,21 @@
+# Linux container, Python 3.13.18, 2 vCPU: the timing-based P10 tests, 20 times in a row
+run 1: 42 passed, 2 deselected in 9.49s
+run 2: 42 passed, 2 deselected in 8.56s
+run 3: 42 passed, 2 deselected in 9.50s
+run 4: 42 passed, 2 deselected in 9.49s
+run 5: 42 passed, 2 deselected in 10.49s
+run 6: 42 passed, 2 deselected in 9.44s
+run 7: 42 passed, 2 deselected in 10.60s
+run 8: 42 passed, 2 deselected in 9.47s
+run 9: 42 passed, 2 deselected in 9.42s
+run 10: 42 passed, 2 deselected in 9.46s
+run 11: 42 passed, 2 deselected in 9.31s
+run 12: 42 passed, 2 deselected in 9.59s
+run 13: 42 passed, 2 deselected in 9.42s
+run 14: 42 passed, 2 deselected in 9.67s
+run 15: 42 passed, 2 deselected in 9.62s
+run 16: 42 passed, 2 deselected in 9.48s
+run 17: 42 passed, 2 deselected in 9.45s
+run 18: 42 passed, 2 deselected in 9.47s
+run 19: 42 passed, 2 deselected in 9.45s
+run 20: 42 passed, 2 deselected in 9.50s

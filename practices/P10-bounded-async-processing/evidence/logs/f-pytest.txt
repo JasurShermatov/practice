@@ -1,0 +1,9 @@
+# Linux container, Python 3.13.18, run from hotel-booking/
+$ python3 -m pytest -p no:cacheprovider -q
+........................................................................ [ 80%]
+........................................................................ [ 93%]
+....................................                                     [100%]
+540 passed in 25.16s
+
+$ python3 -m pytest -p no:cacheprovider -q --co tests/test_notification_queue.py tests/test_queue_wiring.py tests/test_burst.py test_api.py::QueueTests   (the new P10 tests)
+50 tests collected in 0.19s

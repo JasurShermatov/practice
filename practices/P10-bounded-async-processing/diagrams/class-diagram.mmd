@@ -1,0 +1,278 @@
+---
+title: Hotel booking app, version 7 - classes by module (P10, confirmations from a bounded queue)
+---
+classDiagram
+  direction TB
+
+  namespace rooms {
+    class Room {
+      +number: str
+      +type: str
+    }
+    class RoomCatalog {
+      <<interface>>
+      +all() list~Room~
+    }
+    class InMemoryRoomCatalog {
+      <<internal>>
+      -rooms: list~Room~
+      +all() list~Room~
+    }
+    class SqlRoomCatalog {
+      <<internal>>
+      -connection: DB-API connection
+      +all() list~Room~
+    }
+  }
+
+  namespace reservations {
+    class BookingService {
+      -rooms: list~Room~
+      -store: ReservationStore
+      -notifications: NotificationSender
+      -slow_step_seconds: float
+      +find_free_rooms(stay: DateRange) list~Room~
+      +reserve(guest: Guest, room: Room, stay: DateRange) BookingResult
+      +cancel(reservation_id: str) bool
+      -try_to_confirm(reservation: Reservation) bool
+    }
+    class BookingResult {
+      +outcome: BookingOutcome
+      +reservation_id: str or None
+      +notification_failed: bool
+    }
+    class BookingOutcome {
+      <<enumeration>>
+      ACCEPTED
+      UNAVAILABLE
+      INVALID_DATES
+    }
+    class OverlapRejected {
+      <<exception>>
+    }
+    class ReservationStore {
+      <<interface>>
+      +count() int
+      +has_overlap(room: Room, stay: DateRange) bool
+      +next_reservation_id() str
+      +save(reservation: Reservation) None
+      +find(reservation_id: str) Reservation or None
+      +count_confirmed(room: Room, stay: DateRange) int
+    }
+    class InMemoryReservationStore {
+      <<internal>>
+      -rows: list~Reservation~
+      -last_number: int
+      -lock: threading.Lock
+      +count() int
+      +has_overlap(room: Room, stay: DateRange) bool
+      +next_reservation_id() str
+      +save(reservation: Reservation) None
+      +find(reservation_id: str) Reservation or None
+      +count_confirmed(room: Room, stay: DateRange) int
+      -blocked(room: Room, stay: DateRange) bool
+    }
+    class SqlReservationStore {
+      <<internal>>
+      -connection: DB-API connection
+      -rooms: dict of number to Room
+      -sqlite: bool
+      -loaded: dict of id to Reservation and stored status
+      +count() int
+      +has_overlap(room: Room, stay: DateRange) bool
+      +next_reservation_id() str
+      +save(reservation: Reservation) None
+      +find(reservation_id: str) Reservation or None
+      +count_confirmed(room: Room, stay: DateRange) int
+      +save_changes() int
+      -insert(row: tuple) None
+      -flush() int
+      -blocking(room: Room, stay: DateRange) tuple
+      -day(day: date) str or date
+      -sql(text: str) str
+      -rows(text: str, params) list
+      -scalar(text: str, params) value
+      -to_reservation(row: tuple) Reservation
+    }
+    class Reservation {
+      +id: str
+      +guest: Guest
+      +room: Room
+      +stay: DateRange
+      +status: ReservationStatus
+      +blocks(room: Room, stay: DateRange) bool
+      +cancel() bool
+    }
+    class ReservationStatus {
+      <<enumeration>>
+      CONFIRMED
+      CANCELLED
+    }
+    class Guest {
+      +name: str
+      +email: str
+    }
+    class DateRange {
+      +check_in: date
+      +check_out: date
+      +is_valid() bool
+      +overlaps(other: DateRange) bool
+    }
+  }
+
+  namespace payments {
+    class PaymentStatus {
+      <<enumeration>>
+      PAID
+      DECLINED
+    }
+    class PaymentService {
+      <<interface>>
+      +take_deposit(reservation_id: str, amount: Decimal) PaymentStatus
+    }
+    class SimulatedPaymentService {
+      <<internal>>
+      +taken: list of reservation id and amount
+      +take_deposit(reservation_id: str, amount: Decimal) PaymentStatus
+    }
+  }
+
+  namespace notifications {
+    class Confirmation {
+      +reservation_id: str
+      +guest_email: str
+      +room_number: str
+      +check_in: date
+      +check_out: date
+    }
+    class NotificationSender {
+      <<interface>>
+      +send_confirmation(confirmation: Confirmation) None
+    }
+    class ConfirmationRefused {
+      <<exception>>
+    }
+    class DeliveryStatus {
+      <<enumeration>>
+      QUEUED
+      SENDING
+      SENT
+      FAILED
+      REJECTED
+      DROPPED
+    }
+    class NotificationCounts {
+      +accepted: int
+      +rejected: int
+      +completed: int
+      +queued: int
+      +failed: int
+      +dropped: int
+      +in_flight: int
+    }
+    class EmailNotificationSender {
+      <<internal>>
+      +sent: int
+      -send_seconds: float
+      -timeout_seconds: float or None
+      -fail_every: int
+      -attempts: int
+      -lock: threading.Lock
+      +send_confirmation(confirmation: Confirmation) None
+    }
+    class SmsNotificationSender {
+      <<internal>>
+      +sent: int
+      +send_confirmation(confirmation: Confirmation) None
+    }
+    class QueuedNotificationSender {
+      <<internal>>
+      -sender: NotificationSender
+      -queue: queue.Queue~Confirmation~ maxsize capacity
+      -places: BoundedSemaphore capacity
+      -lock: threading.Lock
+      -finished: Condition on lock
+      -counters: dict of name to int
+      -held: set of reservation id
+      -history: OrderedDict of reservation id to DeliveryStatus
+      -history_size: int
+      -max_attempts: int
+      -retry_delay_seconds: float
+      -poll_seconds: float
+      -join_seconds: float
+      -closing: bool
+      -stopping: threading.Event
+      -report: ShutdownReport or None
+      -workers: list of Thread, fixed
+      +send_confirmation(confirmation: Confirmation) None
+      +offer(confirmation: Confirmation) bool
+      +reserve(confirmation: Confirmation) bool
+      +publish(confirmation: Confirmation) bool
+      +release(confirmation: Confirmation) None
+      +counts() NotificationCounts
+      +status_of(reservation_id: str) DeliveryStatus or None
+      +close(drain: bool, timeout: float or None) ShutdownReport
+      -work() None
+      -deliver(confirmation: Confirmation) DeliveryStatus
+      -finish(confirmation: Confirmation, status: DeliveryStatus) None
+      -cancel_waiting_jobs() tuple of str
+      -unfinished() int
+      -refuse(reservation_id: str, reason: str) None
+      -remember(reservation_id: str, status: DeliveryStatus) None
+    }
+    class HeldConfirmations {
+      <<internal>>
+      -queue: QueuedNotificationSender
+      -held: list~Confirmation~
+      +send_confirmation(confirmation: Confirmation) None
+      +publish() None
+      +discard() None
+    }
+    class ShutdownReport {
+      <<internal>>
+      +drained: bool
+      +seconds: float
+      +counts: NotificationCounts
+      +dropped: tuple of reservation id
+      +workers_still_running: int
+      +owes_nobody() bool
+    }
+  }
+
+  BookingService ..> ReservationStore : uses
+  BookingService ..> NotificationSender : uses
+  BookingService ..> Confirmation : creates
+  BookingService ..> Reservation : creates
+  BookingService ..> BookingResult : returns
+  BookingService ..> OverlapRejected : answers Unavailable for
+  ReservationStore ..> OverlapRejected : save raises
+  BookingService --> "1..*" Room : offers
+  BookingResult --> "1" BookingOutcome : has
+  InMemoryReservationStore ..|> ReservationStore : implements
+  SqlReservationStore ..|> ReservationStore : implements
+  InMemoryRoomCatalog ..|> RoomCatalog : implements
+  SqlRoomCatalog ..|> RoomCatalog : implements
+  SimulatedPaymentService ..|> PaymentService : implements
+  EmailNotificationSender ..|> NotificationSender : implements
+  SmsNotificationSender ..|> NotificationSender : implements
+  QueuedNotificationSender ..|> NotificationSender : implements
+  HeldConfirmations ..|> NotificationSender : implements
+  QueuedNotificationSender --> "1" NotificationSender : wraps the real sender
+  QueuedNotificationSender ..> Confirmation : queues
+  QueuedNotificationSender ..> NotificationCounts : reports
+  QueuedNotificationSender ..> DeliveryStatus : records per reservation
+  QueuedNotificationSender ..> ShutdownReport : close returns
+  HeldConfirmations --> "1" QueuedNotificationSender : holds places in
+  HeldConfirmations ..> ConfirmationRefused : raises when full or closing
+  ShutdownReport --> "1" NotificationCounts : has
+  InMemoryReservationStore --> "0..*" Reservation : keeps
+  InMemoryRoomCatalog --> "1..*" Room : keeps
+  SqlReservationStore --> "0..*" Reservation : maps rows to
+  SqlRoomCatalog ..> Room : reads rows into
+  RoomCatalog ..> Room : lists
+  PaymentService ..> PaymentStatus : answers
+  NotificationSender ..> Confirmation : receives
+  Reservation --> "1" ReservationStatus : has
+  Guest "1" <-- "0..*" Reservation : makes
+  Reservation "0..*" --> "1" Room : reserves
+  Reservation "1" *-- "1" DateRange : owns stay dates
