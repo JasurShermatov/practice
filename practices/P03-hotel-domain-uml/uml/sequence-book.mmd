@@ -1,0 +1,28 @@
+---
+title: Sequence - book. Maya books R7 for 12-14 Nov (success path)
+---
+sequenceDiagram
+  autonumber
+  actor Maya
+  participant BS as :BookingService
+  participant stay as stay:DateRange
+  participant Store as :ReservationStore
+  participant Email as :EmailSender
+
+  Note over Store: before: store is empty
+  Maya->>BS: reserve(MAYA, R7, 12-14 Nov)
+  BS->>stay: is_valid()
+  stay-->>BS: True
+  BS->>Store: has_overlap(R7, 12-14 Nov)
+  Note right of Store: loop over rows:<br/>row.blocks(room, stay)<br/>(no rows yet)
+  Store-->>BS: False - no booking shares a night
+  Note over BS: slow step: 0 s normally<br/>(0.5 s in the race demo)
+  BS->>BS: next_id()
+  BS->>Store: count()
+  Store-->>BS: 0
+  create participant R101 as R101:Reservation
+  BS->>R101: «create» Reservation("R101", MAYA, R7, stay)
+  BS->>Store: save(R101)
+  BS->>Email: send_confirmation(R101)
+  BS-->>Maya: BookingResult(ACCEPTED, "R101") - "Accepted R101"
+  Note over Store: after: R101, Maya, R7, 12-14 Nov, Confirmed

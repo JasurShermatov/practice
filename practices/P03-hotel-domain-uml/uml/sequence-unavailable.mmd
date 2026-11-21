@@ -1,0 +1,24 @@
+---
+title: Sequence - book, no availability. Omar asks for R7 13-15 Nov
+---
+sequenceDiagram
+  autonumber
+  actor Omar
+  participant BS as :BookingService
+  participant stay as stay:DateRange
+  participant Store as :ReservationStore
+  participant R101 as R101:Reservation
+
+  Note over Store: before: R101 (Maya, R7, 12-14 Nov, Confirmed)
+  Omar->>BS: reserve(OMAR, R7, 13-15 Nov)
+  BS->>stay: is_valid()
+  stay-->>BS: True
+  BS->>Store: has_overlap(R7, 13-15 Nov)
+  loop for each saved row
+    Store->>R101: blocks(R7, 13-15 Nov)
+    Note right of R101: Confirmed, same room,<br/>stay.overlaps(13-15):<br/>12 < 15 and 13 < 14
+    R101-->>Store: True
+  end
+  Store-->>BS: True - R101 shares the night of 13 Nov
+  BS-->>Omar: BookingResult(UNAVAILABLE) - "Unavailable"
+  Note over BS,Store: nothing created, nothing saved, no email.<br/>Store still holds only R101.

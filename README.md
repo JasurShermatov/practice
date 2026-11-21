@@ -8,10 +8,14 @@ and builds on the same fictional project from the course brief: a small **concer
 app** for organiser Claire (20 unnumbered tickets per concert, one ticket per customer, no
 payment in version one).
 
+From P03 on, the practices also grow one Python codebase, [hotel-booking/](hotel-booking), for a
+separately introduced fictional hotel (rooms R7 and R8, one guest per room per night).
+
 | Practice | Topic | Folder | Status |
 |---|---|---|---|
 | P01 | Course introduction workshop and project baseline | [practices/P01-project-baseline](practices/P01-project-baseline) | Done |
 | P02 | OS introduction, kernels and process lifecycle | [practices/P02-os-process-lifecycle](practices/P02-os-process-lifecycle) | Done (Linux observed; macOS rerun, pair review and online submission to do) |
+| P03 | Hotel booking domain and UML workshop (starts the [hotel-booking](hotel-booking) codebase) | [practices/P03-hotel-domain-uml](practices/P03-hotel-domain-uml) | Done (pair review and partner hand-over: to do by the student) |
 
 ## How to read the evidence
 
