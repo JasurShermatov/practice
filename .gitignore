@@ -9,3 +9,6 @@ __pycache__/
 hotel.sqlite3*
 *.sqlite3
 .env
+# macOS/iCloud duplicate copies
+* 2.*
+* 2

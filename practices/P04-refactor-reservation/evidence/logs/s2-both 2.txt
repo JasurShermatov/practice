@@ -1,8 +1,0 @@
-### Step 2 done (P03 code unchanged)
-$ python -m unittest
-Ran 6 tests in 0.000s
-
-OK
-$ python -m pytest -q
-..........................................................               [100%]
-58 passed in 1.04s

@@ -1,7 +1,0 @@
-### Step 7 done: all checks
-$ python -m unittest
-Ran 8 tests in 0.003s
-
-OK
-$ python -m pytest -q
-69 passed in 1.66s

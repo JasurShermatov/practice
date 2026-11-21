@@ -1,3 +1,0 @@
-# P03: standard library only - no runtime dependencies.
-# Development / test tools:
-pytest>=8
