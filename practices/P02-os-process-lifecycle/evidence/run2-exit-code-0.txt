@@ -26,7 +26,7 @@ $ ps -o pid,ppid,stat,%cpu,vsz,rss,nlwp,comm -p 1173    # the parent, waiting in
 $ ps -o pid,ppid,stat,time,etime,args -p 1173,1177   # cumulative CPU TIME and command lines
   PID  PPID STAT     TIME     ELAPSED COMMAND
  1173  1167 S+   00:00:00       00:03 python3 starter/parent.py
- 1177  1173 S+   00:00:00       00:03 /usr/local/bin/python3 -u /mnt/attach/outputs/advanced-programming/practices/P02-os-process-lifecycle/lab/starter/child.py
+ 1177  1173 S+   00:00:00       00:03 /usr/local/bin/python3 -u <repo>/practices/P02-os-process-lifecycle/lab/starter/child.py   [path shortened]
 $ ps -o pid,ppid,stat,comm --forest -s $(ps -o sid= -p 1173)   # process tree of this terminal session
   PID  PPID STAT COMMAND
  1167  1166 Ss   bash

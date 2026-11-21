@@ -21,7 +21,7 @@ Environment for every **Observed** row: Linux container, Python 3.13.18, pytest 
 | E13 | **Observed** | Diagrams render | `mmdc` on 5 `uml/*.mmd` and on `Diagrams.md` | No errors; SVGs produced | 5 × OK; 5 charts in Diagrams.md ([O8](observed-runs.md#o8--diagram-render-check)) | Rendering proves syntax, not good UML (E9 checks content). |
 | E14 | **Simulated** | Curriculum plan 1: before-example mixing policy, SQL, email | Paper inspection ([Worksheet](../Worksheet.md#curriculum-plan-task-1--inspect-a-before-example)) | Three responsibilities identified and mapped | Reasoned, not run | The teacher's starter was not available; the example was written for the worksheet. |
 | E15 | **Simulated** | P07 can swap the store without editing BookingService | `DictReservationStore` (tests only) in E11 | Same records as the list store | Same records | A dict is not PostgreSQL; real database behaviour (transactions, the race) is **Proposed** for P07/P09. |
-| E16 | **Proposed** | Same results on the student's Mac | `python3 -m unittest -v`, `python3 main.py`, `python3 main.py --race`, `python3 -m pytest` | Same as E2–E5, E9–E11 | Not run yet — **to do by the student** | — |
+| E16 | **Proposed** | Same results on my Mac | `python3 -m unittest -v`, `python3 main.py`, `python3 main.py --race`, `python3 -m pytest` | Same as E2–E5, E9–E11 | Not run yet — **to do by the student** | — |
 | E17 | **Proposed** | Hand-over (Step 8.3) | Copy the folder to the partner's laptop; partner runs the 8 tests | Partner sees 8 green | Not done yet — **to do by the student** | — |
 
 No performance target applies to P04; none is claimed.

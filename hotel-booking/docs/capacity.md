@@ -38,9 +38,9 @@ Added in this portfolio (my assumptions, same status — guesses to check):
 
 | Assumption | Value | Reason |
 |---|---|---|
-| Statements per booking | 3 | counted in `SqlReservationStore`: overlap, count, insert |
+| Statements per booking | 3 | counted in `SqlReservationStore`: overlap check, next id (database sequence/counter since P09; `count(*)` before), insert |
 | Time limit per search | 1 s | S1: p95 ≤ 1 second ([quality-scenarios.md](quality-scenarios.md)) |
-| Retention | 5 years | reservations are never deleted (history; ids come from the row count) |
+| Retention | 5 years | reservations are never deleted (history; since P09 ids come from the database sequence/counter, not the row count) |
 | Growth factor | 10 | "what if the hotel's site gets ten times the visitors" |
 
 ## Results

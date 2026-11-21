@@ -53,3 +53,5 @@ as the online P01 worksheet, so it can be copied into the signed-in worksheet fi
 - [x] "Confirmed" means the same thing (a saved booking) in every file
 - [x] Unresolved policies stay unresolved and name Claire as the decision owner
 - [x] Evidence is labelled proposed / simulated / observed; nothing claims a tested app
+- [ ] Classmate cross-check of the sold-out requirement (Peer-review.md §2) — to do by the student
+- [ ] Submit answers in the online P01 worksheet — to do by the student

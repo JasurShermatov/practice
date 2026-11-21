@@ -2,7 +2,7 @@
 
     python3 -I serve_pg.py --project <hotel-booking folder> --port 5080 --pg-port 55433
 
-``python main.py --db postgres`` needs psycopg, which cannot be installed in the build container. This
+``python main.py --db postgres`` needs psycopg, which cannot be installed in the build environment. This
 file does what ``main.run_api`` does - the same ``NotificationOptions`` from the same HOTEL_*
 variables, ``build_notifications``, ``build_api`` with the queue, Redis from HOTEL_REDIS_PORT, the
 shutdown hook ``shut_down_notifications`` - but connects through P09's ``pg_wire`` (a stdlib

@@ -31,13 +31,13 @@ design still loses (a killed process) is written down, not hidden.
 | 7 · Choose a model | Six lines in design-notes (five rejected + the kept shape + its limit) | [design-notes § P10](../../hotel-booking/docs/design-notes.md), [concurrency-shapes](diagrams/concurrency-shapes.svg) |
 | 8 · ADR-004 | Context, decision, rejected shapes, two uncomfortable consequences, when to revisit, all with measured numbers | [adr-004-notification-concurrency.md](../../hotel-booking/docs/adr-004-notification-concurrency.md) |
 | §10 Check and hand over | Every check of the sheet's table | [Check your project](#check-your-project-activity-sheet-10) |
-| Brief: bounded capacity, explicit full behaviour, fixed workers | Refuse and count (never wait, never drop an older job); a fixed pool of threads | `QueuedNotificationSender`; [test_notification_queue.py](../../hotel-booking/tests/test_notification_queue.py) |
-| Brief: timeouts, cancellation, graceful shutdown that drains or reports | Sender timeout; worker poll timeout; drain time limit; a waiting retry is cancelled by shutdown; queued jobs dropped **and named**; a stuck send is reported, not waited for | the same + [test_queue_wiring.py](../../hotel-booking/tests/test_queue_wiring.py) |
-| Brief: clear ownership of the concurrency | Only `notifications/internal.py` starts threads (architecture test); the wiring creates the queue and the shutdown hook closes it; 7th border contract keeps Notifications a leaf | [test_architecture.py](../../hotel-booking/tests/test_architecture.py), [.importlinter](../../hotel-booking/.importlinter), [module-dependencies](diagrams/module-dependencies.svg) |
-| Brief: booking independent of the email; delivery status recorded | 201 + saved row when the queue is full (`notificationFailed: true`) or the sender fails later; `DeliveryStatus` per reservation, `notificationsFailed`, a log line per refusal, failure and drop | `HeldConfirmations`, `ConfirmationRefused`, `status_of`; tests below |
-| Brief: burst tool run for real; queue depth, accepted/rejected, latency with/without, throughput | Every run is a real `python main.py` process (PostgreSQL: the same wiring through `serve_pg.py`) and a real client process | [queue-experiment.txt](evidence/logs/queue-experiment.txt), [queue-results.json](evidence/logs/queue-results.json), [Results](#results) |
-| Brief: OpenAPI / stats, contract test both ways | 1.3.0; five optional counters; two new examples produced by the real wiring with a real queue | [openapi.yaml](../../hotel-booking/docs/openapi.yaml), [test_openapi_contract.py](../../hotel-booking/tests/test_openapi_contract.py) |
-| Brief: P09 guarantees still hold | Race tool 0 of 20 (1 and 2 instances, SQLite and PostgreSQL 16); only the winner is emailed | [queue-trace.md § PostgreSQL](../../hotel-booking/docs/queue-trace.md#the-same-on-postgresql-and-p09-still-holds) |
+| Bounded capacity, explicit full behaviour, fixed workers | Refuse and count (never wait, never drop an older job); a fixed pool of threads | `QueuedNotificationSender`; [test_notification_queue.py](../../hotel-booking/tests/test_notification_queue.py) |
+| Timeouts, cancellation, graceful shutdown that drains or reports | Sender timeout; worker poll timeout; drain time limit; a waiting retry is cancelled by shutdown; queued jobs dropped **and named**; a stuck send is reported, not waited for | the same + [test_queue_wiring.py](../../hotel-booking/tests/test_queue_wiring.py) |
+| Clear ownership of the concurrency | Only `notifications/internal.py` starts threads (architecture test); the wiring creates the queue and the shutdown hook closes it; 7th border contract keeps Notifications a leaf | [test_architecture.py](../../hotel-booking/tests/test_architecture.py), [.importlinter](../../hotel-booking/.importlinter), [module-dependencies](diagrams/module-dependencies.svg) |
+| Booking independent of the email; delivery status recorded | 201 + saved row when the queue is full (`notificationFailed: true`) or the sender fails later; `DeliveryStatus` per reservation, `notificationsFailed`, a log line per refusal, failure and drop | `HeldConfirmations`, `ConfirmationRefused`, `status_of`; tests below |
+| Burst tool run for real; queue depth, accepted/rejected, latency with/without, throughput | Every run is a real `python main.py` process (PostgreSQL: the same wiring through `serve_pg.py`) and a real client process | [queue-experiment.txt](evidence/logs/queue-experiment.txt), [queue-results.json](evidence/logs/queue-results.json), [Results](#results) |
+| OpenAPI / stats, contract test both ways | 1.3.0; five optional counters; two new examples produced by the real wiring with a real queue | [openapi.yaml](../../hotel-booking/docs/openapi.yaml), [test_openapi_contract.py](../../hotel-booking/tests/test_openapi_contract.py) |
+| P09 guarantees still hold | Race tool 0 of 20 (1 and 2 instances, SQLite and PostgreSQL 16); only the winner is emailed | [queue-trace.md § PostgreSQL](../../hotel-booking/docs/queue-trace.md#the-same-on-postgresql-and-p09-still-holds) |
 | Diagrams (Mermaid, render-checked) | Before/after sequences, delivery states, shutdown, model choice, class diagram (read by the UML test), as-built modules | [diagrams/](diagrams/), [mmdc log](evidence/logs/mmdc.txt) |
 | Evidence, worksheet, reflection | | [evidence/Index.md](evidence/Index.md), [Worksheet.md](Worksheet.md), [reflection](reflections/Jasur-Shermatov.md) |
 | Document checks | Sections, numbers = logs, diagrams = code, links, README row | [checks/test_p10_docs.py](checks/test_p10_docs.py) |
@@ -103,6 +103,8 @@ python3 -m pytest -p no:cacheprovider practices/*/checks                        
 bash practices/P10-bounded-async-processing/evidence/render_diagrams.sh
 ```
 
+`render_diagrams.sh` uses `diagrams/puppeteer-config.linux-build.json`. On macOS `mmdc` works without this file: `mmdc -i diagrams/X.mmd -o diagrams/X.svg` (`diagrams/puppeteer-config.linux-build.json` only points the Linux build environment at its headless Chromium).
+
 On the Mac with Docker: `docker compose up -d`, `pip install "psycopg[binary]"`, then
 `HOTEL_EMAIL_SECONDS=1 python main.py --db postgres` and the burst. No schema change is needed (P10
 changes no table).
@@ -120,7 +122,7 @@ changes no table).
 | `docs/openapi.yaml` | 1.3.0: the email promise; five optional Stats properties; examples `confirmationRefused`, `withQueue`; `notificationFailed` description | contract |
 | `.importlinter` | + "Notifications depends on no other module" (7 contracts) | borders |
 | `docs/` | `queue-trace.md`, `adr-004-notification-concurrency.md` (new); design-notes § P10; requirements R6 (P10 note) | docs |
-| `pyproject.toml`, `requirements.txt`, `README.md` | version 0.10.0; mypy files; no new package; README version 7 (limitations updated: two version-6 limitations fixed) | config/docs |
+| `pyproject.toml`, `requirements.txt`, `README.md` | version 7.0.0 (was 0.10.0; aligned with "version 7" afterwards); mypy files; no new package; README version 7 (limitations updated: two version-6 limitations fixed) | config/docs |
 
 ## Deliberate test changes
 
@@ -143,7 +145,7 @@ New tests: [tests/test_notification_queue.py](../../hotel-booking/tests/test_not
 [tests/test_burst.py](../../hotel-booking/tests/test_burst.py) (6), the course's 3 in `test_api.py`, plus
 the architecture, contract and UML additions. The P09 race tests did not change and still pass.
 
-### The tests the brief asks for
+### The tests for each required behaviour
 
 | Behaviour | Tests |
 |---|---|
@@ -162,7 +164,7 @@ the architecture, contract and UML additions. The P09 race tests did not change 
 | Course material uses | This portfolio uses | Why | Requirement still covered by |
 |---|---|---|---|
 | FastAPI + SQLAlchemy + psycopg (`python main.py` on PostgreSQL 18 in Docker) | Starlette + pydantic + sqlite3 (P07 decision); PostgreSQL runs through `serve_pg.py`, which uses the same wiring with P09's `pg_wire` | No PyPI, no Docker daemon | E7 on SQLite through `python main.py`; E16 on PostgreSQL 16.15; Docker + psycopg: **to do by the student** (E22) |
-| `$env:HOTEL_EMAIL_SECONDS = "1"; python main.py` (PowerShell) | `HOTEL_EMAIL_SECONDS=1 python3 main.py` | The student uses macOS | — |
+| `$env:HOTEL_EMAIL_SECONDS = "1"; python main.py` (PowerShell) | `HOTEL_EMAIL_SECONDS=1 python3 main.py` | I use macOS | — |
 | Two terminals typed by hand | `queue_experiment.py` starts `python main.py` and runs `tools/burst.py` / `race_http.py` as separate processes and sends the real signals | Repeatable, and every output is kept | [queue-experiment.txt](evidence/logs/queue-experiment.txt) |
 | Step 1 measured before the queue exists | `--no-queue` keeps the P09 behaviour in the same code | The code change was made in one piece. The flag makes "before" a real run | E3 |
 | `close()` after `uvicorn.run` in a `finally` | The app's shutdown hook (lifespan), plus a `finally` as a safety net | uvicorn re-raises SIGTERM after its shutdown, so the `finally` never runs for SIGTERM (found with a real-process test) | E12, `test_the_real_server_drains_its_queue_when_it_is_stopped[sigterm]` |
@@ -205,7 +207,7 @@ Sources: the P10 Activity sheet (the same as the Student explanation, Student no
 notes apart from the title block, compared with `diff`), the catalog entry (Sat 14 Nov 2026, room 232),
 L05 (async work, deadlines, cancellation, bounded queues, backpressure, concurrency models), the Python
 reference (interfaces: `QueuedNotificationSender`, `NotificationCounts`, `close(drain)`, `tools/burst.py`,
-the three tests, the HOTEL_* variables) and the task brief.
+the three tests, the HOTEL_* variables) and my own portfolio conventions.
 
 | # | Requirement (source) | Where it is satisfied | Status |
 |---|---|---|---|
@@ -231,21 +233,21 @@ the three tests, the HOTEL_* variables) and the task brief.
 | 20 | Step 8: ADR-004 with the five headings, five rejections, two uncomfortable consequences, ≥ 2 revisit conditions | adr-004; `test_adr_004_*` | Done |
 | 21 | §10: run every check; re-read the ADR | [Check your project](#check-your-project-activity-sheet-10); E17 | Done — Observed |
 | 22 | §10: commit "P10: send confirmations from a bounded queue"; bring the folder to P11; pair work, swap the typist | — | **To do by the student** (no git in this build) |
-| 23 | Brief: bounded capacity, explicit full behaviour (refuse), fixed number of workers | `QueuedNotificationSender`; E7, E9 | Done — Observed |
-| 24 | Brief: timeouts | sender timeout (E14), worker poll timeout, drain time limit (E5), join limit; tests | Done — Observed |
-| 25 | Brief: cancellation | `--no-drain` / drain limit cancel queued jobs (E5, E11); a waiting retry is cancelled; tests | Done — Observed |
-| 26 | Brief: graceful shutdown that drains or reports pending work | E10–E12; the names of whoever is owed | Done — Observed |
-| 27 | Brief: clear ownership of the concurrency | only the queue starts threads (ast test); wiring creates, hook closes; 7th contract | Done — Observed |
-| 28 | Brief: booking independent of the email; delivery status recorded | 201 + row when full / failing (E7, E14); `DeliveryStatus`, counters, logs; after-COMMIT publish | Done — Observed |
-| 29 | Brief: burst tool run for real; queue depth, accepted/rejected, latency with/without, worker throughput | E3–E9, E16; [Results](#results) | Done — Observed |
-| 30 | Brief: docs/queue-trace.md (a traced run step by step) | queue-trace.md (outputs copied from the log, checked line by line) | Done — Observed |
-| 31 | Brief: ADR-004 in own words with real numbers | adr-004 (numbers checked against the logs) | Done |
-| 32 | Brief: OpenAPI/stats updates; contract test passing both ways | openapi 1.3.0; E19 | Done — Observed |
-| 33 | Brief: module-boundary rules kept; .importlinter + ast test updated | 7 contracts kept; ownership rule; E17 | Done — Observed |
-| 34 | Brief: tests for queue full, failure/retry, shutdown/drain, cancellation, no duplicate sends, P09 guarantees | [The tests the brief asks for](#the-tests-the-brief-asks-for) | Done — Observed |
-| 35 | Brief: earlier tests green; changes deliberate, with notes | [Deliberate test changes](#deliberate-test-changes); E2, E17 | Done — Observed |
-| 36 | Brief: README, worksheet, diagrams (mmdc render-checked), evidence, reflection; root README row | this file, Worksheet.md, diagrams/ + E20, evidence/, reflections/, root README | Done |
-| 37 | Brief: stop everything started | the scripts stop every server, redis-server and the PostgreSQL cluster in `finally` blocks; E21 | Done — Observed |
+| 23 | Bounded capacity, explicit full behaviour (refuse), fixed number of workers | `QueuedNotificationSender`; E7, E9 | Done — Observed |
+| 24 | Timeouts | sender timeout (E14), worker poll timeout, drain time limit (E5), join limit; tests | Done — Observed |
+| 25 | Cancellation | `--no-drain` / drain limit cancel queued jobs (E5, E11); a waiting retry is cancelled; tests | Done — Observed |
+| 26 | Graceful shutdown that drains or reports pending work | E10–E12; the names of whoever is owed | Done — Observed |
+| 27 | Clear ownership of the concurrency | only the queue starts threads (ast test); wiring creates, hook closes; 7th contract | Done — Observed |
+| 28 | Booking independent of the email; delivery status recorded | 201 + row when full / failing (E7, E14); `DeliveryStatus`, counters, logs; after-COMMIT publish | Done — Observed |
+| 29 | Burst tool run for real; queue depth, accepted/rejected, latency with/without, worker throughput | E3–E9, E16; [Results](#results) | Done — Observed |
+| 30 | docs/queue-trace.md (a traced run step by step) | queue-trace.md (outputs copied from the log, checked line by line) | Done — Observed |
+| 31 | ADR-004 in own words with real numbers | adr-004 (numbers checked against the logs) | Done |
+| 32 | OpenAPI/stats updates; contract test passing both ways | openapi 1.3.0; E19 | Done — Observed |
+| 33 | module-boundary rules kept; .importlinter + ast test updated | 7 contracts kept; ownership rule; E17 | Done — Observed |
+| 34 | Tests for queue full, failure/retry, shutdown/drain, cancellation, no duplicate sends, P09 guarantees | [The tests for each required behaviour](#the-tests-for-each-required-behaviour) | Done — Observed |
+| 35 | Earlier tests green; changes deliberate, with notes | [Deliberate test changes](#deliberate-test-changes); E2, E17 | Done — Observed |
+| 36 | README, worksheet, diagrams (mmdc render-checked), evidence, reflection; root README row | this file, Worksheet.md, diagrams/ + E20, evidence/, reflections/, root README | Done |
+| 37 | Stop everything started | the scripts stop every server, redis-server and the PostgreSQL cluster in `finally` blocks; E21 | Done — Observed |
 
 ## Self-check before submission
 

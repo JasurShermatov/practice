@@ -17,7 +17,7 @@ The contract was written first; these checks keep code and contract from driftin
    titles the code can send, and the app serves this very file.
 
 The contract was not loaded into the Swagger editor here (no browser/network in the build
-container); that check is in the P07 README as "to do by the student".
+environment); that check is in the P07 README as "to do by the student".
 
 P08 change (deliberate): the contract is version 1.1.0 with GET /stats (operation getStats, schema
 Stats) and the search's X-Cache header. The probe app now has the counters and an in-memory cache,

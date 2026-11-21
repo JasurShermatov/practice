@@ -2,7 +2,7 @@
 
     python3 -I practices/P10-bounded-async-processing/evidence/queue_experiment.py hotel-booking [--skip-postgres]
 
-Each run starts ``python main.py`` (the student's own command) as a separate process on a fresh
+Each run starts ``python main.py`` (my own command) as a separate process on a fresh
 SQLite file, with a throw-away redis-server for the search cache (``--cache redis``, the default),
 and the HOTEL_* variables the sheet uses. The client is the project's own ``tools/burst.py`` (or
 ``tools/race_http.py``), run as a separate process. The server is stopped the way a person stops it -

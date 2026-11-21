@@ -32,10 +32,10 @@ tests.
 | 7 (SQLite) | The same rule for the default/test database: triggers + id table, upgrade of version-5 files | [db/sqlite/init.sql](../../hotel-booking/db/sqlite/init.sql), [db/sqlite/p09-upgrade.sql](../../hotel-booking/db/sqlite/p09-upgrade.sql), [race-fixed-sqlite-trigger](diagrams/race-fixed-sqlite-trigger.svg) |
 | 8 · ADR-003 | Context, decision, three rejected repairs (+ Serializable) with measured costs, consequences incl. the clean-up, when to revisit | [adr-003-booking-concurrency.md](../../hotel-booking/docs/adr-003-booking-concurrency.md) |
 | §10 Check and hand over | Every check of the sheet's table, run once more | [Check your project](#check-your-project-activity-sheet-10), [f-* logs](evidence/logs/) |
-| Brief: conflicts → correct HTTP status, in the API and OpenAPI | 409 Unavailable for the race loser (same body), no more 500 for a duplicate id; contract 1.2.0 with the `lostTheRace` example produced by a real race | [openapi.yaml](../../hotel-booking/docs/openapi.yaml), [test_openapi_contract.py](../../hotel-booking/tests/test_openapi_contract.py) |
-| Brief: known-defect tests → regression tests | Each deliberate change documented | [Deliberate test changes](#deliberate-test-changes) |
-| Brief: why an in-process lock is not enough across processes | Explained and measured (two instances: every round double-booked) | [interleaving.md § four repairs](../../hotel-booking/docs/interleaving.md#the-four-repairs-and-what-each-one-cost), [Race results](#race-results) |
-| Brief: PostgreSQL mechanism shown on a real PostgreSQL 16 | Concurrent psql sessions for each repair and the isolation levels; the app's own SQL store against PostgreSQL through two instances | [postgres-repairs](evidence/logs/postgres-repairs.txt), [race-http-before-after](evidence/logs/race-http-before-after.txt), [What was and was not observed](#what-was-and-was-not-observed) |
+| Conflicts → correct HTTP status, in the API and OpenAPI | 409 Unavailable for the race loser (same body), no more 500 for a duplicate id; contract 1.2.0 with the `lostTheRace` example produced by a real race | [openapi.yaml](../../hotel-booking/docs/openapi.yaml), [test_openapi_contract.py](../../hotel-booking/tests/test_openapi_contract.py) |
+| Known-defect tests → regression tests | Each deliberate change documented | [Deliberate test changes](#deliberate-test-changes) |
+| Why an in-process lock is not enough across processes | Explained and measured (two instances: every round double-booked) | [interleaving.md § four repairs](../../hotel-booking/docs/interleaving.md#the-four-repairs-and-what-each-one-cost), [Race results](#race-results) |
+| PostgreSQL mechanism shown on a real PostgreSQL 16 | Concurrent psql sessions for each repair and the isolation levels; the app's own SQL store against PostgreSQL through two instances | [postgres-repairs](evidence/logs/postgres-repairs.txt), [race-http-before-after](evidence/logs/race-http-before-after.txt), [What was and was not observed](#what-was-and-was-not-observed) |
 | Diagrams (Mermaid, render-checked) | Race, fix (PostgreSQL, SQLite), lock across instances, guard row, version, ids, four repairs, class diagram (used by the UML conformance test) | [diagrams/](diagrams/), [mmdc log](evidence/logs/mmdc.txt) |
 | Evidence, worksheet, reflection | | [evidence/Index.md](evidence/Index.md), [observed-runs.md](evidence/observed-runs.md), [Worksheet.md](Worksheet.md), [reflection](reflections/Jasur-Shermatov.md) |
 | Document checks | Sections, numbers = logs, diagrams = code, links, README row | [checks/test_p09_docs.py](checks/test_p09_docs.py) |
@@ -93,6 +93,8 @@ python3 -I practices/P09-protect-the-last-seat/evidence/postgres_repairs.py hote
 python3 -m pytest -p no:cacheprovider practices/*/checks                                                     # P05-P09 document checks
 bash practices/P09-protect-the-last-seat/evidence/render_diagrams.sh                                         # re-render + mmdc log
 ```
+
+`render_diagrams.sh` uses `diagrams/puppeteer-config.linux-build.json`. On macOS `mmdc` works without this file: `mmdc -i diagrams/X.mmd -o diagrams/X.svg` (`diagrams/puppeteer-config.linux-build.json` only points the Linux build environment at its headless Chromium).
 
 On the Mac, with Docker: `docker compose up -d` (a new volume gets the new `init.sql`). For the
 existing P08 volume run `docker compose exec -T db psql -U hotel -d hotel -v ON_ERROR_STOP=1 < db/postgres/p09-upgrade.sql`
@@ -152,9 +154,9 @@ booking, so the test is known to be able to fail.
 | SQLAlchemy + psycopg (`PostgresReservationStore`) | The P07 `SqlReservationStore` (DB-API, `%s` for PostgreSQL), unchanged in shape. Against the real PostgreSQL it ran through [pg_wire.py](evidence/pg_wire.py), a small stdlib protocol client written as **evidence tooling only** (trust auth, extended protocol, psycopg-style `sqlstate`/`diag.constraint_name`) | psycopg cannot be installed (no PyPI) | Two app instances on PostgreSQL in [race-http-before-after](evidence/logs/race-http-before-after.txt); unit tests of the PostgreSQL path with a scripted connection; psycopg on the Mac: **to do by the student** |
 | `db/init.sql` (one file) | `db/postgres/init.sql` (the course's file, mounted by compose) + **`db/sqlite/init.sql`** (translation: triggers + one-row id table) | SQLite has no exclusion constraints and no sequences. A drift test keeps the files equal elsewhere | `test_sqlite_and_postgresql_schemas_declare_the_same_tables`, `test_each_postgresql_only_statement_has_its_sqlite_counterpart` |
 | Altering the running database by hand in psql | `db/postgres/p09-upgrade.sql` (one transaction) + `db/find-double-bookings.sql`; version-5 SQLite files are upgraded by `main.py` with the same refusal | Repeatable, and the refusal over dirty data is part of the lesson | E11; `test_a_version_5_file_with_a_double_booking_is_not_upgraded_until_it_is_cleaned` |
-| Step 1 done before the repair on the student's project | "Before" = a **copy of version 5** (the P08 end state), served with its own wiring and a slow step through `serve.py`, plus version 6 code against PostgreSQL **without** the constraint (the course's Step 1–4 database) | The code change was made in one piece; the old code was kept so "before" is real, not described | [Race results](#race-results) |
+| Step 1 done before the repair on my project | "Before" = a **copy of version 5** (the P08 end state), served with its own wiring and a slow step through `serve.py`, plus version 6 code against PostgreSQL **without** the constraint (the course's Step 1–4 database) | The code change was made in one piece; the old code was kept so "before" is real, not described | [Race results](#race-results) |
 | The in-process lock seen only in the list store (`--race`) | Also applied to the web app (`serve.py --app-lock`: one `threading.Lock` per process around each request) and run on one and two instances | Shows the cross-process failure with numbers, not only in words | `v5-lock-1`, `v5-lock-2` |
-| `$env:HOTEL_SLOW_STEP` (PowerShell) | `HOTEL_SLOW_STEP=1 python3 main.py` (macOS / Linux) | The student uses macOS | — |
+| `$env:HOTEL_SLOW_STEP` (PowerShell) | `HOTEL_SLOW_STEP=1 python3 main.py` (macOS / Linux) | I use macOS | — |
 | "19 green: 16 tests + 3 contracts" | 16 unittest tests and **6** contracts (P08's edge contracts kept); full suite 479 | The portfolio adds tests beyond the course's | E17 |
 | `lint-imports` | the stdlib ast border test | import-linter not installable | `python -m tests.test_architecture` |
 
@@ -193,7 +195,7 @@ Sources: P09 Activity sheet (identical to the Student explanation, Student notes
 notes apart from the title block, compared with `diff`), the catalog entry (Tue 10 Nov 2026,
 room 222), L05 (transaction boundaries, constraints, isolation, optimistic/pessimistic
 concurrency), the Python reference (interfaces: `OverlapRejected`, `next_reservation_id`, the
-race tool, `HOTEL_SLOW_STEP`/`HOTEL_PORT`, the two tests) and the task brief.
+race tool, `HOTEL_SLOW_STEP`/`HOTEL_PORT`, the two tests) and my own portfolio conventions.
 
 | # | Requirement (source) | Where it is satisfied | Status |
 |---|---|---|---|
@@ -219,18 +221,18 @@ race tool, `HOTEL_SLOW_STEP`/`HOTEL_PORT`, the two tests) and the task brief.
 | 20 | Step 8: ADR-003 with five headings, three rejected repairs with costs, clean-up consequence, revisit condition | adr-003; `test_adr_003_*` | Done |
 | 21 | §10: run every check; re-read the ADR; | this table; E17 | Done — Observed |
 | 22 | §10: commit "P09: protect the booking rule in the database"; bring the folder to P10; pair work, swap the typist | — | **To do by the student** (no git in this build) |
-| 23 | Brief: interleaving with the exact bad interleaving(s) traced step by step | interleaving.md (race and id race), [race-double-booking](diagrams/race-double-booking.svg), [id-allocation](diagrams/id-allocation.svg) | Done — Observed |
-| 24 | Brief: protection implemented for BOTH SQLite and PostgreSQL | db/sqlite/init.sql (triggers), db/postgres/init.sql (EXCLUDE), the SQL store for both dialects | Done — Observed |
-| 25 | Brief: why an in-process lock alone is not enough across processes | interleaving.md, ADR-003, E8 (0 of 20 vs 20 of 20) | Done — Observed |
-| 26 | Brief: safe id allocation, no duplicate-id 500 | `next_reservation_id`; E5; regression `test_a_booking_made_while_another_is_uncommitted_…` | Done — Observed |
-| 27 | Brief: race tool run for real before and after, many repetitions | E3, E4, E14–E16 (20 rounds + 100/300 pairs, 12 configurations) | Done — Observed |
-| 28 | Brief: conflicts → correct HTTP status in the API and OpenAPI, contract test both ways | 409 (+ deadlock retry so no 500); openapi 1.2.0 `lostTheRace`; E19 | Done — Observed |
-| 29 | Brief: ADR-003 in own words with real numbers | adr-003 | Done |
-| 30 | Brief: known-defect tests → regression tests; each change documented | [Deliberate test changes](#deliberate-test-changes); E2, E18 | Done — Observed |
-| 31 | Brief: the race against real PostgreSQL 16 through concurrent psql sessions; what was / was not observed labelled | E4–E7, E9–E16; [What was and was not observed](#what-was-and-was-not-observed) | Done — Observed (psycopg/Docker: to do, E22) |
-| 32 | Brief: other tests green, boundary checks passing | E17 (479 passed, 6 contracts kept, mypy clean, P05–P09 document checks) | Done — Observed |
-| 33 | Brief: README (requirement → file, substitutions), worksheet, diagrams (mmdc render-checked), evidence, reflection; root README row | this file, Worksheet.md, diagrams/ + E20, evidence/, reflections/, root README | Done |
-| 34 | Brief: stop every server started | the scripts stop uvicorn, redis-server and the PostgreSQL cluster in `finally` blocks; `pgrep` after the runs found none ([f-cleanup](evidence/logs/f-cleanup.txt)) | Done — Observed |
+| 23 | Interleaving with the exact bad interleaving(s) traced step by step | interleaving.md (race and id race), [race-double-booking](diagrams/race-double-booking.svg), [id-allocation](diagrams/id-allocation.svg) | Done — Observed |
+| 24 | Protection implemented for BOTH SQLite and PostgreSQL | db/sqlite/init.sql (triggers), db/postgres/init.sql (EXCLUDE), the SQL store for both dialects | Done — Observed |
+| 25 | Why an in-process lock alone is not enough across processes | interleaving.md, ADR-003, E8 (0 of 20 vs 20 of 20) | Done — Observed |
+| 26 | Safe id allocation, no duplicate-id 500 | `next_reservation_id`; E5; regression `test_a_booking_made_while_another_is_uncommitted_…` | Done — Observed |
+| 27 | Race tool run for real before and after, many repetitions | E3, E4, E14–E16 (20 rounds + 100/300 pairs, 12 configurations) | Done — Observed |
+| 28 | Conflicts → correct HTTP status in the API and OpenAPI, contract test both ways | 409 (+ deadlock retry so no 500); openapi 1.2.0 `lostTheRace`; E19 | Done — Observed |
+| 29 | ADR-003 in own words with real numbers | adr-003 | Done |
+| 30 | Known-defect tests → regression tests; each change documented | [Deliberate test changes](#deliberate-test-changes); E2, E18 | Done — Observed |
+| 31 | The race against real PostgreSQL 16 through concurrent psql sessions; what was / was not observed labelled | E4–E7, E9–E16; [What was and was not observed](#what-was-and-was-not-observed) | Done — Observed (psycopg/Docker: to do, E22) |
+| 32 | Other tests green, boundary checks passing | E17 (479 passed, 6 contracts kept, mypy clean, P05–P09 document checks) | Done — Observed |
+| 33 | README (requirement → file, substitutions), worksheet, diagrams (mmdc render-checked), evidence, reflection; root README row | this file, Worksheet.md, diagrams/ + E20, evidence/, reflections/, root README | Done |
+| 34 | Stop every server started | the scripts stop uvicorn, redis-server and the PostgreSQL cluster in `finally` blocks; `pgrep` after the runs found none ([f-cleanup](evidence/logs/f-cleanup.txt)) | Done — Observed |
 
 ## Self-check before submission
 

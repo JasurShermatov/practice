@@ -21,14 +21,14 @@ that survives a restart.
 | 1 · Capacity estimate | Assumptions (explicit, with reasons), workload model, results with the calculation, checked by hand, design consequences, what P08 measures; the estimate as a program; doc ↔ program test | [docs/capacity.md](../../hotel-booking/docs/capacity.md), [capacity.py](../../hotel-booking/capacity.py), [tests/test_capacity.py](../../hotel-booking/tests/test_capacity.py) |
 | 2 · PostgreSQL in Docker | Compose file (postgres:18, hotel/hotel/hotel, 5432, init script, volume); portable schema (two tables, one per module, no FK, rules + partial index, R7/R8) | [docker-compose.yml](../../hotel-booking/docker-compose.yml), [db/postgres/init.sql](../../hotel-booking/db/postgres/init.sql) |
 | 3 · API contract | OpenAPI 3.1: three operations (+ `GET /openapi.yaml`), answers, five operation error titles, examples; API decisions | [docs/openapi.yaml](../../hotel-booking/docs/openapi.yaml), [design-notes § API decisions](../../hotel-booking/docs/design-notes.md#api-decisions), [API-design.md](API-design.md) |
-| 3 · contract == implementation (task brief) | Test: every route/status/title in the code is in the contract and vice versa; every example is the real answer; schemas validate | [tests/test_openapi_contract.py](../../hotel-booking/tests/test_openapi_contract.py); mutations: [evidence/break_the_contract.py](evidence/break_the_contract.py) |
+| 3 · contract == implementation (own standard) | Test: every route/status/title in the code is in the contract and vice versa; every example is the real answer; schemas validate | [tests/test_openapi_contract.py](../../hotel-booking/tests/test_openapi_contract.py); mutations: [evidence/break_the_contract.py](evidence/break_the_contract.py) |
 | 4 · Console → web app | Dependencies; Api file outside the modules serving the contract; `main.py` starts the web app, `--demo`, `--race` | [requirements.txt](../../hotel-booking/requirements.txt), [pyproject.toml](../../hotel-booking/pyproject.toml), [hotel_booking/api.py](../../hotel-booking/hotel_booking/api.py), [main.py](../../hotel-booking/main.py) |
 | 5 · The three endpoints | Read → check → call once → answer; problem details; `to_http`; cursor paging; request bodies for curl | [hotel_booking/api.py](../../hotel-booking/hotel_booking/api.py), [docs/requests/](../../hotel-booking/docs/requests/) |
 | 6 · API tests | The four tests (12 with the 8 booking tests); every error path; idempotency; `## API tests` | [test_api.py](../../hotel-booking/test_api.py), [tests/test_api_http.py](../../hotel-booking/tests/test_api_http.py), [design-notes § API tests](../../hotel-booking/docs/design-notes.md#api-tests) |
 | 7 · Database stores | `SqlRoomCatalog`, `SqlReservationStore` (identity map, `save_changes`, autoflush) in the modules' internal code; one store suite for both stores | [rooms/internal.py](../../hotel-booking/hotel_booking/rooms/internal.py), [reservations/internal.py](../../hotel-booking/hotel_booking/reservations/internal.py), [tests/test_sql_store.py](../../hotel-booking/tests/test_sql_store.py) |
 | 8 · Plug it in and prove it | Unit of work in the wiring; api-check (7 requests + restart + table + 11 more); run against uvicorn + curl; same SQL on PostgreSQL 16 | [main.py](../../hotel-booking/main.py), [docs/api-check.md](../../hotel-booking/docs/api-check.md), [tests/test_api_sqlite.py](../../hotel-booking/tests/test_api_sqlite.py), [evidence/api_check.py](evidence/api_check.py), [evidence/postgres_sql_check.py](evidence/postgres_sql_check.py) |
 | 10 · Check and hand over | Everything run once more; `## After`; checklist | [design-notes § After](../../hotel-booking/docs/design-notes.md#after-1), [Worksheet § Step 10](Worksheet.md#step-10--check-your-project-and-see-what-comes-next), checklist below |
-| Module boundaries (task brief) | Two new border contracts for the API edge; ast checker + self-tests; class rule allows the edge's pydantic shapes only | [.importlinter](../../hotel-booking/.importlinter), [tests/test_architecture.py](../../hotel-booking/tests/test_architecture.py) |
+| Module boundaries (own standard) | Two new border contracts for the API edge; ast checker + self-tests; class rule allows the edge's pydantic shapes only | [.importlinter](../../hotel-booking/.importlinter), [tests/test_architecture.py](../../hotel-booking/tests/test_architecture.py) |
 | Diagrams (Mermaid, render-checked) | As-built module dependencies (checked against the real imports), class diagram (UML-conformance target), cancel sequence, booking request flow, deployment | [diagrams/](diagrams/) |
 | Evidence | Index with labels, observed runs, logs | [evidence/Index.md](evidence/Index.md), [evidence/observed-runs.md](evidence/observed-runs.md), [evidence/logs/](evidence/logs/) |
 | Document checks | Diagrams, design-notes sections, folder, api-check ↔ log, compose, contract, capacity, links | [checks/test_p07_docs.py](checks/test_p07_docs.py) |
@@ -55,8 +55,9 @@ python3 -m pytest -p no:cacheprovider practices/*/checks                        
 
 On the Mac, for PostgreSQL: `cd hotel-booking && docker compose up -d && pip install "psycopg[binary]"
 && python main.py --db postgres`, then the requests of `docs/api-check.md` (tick the PostgreSQL column).
-Re-render a diagram: `mmdc -p diagrams/puppeteer-config.json -i diagrams/X.mmd -o diagrams/X.svg`
+Re-render a diagram: `mmdc -p diagrams/puppeteer-config.linux-build.json -i diagrams/X.mmd -o diagrams/X.svg`
 (the config points at the container's Chromium with `--no-sandbox`; on a Mac plain `mmdc -i … -o …`).
+On macOS `mmdc` works without this file: `mmdc -i diagrams/X.mmd -o diagrams/X.svg` (`diagrams/puppeteer-config.linux-build.json` only points the Linux build environment at its headless Chromium).
 
 ## What changed in the code (version 3 → 4)
 
@@ -91,7 +92,7 @@ booking tests and the P09 race pins did not change.
 |---|---|---|---|
 | FastAPI (+ its TestClient) | **Starlette** routes + **pydantic** models; `starlette.testclient.TestClient` | FastAPI is not installed and PyPI is unreachable here (E17); FastAPI is built on Starlette, so routing, requests, responses and the test client are the same machinery. The contract is hand-written in both cases (the course disables FastAPI's generated one) | `test_api.py` (the four tests), `tests/test_api_http.py`, `tests/test_openapi_contract.py` |
 | SQLAlchemy ORM + psycopg, `PostgresReservationStore` / `PostgresRoomCatalog` | **`SqlReservationStore` / `SqlRoomCatalog`** on plain DB-API 2: `sqlite3` (default, tests) or `psycopg` (`--db postgres`); hand-written portable SQL; identity map + `save_changes` = the course's unit of work | Neither library is installable here. The name says what it is: one store for both databases. The same promise (5 methods) and the same `save_changes` as the reference | `tests/test_sql_store.py` (shared suite with the list store), `tests/test_api_sqlite.py`, E9 |
-| `db/init.sql` | **`db/postgres/init.sql`**, which SQLite runs too | Task brief; one schema for both databases cannot drift | `test_sqlite_runs_the_file_docker_compose_mounts_into_postgresql`; E6 |
+| `db/init.sql` | **`db/postgres/init.sql`**, which SQLite runs too | Own standard; one schema for both databases cannot drift | `test_sqlite_runs_the_file_docker_compose_mounts_into_postgresql`; E6 |
 | `docker compose up -d`, psql inside the container | `docker compose config` (validation) + a local **PostgreSQL 16.15** server with `psql` | No Docker daemon here (E17). PostgreSQL 16 vs the compose file's 18: the SQL used is standard and unchanged since well before 16 | E5, E6, E9; the Docker run: **to do by the student** (E16) |
 | API check against PostgreSQL with `curl.exe` | Against SQLite with `curl`, executed by `api_check.py` from the document itself; PostgreSQL column left unticked | No driver/daemon here; macOS uses `curl` | E10; PostgreSQL: **to do by the student** |
 | `python -m unittest` → 12 tests, then `lint-imports` → "Contracts: 3 kept" | 12 unittest tests (same four API tests) **and** 5 contracts (the 3 + 2 for the API edge) checked by the stdlib ast test; full suite 335 | import-linter not installable (E17); the API edge deserves its own borders | `tests/test_architecture.py`; `lint-imports` on the Mac: to do |
@@ -103,8 +104,8 @@ booking tests and the P09 race pins did not change.
 
 Sources: P07 Activity sheet (= Student explanation = Student notes = Presentation notes; compared
 with `diff`, identical apart from the title block), catalog entry, L04 activity sheet (T10 estimate,
-T11 API rules, idempotency, exit check), the Python reference (structure and interfaces) and the
-task brief.
+T11 API rules, idempotency, exit check), the Python reference (structure and interfaces) and my
+own portfolio conventions.
 
 | # | Requirement (source) | Where it is satisfied | Status |
 |---|---|---|---|
@@ -112,7 +113,7 @@ task brief.
 | 2 | Docker Desktop running (Start, Step 2) | — | **To do by the student** (no daemon here) |
 | 3 | Step 1: `docs/capacity.md` — heading + line, five assumptions, five results worked out, "To measure later" with the two P08 lines | capacity.md; `test_capacity.py`; `test_capacity_has_the_course_checklist_parts` | Done — Observed (numbers Simulated by nature) |
 | 4 | Step 1: peak agrees with l04-notes (3.33/s, 200/min) | `test_the_peak_agrees_with_the_l04_notes` | Done — Observed |
-| 5 | Brief: explicit workload assumptions, arithmetic shown and checked | capacity.md (workload model, reasons, calculation column, *Checked by hand*); `capacity.py`; `test_the_arithmetic_with_exact_fractions`, row-by-row doc test; E4 | Done — Observed |
+| 5 | Explicit workload assumptions, arithmetic shown and checked | capacity.md (workload model, reasons, calculation column, *Checked by hand*); `capacity.py`; `test_the_arithmetic_with_exact_fractions`, row-by-row doc test; E4 | Done — Observed |
 | 6 | Step 2: `docker-compose.yml` as the sheet (postgres:18, hotel, 5432, init.sql, volume) | docker-compose.yml; `test_docker_compose_is_the_sheets_service`; E5 | Done — Observed (config) |
 | 7 | Step 2: `db/init.sql` two tables, one per module, no FK, PK, CHECKs, R7/R8 | db/postgres/init.sql; `test_init_sql_has_the_two_tables_and_the_rules`; E6 | Done — Observed (PostgreSQL 16 + SQLite) |
 | 8 | Step 2: `docker compose up -d`, `ps`, psql shows R7/R8 | E6 shows R7/R8 on PostgreSQL 16 via psql | Partly — the Docker run is **to do by the student** |
@@ -120,35 +121,35 @@ task brief.
 | 10 | Step 3: `docs/openapi.yaml` — three operations, answers, five error titles, problem details, the three decisions | openapi.yaml; `test_contract_has_the_course_operations_and_titles` | Done — Observed |
 | 11 | Step 3: Swagger editor shows no errors | E7 (structural checks) | **To do by the student** (E18) |
 | 12 | Step 3: `## API decisions` in design-notes | design-notes | Done |
-| 13 | Brief: OpenAPI matches the implemented API exactly; test both directions | `tests/test_openapi_contract.py` (35 checks); E8 mutations 6/6 | Done — Observed |
-| 14 | Brief: API design — resources, methods, status codes, error format, idempotency | [API-design.md](API-design.md); `test_api_http.py` idempotency tests | Done — Observed |
+| 13 | OpenAPI matches the implemented API exactly; test both directions | `tests/test_openapi_contract.py` (35 checks); E8 mutations 6/6 | Done — Observed |
+| 14 | API design — resources, methods, status codes, error format, idempotency | [API-design.md](API-design.md); `test_api_http.py` idempotency tests | Done — Observed |
 | 15 | Step 4: framework installed, Api file outside the modules serving `/openapi.yaml`; no flag → web app; `--demo`/`--race` unchanged | api.py, main.py; `test_the_contract_is_served_from_the_file`, `test_main_without_a_flag_starts_the_web_app`, `test_main_demo_flag_runs_the_demo`; E10 §22 | Done — Observed |
-| 16 | Brief: Starlette + pydantic; dependencies listed | api.py; requirements.txt | Done |
+| 16 | Starlette + pydantic; dependencies listed | api.py; requirements.txt | Done |
 | 17 | Step 5: read → check → call once → answer; `to_http`; `limit`/`after` in text order; `docs/requests/` three bodies; curl checks incl. `limit=1` → `"next":"R7"` | api.py; `test_search_limit_1_gives_one_room_and_next`, `test_search_pages_follow_text_order_and_the_cursor`; `test_course_request_bodies_are_exactly_the_sheets`; E10 | Done — Observed |
 | 18 | Step 6: the four API tests; 15 green (Python: 12 tests + contracts) | test_api.py; E11 (12 OK; 5 contracts) | Done — Observed |
 | 19 | Step 6: 409 → 201 fails, then back | E11 | Done — Observed |
 | 20 | Step 6: `## API tests` with one line per test | design-notes; `test_design_notes_have_the_p07_sections` | Done |
-| 21 | Brief: API tests via TestClient covering success and **every** error path | `tests/test_api_http.py` (92), contract probes (every documented answer) | Done — Observed |
+| 21 | API tests via TestClient covering success and **every** error path | `tests/test_api_http.py` (92), contract probes (every documented answer) | Done — Observed |
 | 22 | Step 7: catalog and store over the init.sql tables, in Rooms'/Reservations' internal code; rule unchanged | internal.py ×2; booking.py unchanged; `test_booking_service_gives_the_same_records_on_both_stores` | Done — Observed |
-| 23 | Brief: persistence adapter behind the existing `ReservationStore` contract (sqlite3) | `SqlReservationStore`; shared store suite; UML: `implements` checked | Done — Observed |
+| 23 | Persistence adapter behind the existing `ReservationStore` contract (sqlite3) | `SqlReservationStore`; shared store suite; UML: `implements` checked | Done — Observed |
 | 24 | Step 7: checks still green; only the wiring names the stores | `test_only_main_creates_concrete_classes_of_the_modules`, `test_the_api_names_no_concrete_helper`, contracts | Done — Observed |
 | 25 | Step 7: find each numbered arrow of the cancel diagram in the code | [cancel-sequence](diagrams/cancel-sequence.svg); Worksheet § Step 7 item 6; `test_cancel_sequence_follows_the_code` | Done |
 | 26 | Step 8: wiring picks the database stores; unit of work saves at the end (rolls back on error) | main.py; `test_a_request_that_fails_half_way_leaves_nothing_behind` | Done — Observed |
 | 27 | Step 8: `docs/api-check.md`; seven ✓; restart check; table R101 Cancelled / R102 Confirmed | api-check.md; E10 (SQLite, 21/21 + restart); `test_api_check_seven_requests_then_the_restart`; `test_api_check_ticks_are_backed_by_the_observed_run` | Done on SQLite — Observed; **PostgreSQL column to do by the student** (E16) |
-| 28 | Brief: real run of the API with uvicorn + curl, real outputs | E10 log incl. uvicorn's access log | Done — Observed |
-| 29 | Brief: `db/postgres/init.sql` + `docker-compose.yml` for the Mac; PostgreSQL-specific statements documented | both files; init.sql header (none PostgreSQL-only in P07; date/text note) | Done |
-| 30 | Brief: respect module boundaries; update `.importlinter` and the ast test for the API layer; API uses public contracts only | 2 new contracts; checker self-tests for each; E13 "5 kept" | Done — Observed |
-| 31 | Brief/§10: keep earlier tests green, update deliberately with notes | Notes in each changed test module; table above; b1 log | Done — Observed |
-| 32 | §10 / brief: race still double-books; keep the P09 defect pinned | `test_race_double_books_r7_known_defect` (unchanged) + two HTTP/SQLite race pins, 20/20 (E14) | Done — Observed |
+| 28 | Real run of the API with uvicorn + curl, real outputs | E10 log incl. uvicorn's access log | Done — Observed |
+| 29 | `db/postgres/init.sql` + `docker-compose.yml` for the Mac; PostgreSQL-specific statements documented | both files; init.sql header (none PostgreSQL-only in P07; date/text note) | Done |
+| 30 | Respect module boundaries; update `.importlinter` and the ast test for the API layer; API uses public contracts only | 2 new contracts; checker self-tests for each; E13 "5 kept" | Done — Observed |
+| 31 | §10: keep earlier tests green, update deliberately with notes | Notes in each changed test module; table above; b1 log | Done — Observed |
+| 32 | §10: race still double-books; keep the P09 defect pinned | `test_race_double_books_r7_known_defect` (unchanged) + two HTTP/SQLite race pins, 20/20 (E14) | Done — Observed |
 | 33 | §10: run everything; `## After` (checks, seven answers, restart) | E15; design-notes § After | Done — Observed |
 | 34 | §10: P07 checklist (capacity, compose/init, openapi, Api file, checks, stores, api-check, design-notes) | this table; `checks/test_p07_docs.py` | Done (Docker items: student) |
-| 35 | Diagrams in Mermaid, render-checked with `mmdc` (brief) | [diagrams/](diagrams/); [logs/mmdc.txt](evidence/logs/mmdc.txt) (5 × exit 0) | Done — Observed |
-| 36 | Evidence labelled; reflection; worksheet answers (brief) | evidence/; reflection; Worksheet | Done |
-| 37 | P07 row in the portfolio README (brief) | [../../README.md](../../README.md); `test_portfolio_readme_has_a_p07_row` | Done |
+| 35 | Diagrams in Mermaid, render-checked with `mmdc` (own standard) | [diagrams/](diagrams/); [logs/mmdc.txt](evidence/logs/mmdc.txt) (5 × exit 0) | Done — Observed |
+| 36 | Evidence labelled; reflection; worksheet answers (own standard) | evidence/; reflection; Worksheet | Done |
+| 37 | P07 row in the portfolio README (own standard) | [../../README.md](../../README.md); `test_portfolio_readme_has_a_p07_row` | Done |
 | 38 | §10: `docker compose down` (keep the data for P08); copy the folder to the partner; pair work, swapping the typist | — | **To do by the student** |
 
 The sheet's "Where the hotel app goes next" (P08 cache, L05, P09 race fix) is a preview, not a P07
-task; the known limitations in the [project README](../../hotel-booking/README.md#known-limitations-of-version-4)
+task; the known limitations in the [project README](../../hotel-booking/README.md#known-limitations-of-version-7)
 point at those practices.
 
 ## Self-check before submission

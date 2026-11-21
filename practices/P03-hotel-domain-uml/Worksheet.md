@@ -10,7 +10,7 @@ it. Paths starting with `hotel-booking/` are in the growing codebase; the rest a
 | `hotel-booking/` with `docs/` | [hotel-booking/](../../hotel-booking/) with [docs/](../../hotel-booking/docs/) |
 | `docs/requirements.md`, `docs/design-notes.md` | [requirements.md](../../hotel-booking/docs/requirements.md), [design-notes.md](../../hotel-booking/docs/design-notes.md) |
 | `docs/diagrams.drawio` | Replaced by Mermaid sources [uml/](uml/) — see README "Substitutions" |
-| Language version printed | `Python 3.13.18` in the build container (course needs ≥ 3.10; the project targets ≥ 3.12). On the Mac: `python3 --version` — **to do by the student**. |
+| Language version printed | `Python 3.13.18` in the build environment (course needs ≥ 3.10; the project targets ≥ 3.12). On the Mac: `python3 --version` — **to do by the student**. |
 
 ## Step 1 · Why design before code
 
@@ -34,7 +34,7 @@ Own R8 examples (R8 already booked 20–22 Nov):
 | Omar R8 21–23 | Unavailable | night of the 21st is shared |
 
 Both are automated in `test_r3_own_examples_for_r8_booked_20_to_22`. Step 2.6 (partner guesses
-the results without seeing them) is pair work — **to do in class**.
+the results without seeing them) is pair work — **to do by the student**.
 
 ## Step 3 · Use case diagram
 

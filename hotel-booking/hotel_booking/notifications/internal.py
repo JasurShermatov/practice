@@ -90,14 +90,20 @@ class EmailNotificationSender:
 
 
 class SmsNotificationSender:
-    """Simulated SMS (P04 Step 7); same promise as the email sender, so the wiring can pick either."""
+    """Simulated SMS (P04 Step 7); same promise as the email sender, so the wiring can pick either.
+
+    Like the email sender, it is safe to call from several worker threads at once: ``sent`` is
+    guarded by a lock.
+    """
 
     def __init__(self) -> None:
         self.sent = 0
+        self._lock = threading.Lock()
 
     def send_confirmation(self, confirmation: Confirmation) -> None:
         """'Send' the confirmation text message for ``confirmation.reservation_id``."""
-        self.sent += 1
+        with self._lock:
+            self.sent += 1
 
 
 @dataclass(frozen=True)

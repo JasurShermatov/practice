@@ -2,7 +2,7 @@
 
     python3 -I practices/P07-capacity-api-design/evidence/postgres_sql_check.py hotel-booking <psql connection args...>
 
-Why: the build container has a PostgreSQL server and psql but no Python driver (psycopg cannot be
+Why: the build environment has a PostgreSQL server and psql but no Python driver (psycopg cannot be
 installed), so the Python path ``main.py --db postgres`` cannot run here. This script checks the
 part that can differ between SQLite and PostgreSQL - the SQL text - on the real server:
 

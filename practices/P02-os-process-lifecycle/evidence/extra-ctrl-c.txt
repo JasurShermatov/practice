@@ -11,10 +11,10 @@ CHILD: platform=Linux Python=3.13.18
 CHILD: CPU phase for 0.75 seconds...
 CHILD: CPU phase complete (8575453 loop iterations).
 CHILD: press Enter to continue and write synthetic lab output: ^CTraceback (most recent call last):
-  File "/mnt/attach/outputs/advanced-programming/practices/P02-os-process-lifecycle/lab/starter/child.py", line 56, in <module>
+  File "<repo>/practices/P02-os-process-lifecycle/lab/starter/child.py", line 56, in <module>   [path shortened]
     raise SystemExit(main())
                      ~~~~^^
-  File "/mnt/attach/outputs/advanced-programming/practices/P02-os-process-lifecycle/lab/starter/child.py", line 35, in main
+  File "<repo>/practices/P02-os-process-lifecycle/lab/starter/child.py", line 35, in main
     input("CHILD: press Enter to continue and write synthetic lab output: ")
     ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 KeyboardInterrupt

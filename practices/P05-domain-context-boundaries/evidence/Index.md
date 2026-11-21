@@ -9,7 +9,7 @@
 | E5 | **Observed** | "Code: unchanged" | SHA-256 of `hotel-booking/` before and after P05's checks | Identical | Identical, 23 files ([O5](observed-runs.md#o5--p05-changed-nothing-in-hotel-booking)) | Linux container | Proves P05 did not change the project; it does not cover P04's own changes. |
 | E6 | **Simulated** | Contexts make change local | The four manager requests traced through the context map ([Implications § 7](../Implications-for-the-code.md#7-change-impact-check-simulated)) | Out of service and Deluxe price: Rooms only; SMS: Notifications only; deposit: Payments + one call | As expected on paper | Thought experiment | Becomes Observed only when P06 has the modules and a later practice makes the change. |
 | E7 | **Proposed** | Pair work and hand-over | Partner reads `contexts.md`, checks the owners and the map; folder copied to the partner's laptop | Partner agrees or a change is recorded | Not done — **to do by the student** | Classroom | — |
-| E8 | **Proposed** | Same results on the student's Mac | `python3 -m pytest` in `hotel-booking/` and in `checks/` | Same as E1, E3 | Not run — **to do by the student** | macOS, Python ≥ 3.12 | — |
+| E8 | **Proposed** | Same results on my Mac | `python3 -m pytest` in `hotel-booking/` and in `checks/` | Same as E1, E3 | Not run — **to do by the student** | macOS, Python ≥ 3.12 | — |
 | E9 | **Proposed** | S1, S2, S4, S6 targets | Measured in P08/P09/P21/P23/P24 | Targets in quality-scenarios.md | Not measured — no performance, security or energy claim is made in P05 | — | Targets are the course's; real prices (deposit examples) are **to agree** with the manager. |
 
 S3 and S5 are backed by P04's observed tests (`test_a_failed_confirmation_keeps_the_booking`,

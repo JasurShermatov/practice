@@ -79,7 +79,7 @@ def free_port() -> int:
 
 @pytest.fixture(scope="session")
 def redis_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[RedisServer]:
-    """Skipped where redis-server is not installed (the build container has Redis 7.0)."""
+    """Skipped where redis-server is not installed (the build environment has Redis 7.0)."""
     if shutil.which("redis-server") is None:
         pytest.skip("redis-server is not installed")
     server = RedisServer(free_port(), tmp_path_factory.mktemp("redis"))

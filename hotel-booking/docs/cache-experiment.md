@@ -172,3 +172,5 @@ python tools/measure.py 2026-12-31 2027-01-02
 
 Everything above at once, in a container: `python3 -I practices/P08-cache-scale-experiment/evidence/run_experiment.py hotel-booking`
 and `…/cache_behaviour.py hotel-booking` (they start their own redis-server).
+The script's CPU sampling reads `/proc` and is Linux-only; on macOS it skips that sampling (the CPU
+columns show "n/a") and measures everything else the same way.

@@ -6,7 +6,7 @@ Paths are relative to `hotel-booking/` unless they start with `practices/`. Evid
 
 ## Your turn · open your project
 
-1. *Docker Desktop running* — not possible in the build container (no Docker daemon). Instead a
+1. *Docker Desktop running* — not possible in the build environment (no Docker daemon). Instead a
    local `redis-server` 7.0.15 is started by the evidence scripts; PostgreSQL stays on SQLite here
    (P07 substitution). On the Mac: **to do by the student** (`docker compose up -d`).
 2. *Project open, two terminals* — terminal 1 runs `python main.py`, terminal 2 runs

@@ -97,8 +97,8 @@ every change is described in the docstring of the test module it touches and lis
 ## Step 6 · Add the three checks
 
 1. Install line `python -m pip install import-linter`: **not possible here** — PyPI is unreachable
-   ([f-importlinter-unavailable](evidence/logs/f-importlinter-unavailable.txt)). To do on the
-   student's Mac. Substitute (see README "Substitutions"): `tests/test_architecture.py`, standard
+   ([f-importlinter-unavailable](evidence/logs/f-importlinter-unavailable.txt)). To do on
+   my Mac. Substitute (see README "Substitutions"): `tests/test_architecture.py`, standard
    library only.
 2. The contracts are in [`hotel-booking/.importlinter`](../../hotel-booking/.importlinter) (INI
    format, the file `lint-imports` reads by default). `tests/test_architecture.py` parses that

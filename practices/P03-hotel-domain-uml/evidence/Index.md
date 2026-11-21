@@ -12,6 +12,6 @@
 | E8 | **Observed** | Diagrams render | `mmdc` on all 8 `uml/*.mmd` and on `Diagrams.md` | No parse errors; SVGs produced | 8 × OK ([O5](observed-runs.md#o5--diagram-render-check--mmdc--p-puppeteerjson--i-umlnamemmd--o-umlnamesvg)) | Mermaid CLI 11.16.0, headless Chromium | Rendering proves syntax, not that the drawing is good UML; the review in E10 does that. |
 | E9 | **Simulated** | R3 race explanation | Timeline table (Diagrams.md §6) | Both checks before either save | Reasoned timeline; agrees with E6 | Paper model | A model of one interleaving, not all of them. |
 | E10 | **Proposed** | Readability of "The race" section | Pair next door reads design-notes.md "The race" (Step 9.3) | They can retell what happened and between which two calls | Not done yet — **to do by the student** | Classroom | Recorded only after it happens. |
-| E11 | **Proposed** | Same results on the student's Mac | `python3 main.py`, `python3 main.py --race`, `python3 -m pytest` | Same as E1, E2, E6 | Not run yet — **to do by the student** | macOS, Python ≥ 3.12 | — |
+| E11 | **Proposed** | Same results on my Mac | `python3 main.py`, `python3 main.py --race`, `python3 -m pytest` | Same as E1, E2, E6 | Not run yet — **to do by the student** | macOS, Python ≥ 3.12 | — |
 
 No performance target applies to P03; none is claimed.

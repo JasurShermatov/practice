@@ -175,6 +175,6 @@ P05 traced four hotel requests through the context map (Simulated). With the mod
 |---|---|---|
 | `ReservationStore` in `reservations/__init__.py` or `store.py` | In `reservations/booking.py`, exported by `__init__.py` | The course's finished P06 folder has exactly `__init__`, `booking`, `domain`, `internal` |
 | `PaymentService` gains `deposit_for(stay_price)` (D1) | Not added | The course's P06 contract has `take_deposit` only, and nothing would call it before P17 (no unused API) |
-| `.importlinter` | As planned (3 contracts); the course reference puts them in `pyproject.toml` | Brief asks for `.importlinter`; one file only, so `lint-imports` and the test read the same rules |
+| `.importlinter` | As planned (3 contracts); the course reference puts them in `pyproject.toml` | Own standard: one `.importlinter` file only, so `lint-imports` and the test read the same rules |
 | `test_uml_conformance.py` re-pointed or retired | Re-pointed at the P06 diagram and extended with module checks | The diagram now also documents *where* each class lives |
 | Step 7 as described | As described, plus rules 2 and 3 on a throw-away copy | A check never seen failing proves nothing — for each rule |

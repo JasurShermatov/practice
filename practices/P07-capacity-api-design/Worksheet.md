@@ -7,7 +7,7 @@ index in [evidence/Index.md](evidence/Index.md). Environment: Linux container, P
 
 ## Your turn · open your project
 
-1. *Docker Desktop "Engine running".* **To do by the student** on the Mac. The build container has
+1. *Docker Desktop "Engine running".* **To do by the student** on the Mac. The build environment has
    the Docker client and Compose v5.7.1 but no daemon ([docker-compose-config](evidence/logs/docker-compose-config.txt)),
    so the PostgreSQL parts were checked differently (Step 2 and Step 8 below).
 2. Opened `hotel-booking/` (version 3, end of P06).
@@ -54,7 +54,7 @@ index in [evidence/Index.md](evidence/Index.md). Environment: Linux container, P
 
 1. [docker-compose.yml](../../hotel-booking/docker-compose.yml): the sheet's service (`postgres:18`,
    database/user/password `hotel`, `5432:5432`, init script, `hotel-data` volume) plus a
-   `healthcheck`. The init script lives at `db/postgres/init.sql` (task brief) instead of `db/init.sql`.
+   `healthcheck`. The init script lives at `db/postgres/init.sql` (portfolio convention) instead of `db/init.sql`.
 2. [db/postgres/init.sql](../../hotel-booking/db/postgres/init.sql): the sheet's two tables, one per
    module, no foreign key, R7 and R8 — plus a partial index for the overlap question. The file is
    portable: the SQLite wiring runs the very same file.

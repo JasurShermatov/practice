@@ -74,9 +74,19 @@ def real_edges() -> set[tuple[str, str]]:
     return {(a, b) for a, b in found if a != b}
 
 
+# Imports that later practices added on purpose. The P08 diagram shows the code as built in P08;
+# each later edge is listed here, must really exist, and is drawn on that practice's own diagram.
+LATER_EDGES = {
+    ("api", "ntf_c"),  # P10: GET /stats reads NotificationCounts from the Notifications contract
+}
+
+
 def test_as_built_diagram_shows_exactly_the_real_imports() -> None:
+    """P10 change (deliberate): the P08 picture stays as built in P08; the edges added later are
+    named in LATER_EDGES, must exist in the code, and are drawn on the P10 as-built diagram."""
     drawn = {(left, right) for left, _, right in mermaid_edges(DIAGRAMS / "module-dependencies.mmd")}
-    assert drawn == real_edges()
+    assert LATER_EDGES <= real_edges()
+    assert drawn == real_edges() - LATER_EDGES
 
 
 def test_the_cache_reaches_no_module_on_the_diagram() -> None:

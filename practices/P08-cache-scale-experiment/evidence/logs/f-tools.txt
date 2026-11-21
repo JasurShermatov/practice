@@ -4,13 +4,13 @@ $ python3 -c 'import fakeredis'
 ModuleNotFoundError: No module named 'fakeredis'
 $ python3 -c 'import psycopg'
 ModuleNotFoundError: No module named 'psycopg'
-$ python3 -m pip download redis==8.1.0 -d /tmp/x --no-deps
+$ python3 -m pip download redis==8.1.0 -d [temp dir] --no-deps
 ERROR: Could not find a version that satisfies the requirement redis==8.1.0 (from versions: none)
 ERROR: No matching distribution found for redis==8.1.0
 $ which redis-server redis-cli curl mmdc
 /usr/bin/redis-server
 /usr/bin/redis-cli
 /usr/bin/curl
-/home/claude/.npm-global/bin/mmdc
+~/.npm-global/bin/mmdc [path shortened]
 $ redis-server --version
 Redis server v=7.0.15 sha=00000000:0 malloc=jemalloc-5.3.0 bits=64 build=d064f9f48c901a92

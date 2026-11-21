@@ -9,7 +9,7 @@ substitutions are listed in the [README](README.md#substitutions-honest-record).
 ## §1 · Open your project
 
 1. *Docker Desktop.* **To do by the student** on the Mac. There is no Docker daemon in the build
-   container, so a local PostgreSQL 16 cluster and a local redis-server stood in (E1).
+   environment, so a local PostgreSQL 16 cluster and a local redis-server stood in (E1).
 2. *Open the folder and three terminals.* Done. The two app instances, psql and the race tool are
    run by [race_experiment.py](evidence/race_experiment.py) and [postgres_repairs.py](evidence/postgres_repairs.py).
 3. *P08 checks green.* **Observed** ([b0-baseline](evidence/logs/b0-baseline.txt)): `python -m unittest`

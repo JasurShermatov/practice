@@ -63,7 +63,7 @@ python tools/race_http.py http://localhost:5081 --repeat 20   # Omar to the seco
 python capacity.py                  # the capacity estimate, line by line (docs/capacity.md)
 python -m unittest -v               # the course's 19 tests: 8 behaviour (test_booking_service.py) + 11 API/queue (test_api.py)
 lint-imports                        # the 7 borders in .importlinter (needs import-linter)
-python -m tests.test_architecture   # the same 6 borders, standard library only, lint-imports-style output
+python -m tests.test_architecture   # the same 7 borders, standard library only, lint-imports-style output
 python -m pytest                    # everything: unittest tests + the pytest suite in tests/
 python -m mypy                      # strict type check, incl. that every class keeps its protocol
 ```
@@ -302,7 +302,7 @@ measurements, ADR-004 the decision.
   transaction; the email is now handed over after the COMMIT, so a slow mail server no longer holds
   the lock (still true with `--no-queue`, which exists only for the "before" measurement).
 - **The PostgreSQL path ran through a stand-in driver:** psycopg cannot be installed in the build
-  container; the app's own SQL store ran against a real PostgreSQL 16 through a small stdlib protocol
+  environment; the app's own SQL store ran against a real PostgreSQL 16 through a small stdlib protocol
   client (`practices/P09-…/evidence/pg_wire.py`). With psycopg on the Mac: to do by the student.
 - **POST is not idempotent:** a retried booking answers 409 for the guest's own stay and the client
   never learns its id (pinned by `test_post_is_not_idempotent_…`; Idempotency-Key in P11).
@@ -315,8 +315,8 @@ measurements, ADR-004 the decision.
   Docker run on the Mac is to do (docs/cache-experiment.md, Limitations).
 - `cacheErrors` and the log are the only signal of a Redis outage (fail-open hides it from guests);
   no alerting yet.
-- The PostgreSQL path (`--db postgres`, psycopg) was not run in the build container (no driver,
-  no Docker daemon); its SQL was run on PostgreSQL 16 with psql. To run on the student's Mac.
+- The PostgreSQL path (`--db postgres`, psycopg) was not run in the build environment (no driver,
+  no Docker daemon); its SQL was run on PostgreSQL 16 with psql. To run on my Mac.
 - **Fixed in P10:** the confirmation was sent before the commit. It is now published only after a
   successful COMMIT; a rolled-back booking is never emailed (`test_a_booking_that_rolls_back_is_never_emailed`).
 - The experiment pause `slow_step_seconds` still sits inside `reserve()` (0 in normal use; `HOTEL_SLOW_STEP`).

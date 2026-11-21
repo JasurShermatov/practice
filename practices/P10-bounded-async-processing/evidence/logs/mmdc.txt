@@ -1,22 +1,22 @@
-# Mermaid CLI 11.16.0 with the container's headless Chromium (puppeteer-config.json: --no-sandbox)
-$ mmdc -p puppeteer-config.json -i booking-before.mmd -o booking-before.svg
+# Mermaid CLI 11.16.0 with the container's headless Chromium (puppeteer-config.linux-build.json: --no-sandbox)
+$ mmdc -p puppeteer-config.linux-build.json -i booking-before.mmd -o booking-before.svg
 Generating single mermaid chart
 exit 0
-$ mmdc -p puppeteer-config.json -i booking-with-queue.mmd -o booking-with-queue.svg
+$ mmdc -p puppeteer-config.linux-build.json -i booking-with-queue.mmd -o booking-with-queue.svg
 Generating single mermaid chart
 exit 0
-$ mmdc -p puppeteer-config.json -i class-diagram.mmd -o class-diagram.svg
+$ mmdc -p puppeteer-config.linux-build.json -i class-diagram.mmd -o class-diagram.svg
 Generating single mermaid chart
 exit 0
-$ mmdc -p puppeteer-config.json -i concurrency-shapes.mmd -o concurrency-shapes.svg
+$ mmdc -p puppeteer-config.linux-build.json -i concurrency-shapes.mmd -o concurrency-shapes.svg
 Generating single mermaid chart
 exit 0
-$ mmdc -p puppeteer-config.json -i delivery-states.mmd -o delivery-states.svg
+$ mmdc -p puppeteer-config.linux-build.json -i delivery-states.mmd -o delivery-states.svg
 Generating single mermaid chart
 exit 0
-$ mmdc -p puppeteer-config.json -i module-dependencies.mmd -o module-dependencies.svg
+$ mmdc -p puppeteer-config.linux-build.json -i module-dependencies.mmd -o module-dependencies.svg
 Generating single mermaid chart
 exit 0
-$ mmdc -p puppeteer-config.json -i shutdown.mmd -o shutdown.svg
+$ mmdc -p puppeteer-config.linux-build.json -i shutdown.mmd -o shutdown.svg
 Generating single mermaid chart
 exit 0

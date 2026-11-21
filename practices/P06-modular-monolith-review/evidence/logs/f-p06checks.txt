@@ -1,7 +1,7 @@
 $ python3 -m pytest -v -p no:cacheprovider practices/P06-modular-monolith-review/checks
 ============================= test session starts ==============================
 platform linux -- Python 3.13.18, pytest-9.1.1, pluggy-1.6.0 -- /usr/local/bin/python3
-rootdir: /mnt/attach/outputs/advanced-programming
+rootdir: <repo>   [path shortened]
 plugins: platformdirs-4.13.5, anyio-4.15.1
 collecting ... collected 23 items
 

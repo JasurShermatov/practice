@@ -53,8 +53,9 @@ python3 -I practices/P06-modular-monolith-review/evidence/break_the_border.py ho
 ```
 
 Re-render a diagram (inside a container the puppeteer config with `--no-sandbox` is needed):
-`mmdc -p diagrams/puppeteer-config.json -i diagrams/modules.mmd -o diagrams/modules.svg` (on a Mac,
+`mmdc -p diagrams/puppeteer-config.linux-build.json -i diagrams/modules.mmd -o diagrams/modules.svg` (on a Mac,
 plain `mmdc -i … -o …`; the config's `executablePath` is the container's Chromium).
+On macOS `mmdc` works without this file: `mmdc -i diagrams/X.mmd -o diagrams/X.svg` (`diagrams/puppeteer-config.linux-build.json` only points the Linux build environment at its headless Chromium).
 
 ## What changed in the code (version 2 → 3)
 
@@ -83,8 +84,8 @@ plain `mmdc -i … -o …`; the config's `executablePath` is the container's Chr
 
 | Course material uses | This portfolio uses | Why | Requirement still covered by |
 |---|---|---|---|
-| `pip install import-linter` + `lint-imports` | `.importlinter` (for `lint-imports` on the Mac) **and** `tests/test_architecture.py`: stdlib `configparser` reads that same file, `ast` builds the import graph (direct, relative and indirect imports), each contract is a parametrized test; `python -m tests.test_architecture` prints KEPT/BROKEN and "Contracts: N kept, M broken." like lint-imports | import-linter is not installed and PyPI is unreachable here (E13). One rules file, so the two checkers cannot drift. The checker is itself tested on small fake packages (each rule, relative and indirect imports). | `test_contract_is_kept[*]`, `test_checker_catches_*`; O5–O7. `lint-imports` itself: **to run on the student's Mac** |
-| Contracts in `pyproject.toml` `[tool.importlinter]` | `.importlinter` (INI) | Task brief asks for a `.importlinter` file; lint-imports reads it by default; keeping both would duplicate the rules | `pyproject.toml` comment points to it |
+| `pip install import-linter` + `lint-imports` | `.importlinter` (for `lint-imports` on the Mac) **and** `tests/test_architecture.py`: stdlib `configparser` reads that same file, `ast` builds the import graph (direct, relative and indirect imports), each contract is a parametrized test; `python -m tests.test_architecture` prints KEPT/BROKEN and "Contracts: N kept, M broken." like lint-imports | import-linter is not installed and PyPI is unreachable here (E13). One rules file, so the two checkers cannot drift. The checker is itself tested on small fake packages (each rule, relative and indirect imports). | `test_contract_is_kept[*]`, `test_checker_catches_*`; O5–O7. `lint-imports` itself: **to run on my Mac** |
+| Contracts in `pyproject.toml` `[tool.importlinter]` | `.importlinter` (INI) | Own standard: a separate `.importlinter` file; lint-imports reads it by default; keeping both would duplicate the rules | `pyproject.toml` comment points to it |
 | `python -m unittest` = 8 tests, then "Contracts: 3 kept" | Same 8 `unittest` tests; the 3 contracts run in pytest and via the CLI; the full suite is 118 | Portfolio rule: every behaviour gets an automated check | O8 |
 | draw.io page "Modules" in `docs/diagrams.drawio` | The page itself (hand-written XML, second page after "Context map") **plus** a Mermaid twin rendered with `mmdc` | Same convention as P03–P05; the `.drawio` could not be opened in the draw.io app here, so its shape is checked by parsing its XML | `test_modules_page_has_the_required_shape`, `test_mermaid_modules_page_matches_the_drawio_page` |
 | `main.py` holds the scenario and the wiring | `main.py` = wiring (`build_app`); the scenario stays in `hotel_booking/demo.py` (since P04), now using contracts only | Tests import the scenario; the extra architecture rule checks `demo.py` like a module | `test_no_module_imports_another_modules_internal_code` |
@@ -96,12 +97,12 @@ plain `mmdc -i … -o …`; the config's `executablePath` is the container's Chr
 
 Sources: Activity sheet (= Student explanation = Student notes = Presentation notes; compared with
 `diff`, identical apart from the title block), catalog entry, L03 activity sheet §3, §4 and §6 (the
-P06 preview, "How to check an ADR"), the P05 plan (Implications-for-the-code.md) and the task brief.
+P06 preview, "How to check an ADR"), the P05 plan (Implications-for-the-code.md) and my own portfolio conventions.
 
 | # | Requirement (source) | Where it is satisfied | Status |
 |---|---|---|---|
 | 1 | Open the project with `docs/contexts.md` beside the code; add `# P06 design notes` (Start) | P05 docs copied into `hotel-booking/docs/`; heading in design-notes.md | Done |
-| 2 | Copy P05's three docs into `hotel-booking/docs/`, fixing relative links (P05 README; brief) | [hotel-booking/docs/](../../hotel-booking/docs/); `test_copied_p05_docs_keep_their_content`, `test_every_relative_link_resolves` | Done — Observed |
+| 2 | Copy P05's three docs into `hotel-booking/docs/`, fixing relative links (P05 README) | [hotel-booking/docs/](../../hotel-booking/docs/); `test_copied_p05_docs_keep_their_content`, `test_every_relative_link_resolves` | Done — Observed |
 | 3 | Step 1: run the 8 tests, demo, race; `## Before` with three lines | design-notes § Before; O1 | Done — Observed |
 | 4 | Step 2: four module folders, `__init__.py` each; `## Modules` table; tests still 8 | packages; design-notes § Modules; O2 | Done — Observed (name clash found and handled) |
 | 5 | Step 3.0: replace `hotel_booking/__init__.py` with the docstring-only version; imports from the module packages | `hotel_booking/__init__.py`; `test_package_root_exports_nothing` | Done |
@@ -118,24 +119,24 @@ P06 preview, "How to check an ADR"), the P05 plan (Implications-for-the-code.md)
 | 16 | Step 6: the three rules as checks; `## Architecture rules` in plain words | `.importlinter`, `tests/test_architecture.py`; design-notes § Architecture rules; O5 | Done — Observed (stdlib substitute) |
 | 17 | Step 6: install import-linter and see "Contracts: 3 kept, 0 broken." from `lint-imports` | E13 (not installable here); E15 | **To do by the student** (Mac) — the stdlib checker prints the same three KEPT lines |
 | 18 | Step 7: add the forbidden line, predict, run, read the message (names BookingService's file and the sender), undo, green; `## Broken on purpose` | O6; design-notes § Broken on purpose | Done — Observed |
-| 19 | Brief: boundary test fails on a deliberate bad import, passes after removal | O6 (real file, same SHA-256 after undo), O7 (all three rules on a copy) | Done — Observed |
+| 19 | Boundary test fails on a deliberate bad import, passes after removal | O6 (real file, same SHA-256 after undo), O7 (all three rules on a copy) | Done — Observed |
 | 20 | Step 8.1: run everything at the end: 8 tests + 3 contracts, nine lines, race still double-books | O8 | Done — Observed |
 | 21 | Step 8.2: `## After`, compared with Before (must match) | design-notes § After | Done |
 | 22 | Step 8.3: `docs/adr-001-modular-monolith.md` (own words) | [ADR-001](../../hotel-booking/docs/adr-001-modular-monolith.md); `test_adr_001_has_status_and_the_five_sections` | Done |
 | 23 | Step 8.4: draw.io page "Modules": 5 boxes (Reservations green, internal sender purple dashed), 3 Uses, 1 Implements, red Forbidden | [diagrams.drawio](../../hotel-booking/docs/diagrams.drawio); Mermaid twin; `test_modules_page_has_the_required_shape` | Done — Observed (XML; app not opened) |
 | 24 | P06 checklist (code, checks, demo/race, design-notes sections, ADR, Modules page) | [Worksheet § checklist](Worksheet.md#your-p06-checklist); checks | Done |
 | 25 | Keep the P09 race defect pinned | `test_race_double_books_r7_known_defect`, `test_main_race_flag_still_double_books`; 20/20 | Done — Observed |
-| 26 | Keep all existing tests green; update deliberately with notes where module paths change (brief) | Notes in every touched test module docstring; table above | Done — Observed (118 passed) |
-| 27 | UML-conformance `CLASS_DIAGRAM` points at P06's class/module diagram (brief) | `tests/test_uml_conformance.py` → [diagrams/class-diagram.mmd](diagrams/class-diagram.mmd) | Done — Observed (29 checks) |
-| 28 | `.importlinter` contract file AND stdlib `ast` pytest failing on forbidden imports (brief) | both; O5–O7 | Done — Observed |
-| 29 | Mermaid diagrams render-checked with `mmdc` (brief) | [logs/mmdc.txt](evidence/logs/mmdc.txt) | Done — Observed |
+| 26 | Keep all existing tests green; update deliberately with notes where module paths change (own standard) | Notes in every touched test module docstring; table above | Done — Observed (118 passed) |
+| 27 | UML-conformance `CLASS_DIAGRAM` points at P06's class/module diagram (own standard) | `tests/test_uml_conformance.py` → [diagrams/class-diagram.mmd](diagrams/class-diagram.mmd) | Done — Observed (29 checks) |
+| 28 | `.importlinter` contract file AND stdlib `ast` pytest failing on forbidden imports (own standard) | both; O5–O7 | Done — Observed |
+| 29 | Mermaid diagrams render-checked with `mmdc` (own standard) | [logs/mmdc.txt](evidence/logs/mmdc.txt) | Done — Observed |
 | 30 | Architecture review answers (practice title; L03 "Contract or reach-in?", "Who stops the forbidden arrow?", "How to check an ADR") | [Architecture-review.md](Architecture-review.md) R3, R7, R8 | Done |
 | 31 | Behaviour unchanged (refactoring): only imports and the fake sender adapt in the 8 tests | Diff of the test class body: only the logger name line (O8, Worksheet); [cmp-v2-v3](evidence/logs/cmp-v2-v3.txt) | Done — Observed |
 | 32 | Follow the P05 plan; note differences | [Architecture-review § Differences](Architecture-review.md#differences-from-the-p05-plan) | Done |
 | 33 | Evidence labelled; reflection | [evidence/Index.md](evidence/Index.md); [reflection](reflections/Jasur-Shermatov.md) | Done |
 | 34 | P06 row in the portfolio README | [../../README.md](../../README.md) | Done |
 | 35 | Pair work on one laptop, swapping typist at every step; attendance | — | **To do by the student** (classroom) |
-| 36 | Same results on the student's Mac (incl. `lint-imports`, opening the draw.io page) | E15, E16 | **To do by the student** |
+| 36 | Same results on my Mac (incl. `lint-imports`, opening the draw.io page) | E15, E16 | **To do by the student** |
 
 The activity sheet's "Where the hotel app goes next" (L04, P07, P08) is a preview, not a P06
 task; ADR-001's "Revisit when" and the review's findings point at those practices.

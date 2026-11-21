@@ -183,6 +183,7 @@ classDiagram
     class SmsNotificationSender {
       <<internal>>
       +sent: int
+      -lock: threading.Lock
       +send_confirmation(confirmation: Confirmation) None
     }
     class QueuedNotificationSender {

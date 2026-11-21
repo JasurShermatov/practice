@@ -146,5 +146,5 @@ demo's nine lines and the race output are the accepted description of "behaviour
 
 Everything in sections 3 and 4 marked as checked by a test or a diff was **executed** here
 (evidence index E1–E13). The paper before-example in the [Worksheet](Worksheet.md#curriculum-plan-task-1--inspect-a-before-example)
-is **Simulated** (reasoned, not run). Running the same checks on the student's Mac and the
+is **Simulated** (reasoned, not run). Running the same checks on my Mac and the
 classroom hand-over are **Proposed** and listed as "to do by the student".

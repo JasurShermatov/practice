@@ -13,7 +13,9 @@ For every run, exactly the same procedure (so the rows can be compared):
 5. ``python tools/measure.py --json`` - the course's workload: 1,000 searches for 12-14 Nov, one
    after another over one keep-alive connection (``--clients 8`` in the concurrency scenario);
 6. CPU time of the app process and of redis-server, read from /proc before and after step 5
-   (the course's S6 talks about energy; CPU time is the closest thing a container can measure);
+   (the course's S6 talks about energy; CPU time is the closest thing a container can measure).
+   This CPU sampling reads /proc and is Linux-only: where /proc does not exist (macOS) it is
+   skipped, the CPU columns show "n/a" (null in the JSON) and everything else is measured the same;
 7. the app is stopped (SIGINT, like Ctrl+C).
 
 Configurations are interleaved round by round (off, redis, memory, off, redis, ...) so that a
@@ -59,8 +61,11 @@ def free_port() -> int:
         return int(probe.getsockname()[1])
 
 
+CPU_SAMPLING = Path("/proc/self/stat").exists()  # Linux only; on macOS the CPU columns are skipped
+
+
 def cpu_seconds(pid: int) -> float:
-    """utime + stime of a process, from /proc/<pid>/stat (fields 14 and 15)."""
+    """utime + stime of a process, from /proc/<pid>/stat (fields 14 and 15). Linux only."""
     fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
     return (int(fields[11]) + int(fields[12])) / CLOCK_TICKS
 
@@ -110,22 +115,29 @@ def one_run(project: Path, scenario: Scenario, cache: str, round_number: int, re
         subprocess.run([*tool, *WARM_UP_STAY, "--searches", "50"], cwd=project, check=True, capture_output=True)
         if cache == "redis":
             assert redis_cli(redis_port, "FLUSHALL") == "OK"
-        app_before, redis_before = cpu_seconds(app.pid), cpu_seconds(redis_pid)
+        if CPU_SAMPLING:
+            app_before, redis_before = cpu_seconds(app.pid), cpu_seconds(redis_pid)
         measured = subprocess.run([*tool, "--searches", str(searches), "--clients", str(scenario.clients)],
                                   cwd=project, check=True, capture_output=True, text=True)
-        app_cpu, redis_cpu = cpu_seconds(app.pid) - app_before, cpu_seconds(redis_pid) - redis_before
+        app_cpu: float | None = None
+        redis_cpu: float | None = None
+        if CPU_SAMPLING:
+            app_cpu = round(cpu_seconds(app.pid) - app_before, 3)
+            redis_cpu = round(cpu_seconds(redis_pid) - redis_before, 3)
     finally:
         app.send_signal(signal.SIGINT)
         app.wait(timeout=10)
     lines = measured.stdout.strip().splitlines()
     result: dict[str, object] = json.loads(lines[-1])
     result.update(scenario=scenario.name, cache=cache, round=round_number, rooms=scenario.rooms,
-                  app_cpu_s=round(app_cpu, 3), redis_cpu_s=round(redis_cpu, 3), report="\n".join(lines[:-1]))
+                  app_cpu_s=app_cpu, redis_cpu_s=redis_cpu, report="\n".join(lines[:-1]))
     return result
 
 
 def summary(results: list[dict[str, object]], scenarios: list[Scenario]) -> str:
     def med(values: list[float]) -> str:
+        if any(value is None for value in values):  # CPU not sampled (no /proc)
+            return "n/a"
         return f"{statistics.median(values):.2f} ({min(values):.2f}-{max(values):.2f})"
 
     rows = ["| Scenario | Cache | Runs | Database queries | Cache hits / misses | Average ms | p95 ms | p99 ms "
@@ -151,8 +163,9 @@ def environment() -> str:
     code = ("import starlette, pydantic, uvicorn, sqlite3; "
             "print(f'starlette {starlette.__version__}, pydantic {pydantic.VERSION}, uvicorn {uvicorn.__version__}, "
             "SQLite {sqlite3.sqlite_version}')")
-    cpu = next((line.split(":", 1)[1].strip() for line in Path("/proc/cpuinfo").read_text().splitlines()
-                if line.startswith("model name")), "unknown")
+    cpuinfo = Path("/proc/cpuinfo")
+    cpu = next((line.split(":", 1)[1].strip() for line in cpuinfo.read_text().splitlines()
+                if line.startswith("model name")), "unknown") if cpuinfo.exists() else platform.processor() or "unknown"
     return "\n".join([
         f"Date (UTC): {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())}",
         f"Machine: Linux container, kernel {platform.release()}, {os.cpu_count()} vCPU ({cpu}), "

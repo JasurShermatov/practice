@@ -98,7 +98,7 @@ compare column names. **Simulated / Proposed** = model or plan, nothing ran. mac
 - One container run is not my Mac: process names, VSZ/RSS accounting and the creation mechanism may differ on macOS.
 - Ready ↔ running transitions and the exact scheduling order are explained, not observed.
 - The runtime ADR is provisional and has no runtime evidence; this Python lab does not benchmark .NET or Java.
-- Pair roles, worksheet swap, quiz, simulator, and the signed-in submission can only be done by the student.
+- Pair roles, worksheet swap, quiz, simulator, and the signed-in submission can only be done by me in person.
 
 ## Requirements checklist
 
@@ -110,7 +110,7 @@ compare column names. **Simulated / Proposed** = model or plan, nothing ran. mac
 | 4 | Run parent, press Enter; visible result: child PID, exit 7, parent finishes normally (Step 4) | E1, Worksheet §1 Q3 | Done (Observed) |
 | 5 | Boundary trace: user mode, OS interface, kernel/filesystem, return; CPU, RAM, stored file; user-mode calculation; buffering ≠ durability; file vs process memory (Step 4, Task 1, worksheet §1) | Worksheet §1, [diagrams/boundary.mmd](diagrams/boundary.mmd), E2, E3 | Done |
 | 6 | Inspect the waiting child with the OS tool (Linux `ps -o pid,ppid,stat,%cpu,vsz,rss,nlwp,comm`, optional `/proc/<PID>/fd`) and record every table field (Step 5, worksheet §2) | Worksheet §2 table, E1 | Done (Observed, Linux) |
-| 7 | macOS commands (`ps -o pid,ppid,state,…`, `lsof -p`, Activity Monitor) | [macOS-rerun.md](macOS-rerun.md) | Prepared — **not yet observed** (student's Mac) |
+| 7 | macOS commands (`ps -o pid,ppid,state,…`, `lsof -p`, Activity Monitor) | [macOS-rerun.md](macOS-rerun.md) | Prepared — **not yet observed** (my Mac) |
 | 8 | Windows commands (`Get-Process`, `Get-CimInstance`, Task Manager) | Worksheet §2/§3 mark Windows as not run | Unavailable here — marked honestly |
 | 9 | Distinguish observed from inferred; don't equate a display label with a full state (worksheet §2) | Worksheet §2 sentence, §3 table "Evidence type" column | Done |
 | 10 | Finish the run, view `output/child-result.txt` (Step 6, worksheet §4) | Worksheet §4, [lab/output/child-result.txt](lab/output/child-result.txt), `evidence/*-child-result.txt` | Done (Observed) |
@@ -128,5 +128,5 @@ compare column names. **Simulated / Proposed** = model or plan, nothing ran. mac
 | 22 | Fill the eight online answer sections, check Saved, Submit to my teacher (Step 9) | Copy-ready text in [Worksheet.md Appendix A](Worksheet.md#appendix-a--online-worksheet-the-eight-answer-sections-copy-ready) | **To do by the student** |
 | 23 | Keep worksheet + synthetic output file locally (Step 9) | This folder | Done |
 | 24 | Evidence honesty: name system, mark unavailable tools, label every sample (Step 7 check, explanation §2) | Worksheet header + labels, [evidence/Index.md](evidence/Index.md) | Done |
-| 25 | Automated tests for the practised behaviour (portfolio brief) | [lab/tests/test_p02_lab.py](lab/tests/test_p02_lab.py) — 12 passed | Done (Observed) |
-| 26 | Reflection and limits (portfolio brief) | [reflections/Jasur-Shermatov.md](reflections/Jasur-Shermatov.md), Limits above | Done |
+| 25 | Automated tests for the practised behaviour (portfolio convention) | [lab/tests/test_p02_lab.py](lab/tests/test_p02_lab.py) — 12 passed | Done (Observed) |
+| 26 | Reflection and limits (portfolio convention) | [reflections/Jasur-Shermatov.md](reflections/Jasur-Shermatov.md), Limits above | Done |

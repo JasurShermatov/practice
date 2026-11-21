@@ -1,6 +1,6 @@
 """A throw-away PostgreSQL 16 cluster for the P09 evidence (the same approach as P07's E6/E9).
 
-The build container has the PostgreSQL 16 server binaries and psql, but no Docker daemon. This
+The build environment has the PostgreSQL 16 server binaries and psql, but no Docker daemon. This
 helper creates a cluster in a fresh temporary directory, owned by the ``postgres`` system user
 (PostgreSQL refuses to run as root, and that user cannot enter the session's scratch folder),
 listening on 127.0.0.1 only, with *trust* authentication for local test connections. It creates the

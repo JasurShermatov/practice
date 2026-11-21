@@ -127,7 +127,7 @@ def test_design_notes_have_the_p07_sections() -> None:
 
 
 def test_project_folder_matches_the_finished_p07_folder() -> None:
-    """The sheet's list; substitutions: db/init.sql -> db/postgres/init.sql (task brief)."""
+    """The sheet's list; substitutions: db/init.sql -> db/postgres/init.sql (portfolio convention)."""
     expected = [
         "db/postgres/init.sql",
         "docs/requests/maya-r7.json", "docs/requests/omar-r7.json", "docs/requests/omar-r8.json",

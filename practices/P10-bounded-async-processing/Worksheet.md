@@ -9,7 +9,7 @@ substitutions are listed in the [README](README.md#substitutions-honest-record).
 
 ## §1 · Open your project
 
-1. *Docker Desktop.* **To do by the student** on the Mac. The build container has the Docker CLI but
+1. *Docker Desktop.* **To do by the student** on the Mac. The build environment has the Docker CLI but
    no daemon ([f-tools](evidence/logs/f-tools.txt)).
 2. *Open the folder and two terminals.* Done. In the evidence, terminal 1 is a `python main.py`
    process and terminal 2 is `tools/burst.py` / `tools/race_http.py`, both started by

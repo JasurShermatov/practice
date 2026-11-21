@@ -191,7 +191,7 @@ def upgrade_sqlite(connection: sqlite3.Connection) -> None:
 def postgres_connector(port: int) -> Connect:  # pragma: no cover - needs psycopg and a running PostgreSQL
     """Connections to PostgreSQL from docker-compose.yml (user, password and database: hotel).
 
-    Proposed path for the student's Mac: psycopg cannot be installed in the build container, so this
+    Proposed path for my Mac: psycopg cannot be installed in the build environment, so this
     function is not run there (see the P07 README). The schema comes from docker-compose (init.sql).
     """
     import psycopg  # type: ignore[import-not-found,unused-ignore]  # optional: pip install "psycopg[binary]"

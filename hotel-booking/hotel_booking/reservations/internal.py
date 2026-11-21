@@ -7,7 +7,7 @@ Two stores keep the same ``ReservationStore`` promise:
 
 - ``InMemoryReservationStore`` - a list; the demo, the race and the API tests use it.
 - ``SqlReservationStore`` (P07) - the ``reservations`` table of ``db/postgres/init.sql`` over a
-  DB-API 2 connection: ``sqlite3`` by default, ``psycopg`` for PostgreSQL on the student's Mac.
+  DB-API 2 connection: ``sqlite3`` by default, ``psycopg`` for PostgreSQL on my Mac.
   The SQL text is identical for both; only the placeholder (``?`` / ``%s``) and the way a date is
   passed (ISO text / ``datetime.date``) differ, and both are decided in one place, ``_sql``/``_day``.
 

@@ -99,7 +99,7 @@ Line-by-line comparison of the demo: done with `diff`, no difference
 | 2 | `## R6 · Failed message` in `docs/requirements.md` | [requirements.md § R6](../../hotel-booking/docs/requirements.md#r6--failed-message): "If the confirmation cannot be sent, the booking stays saved and Accepted, and the failure is reported." |
 | 3 | R6 test added first — red | `FAILED (errors=1)`: `RuntimeError: The mail server is down.` escaped `reserve` (O6, 7.2a) |
 | 4 | Change `BookingResult` and `reserve` — 7 green | `notification_failed: bool = False`; `reserve` calls `_try_to_confirm`, which catches the error, logs a warning and returns False; answer stays `Accepted R101` — `Ran 7 tests … OK` (O6, 7.2b). The test also asserts the warning (`assertLogs`), i.e. that the failure is *reported* |
-| 5 | `SmsNotificationSender` + its test — 8 green | [notifications.py](../../hotel-booking/hotel_booking/notifications.py); `Ran 8 tests … OK` (O6, 7.3) |
+| 5 | `SmsNotificationSender` + its test — 8 green | `notifications.py` (moved in P06 to [notifications/internal.py](../../hotel-booking/hotel_booking/notifications/internal.py)); `Ran 8 tests … OK` (O6, 7.3) |
 | 6 | BookingService not edited for the SMS step | `sha256sum hotel_booking/booking.py` identical before and after the step (O6, 7.3) |
 
 ## Step 8 · Check and hand over your project

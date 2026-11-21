@@ -4,7 +4,7 @@
 **Environment:** Linux container (kernel 6.18), Python 3.13.18, pytest 9.1.1, mypy (strict),
 Mermaid CLI 11.16.0 with headless Chromium. **Run date:** 2026-11-21 (portfolio build).
 **Working directory:** `hotel-booking/` (diagrams: `practices/P03-hotel-domain-uml/uml/`).
-The student's own machine (macOS) has not been used for these runs; re-running there is listed in
+My own machine (macOS) has not been used for these runs; re-running there is listed in
 the README checklist.
 
 ## O1 · Demo — `python main.py`

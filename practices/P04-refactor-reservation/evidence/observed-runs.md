@@ -4,7 +4,7 @@
 [logs/](logs/)). Absolute paths are shortened to `<portfolio>/`.
 **Environment:** Linux container (kernel 6.18), Python 3.13.18, pytest 9.1.1, mypy 2.3.1 (strict),
 Mermaid CLI 11.16.0 with headless Chromium. **Run date:** 2026-11-21 (portfolio build).
-**Working directory:** `hotel-booking/` unless stated. The student's Mac has not been used for these
+**Working directory:** `hotel-booking/` unless stated. My Mac has not been used for these
 runs; re-running there is listed in the README checklist.
 
 The moves were done in the order of the activity sheet, and the checks were run **after each move**,

@@ -1,28 +1,28 @@
-# Mermaid CLI 11.16.0 with the container's headless Chromium (puppeteer-config.json: --no-sandbox)
-$ mmdc -p puppeteer-config.json -i class-diagram.mmd -o class-diagram.svg
+# Mermaid CLI 11.16.0 with the container's headless Chromium (puppeteer-config.linux-build.json: --no-sandbox)
+$ mmdc -p puppeteer-config.linux-build.json -i class-diagram.mmd -o class-diagram.svg
 Generating single mermaid chart
 exit 0
-$ mmdc -p puppeteer-config.json -i four-repairs.mmd -o four-repairs.svg
+$ mmdc -p puppeteer-config.linux-build.json -i four-repairs.mmd -o four-repairs.svg
 Generating single mermaid chart
 exit 0
-$ mmdc -p puppeteer-config.json -i guard-row-for-update.mmd -o guard-row-for-update.svg
+$ mmdc -p puppeteer-config.linux-build.json -i guard-row-for-update.mmd -o guard-row-for-update.svg
 Generating single mermaid chart
 exit 0
-$ mmdc -p puppeteer-config.json -i id-allocation.mmd -o id-allocation.svg
+$ mmdc -p puppeteer-config.linux-build.json -i id-allocation.mmd -o id-allocation.svg
 Generating single mermaid chart
 exit 0
-$ mmdc -p puppeteer-config.json -i in-process-lock-two-instances.mmd -o in-process-lock-two-instances.svg
+$ mmdc -p puppeteer-config.linux-build.json -i in-process-lock-two-instances.mmd -o in-process-lock-two-instances.svg
 Generating single mermaid chart
 exit 0
-$ mmdc -p puppeteer-config.json -i optimistic-version.mmd -o optimistic-version.svg
+$ mmdc -p puppeteer-config.linux-build.json -i optimistic-version.mmd -o optimistic-version.svg
 Generating single mermaid chart
 exit 0
-$ mmdc -p puppeteer-config.json -i race-double-booking.mmd -o race-double-booking.svg
+$ mmdc -p puppeteer-config.linux-build.json -i race-double-booking.mmd -o race-double-booking.svg
 Generating single mermaid chart
 exit 0
-$ mmdc -p puppeteer-config.json -i race-fixed-exclusion-constraint.mmd -o race-fixed-exclusion-constraint.svg
+$ mmdc -p puppeteer-config.linux-build.json -i race-fixed-exclusion-constraint.mmd -o race-fixed-exclusion-constraint.svg
 Generating single mermaid chart
 exit 0
-$ mmdc -p puppeteer-config.json -i race-fixed-sqlite-trigger.mmd -o race-fixed-sqlite-trigger.svg
+$ mmdc -p puppeteer-config.linux-build.json -i race-fixed-sqlite-trigger.mmd -o race-fixed-sqlite-trigger.svg
 Generating single mermaid chart
 exit 0

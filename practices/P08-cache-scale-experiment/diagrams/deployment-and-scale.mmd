@@ -2,7 +2,7 @@
 title: Where the cache runs - the laptop today, and what scaling out needs (P08)
 ---
 flowchart LR
-  subgraph mac["Student's Mac (docker compose up -d)"]
+  subgraph mac["My Mac (docker compose up -d)"]
     tool["tools/measure.py / curl<br/>terminal 2"]
     app["python main.py<br/>uvicorn :5080, one process<br/>(stateless: no booking in memory)"]
     subgraph docker["Docker Desktop"]

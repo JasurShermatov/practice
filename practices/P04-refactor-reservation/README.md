@@ -76,7 +76,7 @@ Re-render a diagram: `mmdc -i uml/classes-after.mmd -o uml/classes-after.svg`
 
 Sources: Activity sheet (= Student notes = Presentation notes; the three files are identical apart
 from the title), Student explanation (current curriculum plan), L02 sections 5 and 7 (the P04
-preview), and the task brief.
+preview), and my own portfolio conventions.
 
 | # | Requirement (source) | Where it is satisfied | Status |
 |---|---|---|---|
@@ -94,7 +94,7 @@ preview), and the task brief.
 | 12 | 5.6 tests use the new names; only the helper changes (Step 5) | Diff in [O3](evidence/observed-runs.md#o3--move-6--still-6-passing-and-no-test-body-changed) | Done — Observed |
 | 13 | Run the tests after **every** move; green each time (Step 5 "Your turn") | [O2](evidence/observed-runs.md#o2--steps-45--the-checks-after-every-move), E3 | Done — Observed |
 | 14 | Step 6: run tests, demo, race; compare demo line by line; `## Proof` with three lines | [design-notes.md § Proof](../../hotel-booking/docs/design-notes.md#proof); E5 | Done — Observed |
-| 15 | Race still double-books — refactoring does not fix bugs (Step 6; brief) | `test_race_double_books_r7_known_defect`, `test_main_race_flag_still_double_books`; E5 (20/20) | Done — kept on purpose until P09 |
+| 15 | Race still double-books — refactoring does not fix bugs (Step 6) | `test_race_double_books_r7_known_defect`, `test_main_race_flag_still_double_books`; E5 (20/20) | Done — kept on purpose until P09 |
 | 16 | 7.1 `FakeNotificationSender` + helper; sixth test checks R101, R102 (Step 7) | `test_booking_service.py` | Done — Observed |
 | 17 | 7.2 `## R6 · Failed message` in requirements.md (Step 7) | [requirements.md § R6](../../hotel-booking/docs/requirements.md#r6--failed-message) | Done |
 | 18 | 7.2 R6 test first (red), then change `BookingResult` and `reserve` (7 green) (Step 7) | E7 | Done — Observed |
@@ -111,10 +111,10 @@ preview), and the task brief.
 | 29 | Check: assumptions, a justified decision and its limitation; simulated vs executed distinguished (curriculum plan) | [Before-after.md § 5–7](Before-after.md#5-decision-record-how-to-express-the-two-promises); evidence labels | Done |
 | 30 | SOLID: all five letters shown in the hotel app (Step 3) | [Before-after.md § 3](Before-after.md#3-which-solid-principle-each-change-serves) | Done |
 | 31 | L02 exit-check answer 3 (OCP + DIP for SMS) now true in code | [l02-notes.md](../../hotel-booking/docs/l02-notes.md) (P04 update) | Done |
-| 32 | Evolve the same codebase; keep P03 tests green or update deliberately with a note (brief) | 52 P03 tests still pass; edits listed above and in each module docstring | Done — Observed |
-| 33 | UML conformance test points at the P04 class diagram (brief) | `CLASS_DIAGRAM` → [uml/class-diagram.mmd](uml/class-diagram.mmd) | Done — Observed |
-| 34 | UML render-checked with `mmdc` (brief) | E13, [logs/mmdc.txt](evidence/logs/mmdc.txt) | Done — Observed |
-| 35 | Same results on the student's Mac | E16 | **To do by the student** |
+| 32 | Evolve the same codebase; keep P03 tests green or update deliberately with a note (own standard) | 52 P03 tests still pass; edits listed above and in each module docstring | Done — Observed |
+| 33 | UML conformance test points at the P04 class diagram (own standard) | `CLASS_DIAGRAM` → [uml/class-diagram.mmd](uml/class-diagram.mmd) | Done — Observed |
+| 34 | UML render-checked with `mmdc` (own standard) | E13, [logs/mmdc.txt](evidence/logs/mmdc.txt) | Done — Observed |
+| 35 | Same results on my Mac | E16 | **To do by the student** |
 
 The explanation's "previous-syllabus reference" (threads, locks, lost updates) is marked by the course
 as *not the current lesson instructions* and is not part of P04 (the race is P09's topic).

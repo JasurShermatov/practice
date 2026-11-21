@@ -48,7 +48,7 @@ Re-render a diagram: `mmdc -i uml/class-diagram.mmd -o uml/class-diagram.svg`
 | Course material uses | This portfolio uses | Why | Requirement still covered by |
 |---|---|---|---|
 | draw.io file `docs/diagrams.drawio` with 5 pages | Mermaid sources `uml/*.mmd` + SVG, gathered in Diagrams.md | Text diagrams can be diffed, reviewed and render-checked automatically, and a test can compare the class diagram with the code. draw.io can import them (Arrange → Insert → Advanced → Mermaid) if the teacher wants the `.drawio` file. | Same five pages (Use cases, Classes, Sequence - book, Sequence - cancel, Activity - book), plus three extra views |
-| One file `hotel_booking.py` | Package `hotel_booking/` (5 small modules) + `main.py` | The brief for this portfolio asks for small cohesive modules; one module per class group keeps later practices' changes local. Classes, methods and behaviour are those of the class diagram; nothing from P04 (interfaces, renaming) is implemented. | `test_uml_conformance.py`, identical demo output |
+| One file `hotel_booking.py` | Package `hotel_booking/` (5 small modules) + `main.py` | Small cohesive modules are a portfolio convention; one module per class group keeps later practices' changes local. Classes, methods and behaviour are those of the class diagram; nothing from P04 (interfaces, renaming) is implemented. | `test_uml_conformance.py`, identical demo output |
 | No tests in P03 (tests start in P04 with `unittest`) | `pytest` tests from the start | Every behaviour the practice asks for gets an automated check (portfolio rule). P04 can still add its "lock the behaviour" tests. | `python -m pytest` |
 | `BookingResult("Accepted")` with a string | `BookingResult(BookingOutcome.ACCEPTED)` | A closed enumeration instead of free text; printing is unchanged (`Accepted R101`). | `test_demo_prints_the_nine_expected_lines` |
 
@@ -90,7 +90,7 @@ depends on.
 | 28 | Check: assumptions, a justified decision and its limitation; simulated vs executed distinguished (curriculum plan) | [Domain.md](Domain.md#assumptions); [evidence/Index.md](evidence/Index.md) labels | Done |
 | 29 | Entity vs value, encapsulated status, reservation states (L02 §8, §16) | `domain.py` (frozen `DateRange`, read-only `status`); [Diagrams.md §7](Diagrams.md#7-reservation-states); `test_domain.py` | Done |
 | 30 | L02 exit check: three answers in `docs/l02-notes.md` (L02 §8; folder layout for P03) | [l02-notes.md](../../hotel-booking/docs/l02-notes.md) | Done |
-| 31 | Code and UML match exactly (task brief) | `test_uml_conformance.py` (12 tests), `test_sequences.py` (5 tests) | Done — Observed |
+| 31 | Code and UML match exactly (own standard) | `test_uml_conformance.py` (12 tests), `test_sequences.py` (5 tests) | Done — Observed |
 | 32 | Pair work at one laptop, swapping typist each step; attendance (Activity §1) | — | **To do by the student** (classroom) |
 
 The explanation's "previous-syllabus reference" (locked queues/counters, throughput table) is

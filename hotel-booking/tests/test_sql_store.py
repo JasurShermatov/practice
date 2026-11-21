@@ -11,7 +11,7 @@
 4. The capacity model's assumption "a search asks the database once per room" (docs/capacity.md),
    counted on the real SQL with SQLite's trace hook.
 
-PostgreSQL itself is not reachable from these tests (no driver in the build container); the same
+PostgreSQL itself is not reachable from these tests (no driver in the build environment); the same
 SQL statements were run on a real PostgreSQL 16 server with psql - see the P07 evidence (E9).
 
 P09 changes (deliberate): (a) ``test_save_changes_writes_only_the_statuses_that_changed`` counts

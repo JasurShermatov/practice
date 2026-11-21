@@ -1,6 +1,6 @@
 """A minimal PostgreSQL client on the standard library - evidence tooling only, NOT part of the app.
 
-Why it exists: the build container has a real PostgreSQL 16 server but no Python driver (psycopg
+Why it exists: the build environment has a real PostgreSQL 16 server but no Python driver (psycopg
 cannot be installed: no PyPI). To run the *real* app code - ``main.build_api`` with the unchanged
 ``SqlReservationStore`` - against PostgreSQL, this file speaks just enough of PostgreSQL's
 frontend/backend protocol (version 3) to look like a DB-API 2 connection in psycopg's style:

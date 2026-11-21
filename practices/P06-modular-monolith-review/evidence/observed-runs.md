@@ -4,7 +4,7 @@
 [logs/](logs/)). Absolute paths are shortened to `<portfolio>/`.
 **Environment:** Linux container (kernel 6.18), Python 3.13.18, pytest 9.1.1, mypy (strict), Mermaid
 CLI 11.16.0 with headless Chromium. **Run date:** 2026-11-21 (portfolio build). **Working
-directory:** `hotel-booking/` unless stated. The student's Mac was not used; re-running there (and
+directory:** `hotel-booking/` unless stated. My Mac was not used; re-running there (and
 `lint-imports`) is in the README checklist.
 
 The moves followed the activity sheet's order and the checks ran **after every move**. "Before" is
@@ -223,7 +223,7 @@ only `main.py`.) The demo text still says "emails" because it is the demo's word
 
 ## O11 · Diagrams and document checks
 
-`mmdc` with `-p puppeteer-config.json` (Chromium at `/opt/pw-browsers/chromium-1243/…`,
+`mmdc` with `-p puppeteer-config.linux-build.json` (Chromium at `/opt/pw-browsers/chromium-1243/…`,
 `--no-sandbox`): `modules.mmd`, `module-dependencies.mmd`, `class-diagram.mmd` → exit 0 each
 ([mmdc](logs/mmdc.txt)).
 

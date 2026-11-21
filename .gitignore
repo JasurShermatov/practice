@@ -4,7 +4,8 @@
 __pycache__/
 *.pyc
 .venv/
-bin/
-obj/
-*.user
+.mypy_cache/
+.pytest_cache/
+hotel.sqlite3*
+*.sqlite3
 .env

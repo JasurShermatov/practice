@@ -28,11 +28,11 @@ bottleneck, and write the decision down as ADR-002.
 | 7 · Hot key and the next bottleneck | New Year measurement, KEYS before/after a booking and after the TTL; busy sale; section in own words | [cache-experiment.md § Hot key](../../hotel-booking/docs/cache-experiment.md#hot-key-and-the-next-bottleneck-step-7), [cache-behaviour § E, F](evidence/logs/cache-behaviour.txt), [bottleneck-moves](diagrams/bottleneck-moves.svg), [maya-newyear.json](../../hotel-booking/docs/requests/maya-newyear.json) |
 | 8 · ADR-002 | Context, decision, alternatives, consequences, revisit when — own words, own numbers; what happens when Redis stops | [adr-002-cache-availability.md](../../hotel-booking/docs/adr-002-cache-availability.md), [cache-behaviour § G](evidence/logs/cache-behaviour.txt) |
 | 10 · Check and hand over | Everything run once more; `## After` (three lines); checklist | [f-* logs](evidence/logs/), [design-notes § After](../../hotel-booking/docs/design-notes.md#after-2), checklist below |
-| Task brief: cache design | What is cached, key, TTL/invalidation, where it sits relative to the module borders | [ADR-002 § Decision](../../hotel-booking/docs/adr-002-cache-availability.md#decision), [module-dependencies](diagrams/module-dependencies.svg), [cache-classes](diagrams/cache-classes.svg), [.importlinter](../../hotel-booking/.importlinter) |
-| Task brief: real experiment | Workload stated, environment, repeated interleaved runs, real numbers, honest limitations; scale scenarios (40 rooms, 8 clients); CPU as S6 proxy | [cache-experiment.md](../../hotel-booking/docs/cache-experiment.md), [experiment-raw](evidence/logs/experiment-raw.txt), [experiment-results.json](evidence/logs/experiment-results.json) |
-| Task brief: correctness cost | Stale availability demonstrated by a test and for real; mitigation (invalidation after commit + TTL) tested | `test_stale_result_without_invalidation_known_trade_off`, `test_step5_…`, `test_step6_…`, `test_with_invalidation_…` |
-| Task brief: tests for hit/miss/expiry/invalidation | Unit, HTTP, real Redis, wiring, tool | [test_cache.py](../../hotel-booking/tests/test_cache.py), [test_api_cache.py](../../hotel-booking/tests/test_api_cache.py), [test_redis_store.py](../../hotel-booking/tests/test_redis_store.py), [test_cache_wiring.py](../../hotel-booking/tests/test_cache_wiring.py), [test_measure.py](../../hotel-booking/tests/test_measure.py) |
-| Task brief: OpenAPI kept equal both ways | `/stats`, `Stats`, `X-Cache`; contract test updated, new header direction | [openapi.yaml](../../hotel-booking/docs/openapi.yaml), [test_openapi_contract.py](../../hotel-booking/tests/test_openapi_contract.py) |
+| Cache design | What is cached, key, TTL/invalidation, where it sits relative to the module borders | [ADR-002 § Decision](../../hotel-booking/docs/adr-002-cache-availability.md#decision), [module-dependencies](diagrams/module-dependencies.svg), [cache-classes](diagrams/cache-classes.svg), [.importlinter](../../hotel-booking/.importlinter) |
+| Real experiment | Workload stated, environment, repeated interleaved runs, real numbers, honest limitations; scale scenarios (40 rooms, 8 clients); CPU as S6 proxy | [cache-experiment.md](../../hotel-booking/docs/cache-experiment.md), [experiment-raw](evidence/logs/experiment-raw.txt), [experiment-results.json](evidence/logs/experiment-results.json) |
+| Correctness cost | Stale availability demonstrated by a test and for real; mitigation (invalidation after commit + TTL) tested | `test_stale_result_without_invalidation_known_trade_off`, `test_step5_…`, `test_step6_…`, `test_with_invalidation_…` |
+| Tests for hit/miss/expiry/invalidation | Unit, HTTP, real Redis, wiring, tool | [test_cache.py](../../hotel-booking/tests/test_cache.py), [test_api_cache.py](../../hotel-booking/tests/test_api_cache.py), [test_redis_store.py](../../hotel-booking/tests/test_redis_store.py), [test_cache_wiring.py](../../hotel-booking/tests/test_cache_wiring.py), [test_measure.py](../../hotel-booking/tests/test_measure.py) |
+| OpenAPI kept equal both ways | `/stats`, `Stats`, `X-Cache`; contract test updated, new header direction | [openapi.yaml](../../hotel-booking/docs/openapi.yaml), [test_openapi_contract.py](../../hotel-booking/tests/test_openapi_contract.py) |
 | Diagrams (Mermaid, render-checked) | As-built imports (checked), cache classes (checked), search sequence, stale vs fresh, deployment + scale-out, bottleneck | [diagrams/](diagrams/), [mmdc log](evidence/logs/mmdc.txt) |
 | Evidence | Index with labels, observed runs, logs, scripts | [evidence/Index.md](evidence/Index.md), [observed-runs.md](evidence/observed-runs.md) |
 | Document checks | Diagrams = code, sections, folder, compose, contract, table = observed summary, logs, links | [checks/test_p08_docs.py](checks/test_p08_docs.py) |
@@ -62,7 +62,8 @@ python3 -m pytest -p no:cacheprovider practices/*/checks                        
 From P08 on, `python main.py` needs Redis (as in the course). The P07 script `api_check.py` therefore
 runs with `HOTEL_REDIS_PORT` pointing at a running Redis — done here: 21 of 21
 ([api-check-with-redis-cache](evidence/logs/api-check-with-redis-cache.txt)).
-Re-render a diagram: `mmdc -p diagrams/puppeteer-config.json -i diagrams/X.mmd -o diagrams/X.svg`.
+Re-render a diagram: `mmdc -p diagrams/puppeteer-config.linux-build.json -i diagrams/X.mmd -o diagrams/X.svg`.
+On macOS `mmdc` works without this file: `mmdc -i diagrams/X.mmd -o diagrams/X.svg` (`diagrams/puppeteer-config.linux-build.json` only points the Linux build environment at its headless Chromium).
 
 ## What changed in the code (version 4 → 5)
 
@@ -112,7 +113,7 @@ The 8 booking tests, the four P07 API tests and the P09 race pins did not change
 Sources: P08 Activity sheet (= Student explanation = Student notes = Presentation notes, compared
 with `diff`: identical apart from the title block), catalog entry (Saturday 7 Nov 2026, room 232),
 L04 (T12 stale-cache risk, scale up/out, stateless instances), the Python reference (structure and
-interfaces) and the task brief.
+interfaces) and my own portfolio conventions.
 
 | # | Requirement (source) | Where it is satisfied | Status |
 |---|---|---|---|
@@ -147,14 +148,14 @@ interfaces) and the task brief.
 | 29 | §10: P08 checklist (openapi, compose, Api folder, tool, checks, cache-experiment, ADR-002, design-notes) | this table; `checks/test_p08_docs.py` | Done (Docker items: student) |
 | 30 | §10: `## After` with three lines | design-notes; doc check | Done |
 | 31 | §10: `docker compose down` (without -v); copy the folder to the partner; pair work, swapping the typist | — | **To do by the student** |
-| 32 | Brief: cache design — what, key, TTL/invalidation, where relative to module boundaries | ADR-002 Decision 1–6; `.importlinter` cache contract; module-dependencies diagram (= real imports) | Done — Observed |
-| 33 | Brief: measurement tool + REAL experiment with and without cache, workload stated, environment, repeated runs, limitations | cache-experiment.md; run_experiment.py; E4–E6 | Done — Observed |
-| 34 | Brief: correctness cost demonstrated by a test, with the mitigation | E8/E9; stale tests (pinned) + invalidation tests; ordering tests | Done — Observed |
-| 35 | Brief: OpenAPI updated, contract test passing both directions | E14; new header direction check | Done — Observed |
-| 36 | Brief: tests for hit/miss/expiry/invalidation | 83 tests in five files (E13) + 2 course tests | Done — Observed |
-| 37 | Brief: earlier tests green; changes deliberate with notes; boundary checks pass; race pinned | b1 log; notes in each changed test module; 6 kept; E17 | Done — Observed |
-| 38 | Brief: diagrams in Mermaid, render-checked with mmdc | [diagrams/](diagrams/) (6), [mmdc log](evidence/logs/mmdc.txt) | Done — Observed |
-| 39 | Brief: evidence logs, worksheet answers, reflection; root README row | evidence/, Worksheet.md, reflection, `test_portfolio_readme_has_a_p08_row` | Done |
+| 32 | Cache design — what, key, TTL/invalidation, where relative to module boundaries | ADR-002 Decision 1–6; `.importlinter` cache contract; module-dependencies diagram (= real imports) | Done — Observed |
+| 33 | Measurement tool + REAL experiment with and without cache, workload stated, environment, repeated runs, limitations | cache-experiment.md; run_experiment.py; E4–E6 | Done — Observed |
+| 34 | Correctness cost demonstrated by a test, with the mitigation | E8/E9; stale tests (pinned) + invalidation tests; ordering tests | Done — Observed |
+| 35 | OpenAPI updated, contract test passing both directions | E14; new header direction check | Done — Observed |
+| 36 | Tests for hit/miss/expiry/invalidation | 83 tests in five files (E13) + 2 course tests | Done — Observed |
+| 37 | Earlier tests green; changes deliberate with notes; boundary checks pass; race pinned | b1 log; notes in each changed test module; 6 kept; E17 | Done — Observed |
+| 38 | Diagrams in Mermaid, render-checked with mmdc | [diagrams/](diagrams/) (6), [mmdc log](evidence/logs/mmdc.txt) | Done — Observed |
+| 39 | Evidence logs, worksheet answers, reflection; root README row | evidence/, Worksheet.md, reflection, `test_portfolio_readme_has_a_p08_row` | Done |
 | 40 | E20: the experiment on the Mac with PostgreSQL 18 + Redis 8 in Docker; Swagger editor check of 1.1.0; `lint-imports` | — | **To do by the student** |
 
 ## Self-check before submission

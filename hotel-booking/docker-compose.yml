@@ -1,4 +1,4 @@
-# The hotel booking app's database and cache (P07 PostgreSQL, P08 Redis), for the student's Mac.
+# The hotel booking app's database and cache (P07 PostgreSQL, P08 Redis), for my Mac.
 #   Start: docker compose up -d     Stop: docker compose down     Empty both: docker compose down -v
 # Then run the API on them:  python main.py --db postgres      (needs: pip install "psycopg[binary]")
 #   (python main.py alone keeps the reservations in SQLite and the search cache in this Redis)

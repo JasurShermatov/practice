@@ -2,7 +2,7 @@
 
 P07 adds ``SqlRoomCatalog``, which reads the ``rooms`` table of ``db/postgres/init.sql``. It takes
 any DB-API 2 connection: ``sqlite3`` (the default wiring and the tests) or ``psycopg`` (PostgreSQL
-from ``docker-compose.yml`` on the student's Mac). The SQL is the same for both.
+from ``docker-compose.yml`` on my Mac). The SQL is the same for both.
 """
 from __future__ import annotations
 

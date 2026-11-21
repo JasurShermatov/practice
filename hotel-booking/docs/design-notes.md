@@ -249,7 +249,7 @@ code in both directions by `tests/test_openapi_contract.py`.
   other error path, paging, 404/405 and the contract.
 - Restart check: Maya's R102 **survived** stopping and starting the app; the table holds R101
   Cancelled and R102 Confirmed. On PostgreSQL: the same SQL ran on a PostgreSQL 16 server through
-  `psql`; the full Docker + psycopg run is the student's Mac check.
+  `psql`; the full Docker + psycopg run is the check on my Mac.
 
 ## Decisions made while building
 

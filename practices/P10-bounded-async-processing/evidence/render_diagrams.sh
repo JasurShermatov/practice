@@ -4,10 +4,10 @@
 set -u
 cd "$(dirname "$0")/../diagrams"
 log=../evidence/logs/mmdc.txt
-echo "# Mermaid CLI $(mmdc --version) with the container's headless Chromium (puppeteer-config.json: --no-sandbox)" > "$log"
+echo "# Mermaid CLI $(mmdc --version) with the container's headless Chromium (puppeteer-config.linux-build.json: --no-sandbox)" > "$log"
 for source in *.mmd; do
-  echo "\$ mmdc -p puppeteer-config.json -i $source -o ${source%.mmd}.svg" >> "$log"
-  mmdc -p puppeteer-config.json -i "$source" -o "${source%.mmd}.svg" >> "$log" 2>&1
+  echo "\$ mmdc -p puppeteer-config.linux-build.json -i $source -o ${source%.mmd}.svg" >> "$log"
+  mmdc -p puppeteer-config.linux-build.json -i "$source" -o "${source%.mmd}.svg" >> "$log" 2>&1
   echo "exit $?" >> "$log"
 done
 cat "$log"

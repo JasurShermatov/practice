@@ -105,7 +105,7 @@ line by line) and the L03 parts P05 depends on (L03 activity sheet §2, §5 and 
 | 22 | Pair work on one laptop, swapping typist at every step; attendance | — | **To do by the student** (classroom) |
 | 23 | Files placed in `hotel-booking/docs/` (folder layout at the end of P05) | Copy command in this README | Done at the start of P06 (links adjusted; see [P06 Worksheet](../P06-modular-monolith-review/Worksheet.md#your-turn--open-your-project)) |
 | 24 | L03 exit check: three answers in `docs/l03-notes.md` (P05 starts from answer 1) | [docs/l03-notes.md](docs/l03-notes.md) | Done |
-| 25 | Each context will become a module, each rule owner a place in code, each border a contract (P05 → P06 link; task brief "Implications for the code") | [Implications-for-the-code.md](Implications-for-the-code.md) | Done — Proposed (implemented in P06) |
+| 25 | Each context will become a module, each rule owner a place in code, each border a contract (P05 → P06 link; own standard: "Implications for the code") | [Implications-for-the-code.md](Implications-for-the-code.md) | Done — Proposed (implemented in P06) |
 | 26 | Evidence labelled Proposed / Simulated / Observed; reflection | [evidence/Index.md](evidence/Index.md), [reflections/](reflections/Jasur-Shermatov.md) | Done |
 
 The L03 "Student explanation" mostly contains previous-syllabus material (threads and locks)

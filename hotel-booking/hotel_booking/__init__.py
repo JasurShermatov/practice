@@ -1,6 +1,7 @@
-"""Hotel booking app - version 3 (P06): one program, four modules.
+"""Hotel booking app - version 7 (after P10): one program, four modules.
 
-The P04 app sorted into the four bounded contexts designed in P05:
+The module structure dates from version 3 (P06): the P04 app sorted into the four bounded
+contexts designed in P05:
 
 - ``hotel_booking.rooms``         which rooms the hotel sells
 - ``hotel_booking.reservations``  who has which room for which nights (owns the booking rule)

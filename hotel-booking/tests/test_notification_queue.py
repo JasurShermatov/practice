@@ -23,6 +23,7 @@ from hotel_booking.notifications.internal import (
     EmailNotificationSender,
     HeldConfirmations,
     QueuedNotificationSender,
+    SmsNotificationSender,
 )
 
 
@@ -501,3 +502,22 @@ def test_a_shutdown_log_line_names_at_most_a_hundred_guests() -> None:
     assert named(ids[:3]) == "R0, R1, R2"
     line = named(ids)
     assert line.endswith("R99 and 150 more") and line.count(",") == 99
+
+
+def test_the_sms_sender_counts_exactly_when_several_threads_send_at_once() -> None:
+    """8 threads x 2,000 SMS, released together by a barrier: ``sent`` is exactly 16,000 (its lock)."""
+    sender = SmsNotificationSender()
+    threads, per_thread = 8, 2000
+    barrier = threading.Barrier(threads)
+
+    def send_many(first: int) -> None:
+        barrier.wait()
+        for number in range(first, first + per_thread):
+            sender.send_confirmation(confirmation(number))
+
+    workers = [threading.Thread(target=send_many, args=(index * per_thread,)) for index in range(threads)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join()
+    assert sender.sent == threads * per_thread

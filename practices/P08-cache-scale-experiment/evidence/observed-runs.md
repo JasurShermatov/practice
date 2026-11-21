@@ -5,7 +5,7 @@
 RAM, Python 3.13.18, pytest 9.1.1, Starlette 1.7.0, pydantic 2.13.5, uvicorn 0.54.0, SQLite 3.53.1,
 redis-server 7.0.15, curl 8.5.0, Mermaid CLI 11.16.0. **Run date:** 2026-11-21 (portfolio build).
 **Working directory:** `hotel-booking/` unless stated. Ports: the scripts use free ports; the
-printed commands show the course's 5080. The student's Mac was not used; what only it can run is
+printed commands show the course's 5080. My Mac was not used; what only it can run is
 listed in the README checklist.
 
 ## O1 · Start: the P07 safety net

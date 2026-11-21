@@ -6,7 +6,7 @@
 Starlette 1.7.0, pydantic 2.13.5, uvicorn 0.54.0, SQLite 3.53.1, curl 8.5.0, PostgreSQL 16.15
 (server and psql; no Python driver), Docker client + Compose v5.7.1 (no daemon), Mermaid CLI
 11.16.0. **Run date:** 2026-11-21 (portfolio build). **Working directory:** `hotel-booking/` unless
-stated. The student's Mac was not used; what only it can run is listed in the README checklist.
+stated. My Mac was not used; what only it can run is listed in the README checklist.
 
 ## O1 · Start: the P06 safety net
 
@@ -204,7 +204,7 @@ touched.
 | Race | `python3 main.py --race` | `Confirmed reservations for R7 on 12-14 Nov: 2` — Double booking! | [f-race](logs/f-race.txt) |
 | Race over HTTP + SQLite ×20 | the two pinned race tests, 20 runs | `2 passed` in 20 of 20 | [f-race-http-20](logs/f-race-http-20.txt) |
 | Document checks | `python3 -m pytest -p no:cacheprovider practices/*/checks` (portfolio root) | `95 passed` (P05 26, P06 26, P07 43) | [f-doc-checks](logs/f-doc-checks.txt) |
-| Diagrams | `mmdc -p puppeteer-config.json -i X.mmd -o X.svg`, 5 files | 5 × `exit 0` | [mmdc](logs/mmdc.txt) |
+| Diagrams | `mmdc -p puppeteer-config.linux-build.json -i X.mmd -o X.svg`, 5 files | 5 × `exit 0` | [mmdc](logs/mmdc.txt) |
 | Tools available | imports, `pip download`, versions | no importlinter/psycopg/fastapi/sqlalchemy; PyPI unreachable | [f-tools](logs/f-tools.txt) |
 
 Full suite by file: `test_api.py` 4, `test_booking_service.py` 8, `tests/test_api_http.py` 92,
