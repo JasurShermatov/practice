@@ -1,0 +1,15 @@
+$ mmdc -p puppeteer-config.json -i book-request-flow.mmd -o book-request-flow.svg
+Generating single mermaid chart
+exit 0
+$ mmdc -p puppeteer-config.json -i cancel-sequence.mmd -o cancel-sequence.svg
+Generating single mermaid chart
+exit 0
+$ mmdc -p puppeteer-config.json -i class-diagram.mmd -o class-diagram.svg
+Generating single mermaid chart
+exit 0
+$ mmdc -p puppeteer-config.json -i deployment.mmd -o deployment.svg
+Generating single mermaid chart
+exit 0
+$ mmdc -p puppeteer-config.json -i module-dependencies.mmd -o module-dependencies.svg
+Generating single mermaid chart
+exit 0

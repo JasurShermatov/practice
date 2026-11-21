@@ -1,0 +1,24 @@
+$ python3 capacity.py
+Searches per day: 1440 visitors x 20 = 28800
+Searches per second: average 0.33, peak 3.33 (200 per minute)
+Bookings: 20 per day, 0.0023 per second at peak, 1440 searches per booking
+Database queries at peak: 3.33 searches/s x 40 rooms = 133.33 per second
+Reservation storage: 20 x 365 x 600 bytes = 4.38 MB per year
+Bandwidth at peak: search answers 6.67 KB/s, room photos 333.33 KB/s
+Database writes at peak: 0.0023 bookings/s x 3 statements = 0.0069 per second
+Searches in flight at peak if each took the whole S1 second: 3.33/s x 1 s = 3.33
+Storage after 5 years: 4.38 MB x 5 = 21.90 MB
+Database queries at peak with 10x visitors: 3.33 x 10 x 40 = 1333.33 per second
+$ python3 capacity.py --table
+| Searches, average | 1,440 × 20 = 28,800 a day; 28,800 ÷ 86,400 s | 0.33 per second |
+| Searches, peak | 0.33 × 10 | 3.33 per second = 200 a minute (S1) |
+| Database queries, peak | 3.33 × 40 rooms | 133 per second |
+| Storage | 20 bookings × 365 days × 600 bytes | 4.38 MB a year |
+| Bandwidth, peak | 3.33 × 2 KB search answers; 0.17 × 2 MB photos | search 6.67 KB/s, photos 333 KB/s |
+
+| Bookings, peak | 20 ÷ 86,400 s × 10 | 0.0023 per second (one every 432 s) |
+| Reads per write | 28,800 searches ÷ 20 bookings | 1,440 searches per booking |
+| Database writes, peak | 0.0023 × 3 statements | 0.0069 per second |
+| Searches in flight, peak | 3.33 per second × 1 s (Little's law, worst S1 case) | 3.33 requests at once |
+| Storage, retention | 4.38 MB × 5 years | 21.90 MB |
+| Database queries, growth | 3.33 × 10 (visitors) × 40 rooms | 1,333 per second |

@@ -1,0 +1,29 @@
+---
+title: One cancel, from curl to the database and back (P07 Step 7 diagram, as implemented)
+---
+sequenceDiagram
+  autonumber
+  actor Client as curl
+  participant Api as api.cancel<br/>(Starlette endpoint)
+  participant UoW as unit_of_work<br/>(main.py wiring)
+  participant Svc as BookingService<br/>(Reservations)
+  participant Store as SqlReservationStore<br/>(Reservations internal)
+  participant DB as SQLite file / PostgreSQL
+
+  Client->>Api: DELETE /reservations/R101
+  Api->>UoW: in_unit_of_work(cancel R101), worker thread
+  UoW->>DB: connect()
+  UoW->>Svc: BookingService(rooms, store, sender)
+  Svc->>Store: find("R101")
+  Store->>DB: SELECT ... FROM reservations WHERE id = ?
+  DB-->>Store: R101, Maya, R7, 2026-11-12, 2026-11-14, Confirmed
+  Store-->>Svc: Reservation R101 (remembered with status Confirmed)
+  Svc->>Svc: reservation.cancel() - in memory only
+  Svc-->>UoW: True
+  UoW->>Store: save_changes()
+  Store->>DB: UPDATE reservations SET status = 'Cancelled' WHERE id = 'R101'
+  Store->>DB: COMMIT
+  UoW->>DB: close()
+  Api-->>Client: 204 No Content
+  Note over Client,DB: A second DELETE finds R101 Cancelled: cancel() answers False, nothing is written, 404 NotFound.
+  Note over UoW,DB: If anything raises inside the with-block, the wiring rolls back instead of save_changes: the request leaves no row behind.

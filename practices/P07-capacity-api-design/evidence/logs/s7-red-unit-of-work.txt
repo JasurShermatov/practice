@@ -1,0 +1,29 @@
+$ python3 -m pytest -q -p no:cacheprovider tests/test_sql_store.py   # first run, before the autoflush fix
+.....................F...................                                [100%]
+=================================== FAILURES ===================================
+_______ test_booking_service_gives_the_same_records_on_both_stores[sql] ________
+
+new_store = <function new_store.<locals>.<lambda> at 0x7f7dbac777e0>
+
+    def test_booking_service_gives_the_same_records_on_both_stores(new_store: StoreFactory) -> None:
+        """The demo scenario through BookingService: the answers do not depend on the store."""
+        store = new_store()
+        service = BookingService(HOTEL_ROOMS, store, EmailNotificationSender())
+        answers = [
+            str(service.reserve(MAYA, R7, nov(12, 14))), str(service.reserve(OMAR, R7, nov(13, 15))),
+            str(service.reserve(NORA, R7, nov(14, 16))), str(service.reserve(OMAR, R8, nov(15, 15))),
+            [room.number for room in service.find_free_rooms(nov(12, 14))], service.cancel("R101"),
+            service.cancel("R101"), service.cancel("R999"),
+            [room.number for room in service.find_free_rooms(nov(12, 14))],
+        ]
+>       assert answers == ["Accepted R101", "Unavailable", "Accepted R102", "InvalidDates", ["R8"],
+                           True, False, False, ["R7", "R8"]]
+E       AssertionError: assert ['Accepted R1...'], True, ...] == ['Accepted R1...'], True, ...]
+E         
+E         At index 8 diff: ['R8'] != ['R7', 'R8']
+E         Use -v to get more diff
+
+tests/test_sql_store.py:116: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_sql_store.py::test_booking_service_gives_the_same_records_on_both_stores[sql]
+1 failed, 40 passed in 0.41s

@@ -1,0 +1,225 @@
+$ python3 -I practices/P07-capacity-api-design/evidence/postgres_sql_check.py hotel-booking -h <socket dir> -p 55432 -U hotel -d hotel
+# server: PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit
+
+\echo '--- 1. the schema docker-compose mounts: db/postgres/init.sql'
+--- 1. the schema docker-compose mounts: db/postgres/init.sql
+\i <project>/db/postgres/init.sql
+-- The hotel booking app's tables (P07). PostgreSQL runs this file once, when the database is first
+-- created (docker-compose.yml mounts it into /docker-entrypoint-initdb.d/).
+--
+-- Rooms owns the rooms table and Reservations owns the reservations table, so there is no foreign key
+-- between them: each module keeps its own data (L03, P05 "rows are private").
+--
+-- Portable on purpose: the SQLite wiring (main.py, the default here and in every test) runs this SAME
+-- file, so the two databases cannot drift apart. Differences worth knowing:
+--   * date      PostgreSQL stores a real date. SQLite has no date type: the column gets NUMERIC
+--               affinity and keeps the ISO text '2026-11-12'; ISO text compares in date order, so
+--               check_in < check_out and the overlap query mean the same in both.
+--   * CHECK     enforced by both (SQLite since 3.3).
+--   * WHERE ... partial index: PostgreSQL and SQLite (since 3.8) both support it.
+-- No PostgreSQL-only statement is used in P07. P09 adds one (an exclusion constraint or
+-- SELECT ... FOR UPDATE) and documents its SQLite equivalent next to it.
+CREATE TABLE rooms (
+    number text PRIMARY KEY,          -- R7, R8: no room twice
+    type   text NOT NULL              -- catalog data (Standard, Deluxe ...), not a fixed list
+);
+CREATE TABLE
+CREATE TABLE reservations (
+    id          text PRIMARY KEY,     -- R101, R102 ...: a second R101 is refused
+    guest_name  text NOT NULL,
+    guest_email text NOT NULL,
+    room        text NOT NULL,        -- a room number; no foreign key (Rooms owns rooms)
+    check_in    date NOT NULL,
+    check_out   date NOT NULL,        -- half-open stay: the check-out night is not booked
+    status      text NOT NULL CHECK (status IN ('Confirmed', 'Cancelled')),
+    CHECK (check_out > check_in)      -- a stay has at least one night (the database's own safety net)
+);
+CREATE TABLE
+-- The search asks "does a Confirmed reservation of this room share a night?" once per room
+-- (docs/capacity.md: about 133 times a second at the peak). This index answers it without reading
+-- the whole table; Cancelled rows are history and are left out of it.
+CREATE INDEX reservations_confirmed_room_stay
+    ON reservations (room, check_in, check_out)
+    WHERE status = 'Confirmed';
+CREATE INDEX
+INSERT INTO rooms (number, type) VALUES ('R7', 'Standard'), ('R8', 'Deluxe');
+INSERT 0 2
+\d reservations
+             Table "public.reservations"
+   Column    | Type | Collation | Nullable | Default 
+-------------+------+-----------+----------+---------
+ id          | text |           | not null | 
+ guest_name  | text |           | not null | 
+ guest_email | text |           | not null | 
+ room        | text |           | not null | 
+ check_in    | date |           | not null | 
+ check_out   | date |           | not null | 
+ status      | text |           | not null | 
+Indexes:
+    "reservations_pkey" PRIMARY KEY, btree (id)
+    "reservations_confirmed_room_stay" btree (room, check_in, check_out) WHERE status = 'Confirmed'::text
+Check constraints:
+    "reservations_check" CHECK (check_out > check_in)
+    "reservations_status_check" CHECK (status = ANY (ARRAY['Confirmed'::text, 'Cancelled'::text]))
+
+\echo '--- 2. the database refuses a wrong row by itself (activity sheet Step 2)'
+--- 2. the database refuses a wrong row by itself (activity sheet Step 2)
+INSERT INTO reservations VALUES ('R101', 'Maya', 'maya@example.com', 'R7', '2026-11-12', '2026-11-14', 'Confirmed');
+INSERT 0 1
+INSERT INTO reservations VALUES ('R101', 'Omar', 'omar@example.com', 'R7', '2026-11-12', '2026-11-14', 'Confirmed');
+ERROR:  duplicate key value violates unique constraint "reservations_pkey"
+DETAIL:  Key (id)=(R101) already exists.
+INSERT INTO reservations VALUES ('R102', 'Omar', 'omar@example.com', 'R8', '2026-11-15', '2026-11-15', 'Confirmed');
+ERROR:  new row for relation "reservations" violates check constraint "reservations_check"
+DETAIL:  Failing row contains (R102, Omar, omar@example.com, R8, 2026-11-15, 2026-11-15, Confirmed).
+INSERT INTO reservations VALUES ('R103', 'Omar', 'omar@example.com', 'R8', '2026-11-15', '2026-11-17', 'Pending');
+ERROR:  new row for relation "reservations" violates check constraint "reservations_status_check"
+DETAIL:  Failing row contains (R103, Omar, omar@example.com, R8, 2026-11-15, 2026-11-17, Pending).
+DELETE FROM reservations;
+DELETE 1
+\echo '--- 3. the store statements, taken from the code, PREPAREd with $n placeholders'
+--- 3. the store statements, taken from the code, PREPAREd with $n placeholders
+PREPARE select_rooms AS SELECT number, type FROM rooms ORDER BY number;
+PREPARE
+PREPARE has_overlap AS SELECT EXISTS (SELECT 1 FROM reservations WHERE room = $1 AND status = 'Confirmed' AND check_in < $2 AND $3 < check_out);
+PREPARE
+PREPARE count_all AS SELECT count(*) FROM reservations;
+PREPARE
+PREPARE count_confirmed AS SELECT count(*) FROM reservations WHERE room = $1 AND status = 'Confirmed' AND check_in < $2 AND $3 < check_out;
+PREPARE
+PREPARE insert_reservation AS INSERT INTO reservations (id, guest_name, guest_email, room, check_in, check_out, status) VALUES ($1, $2, $3, $4, $5, $6, $7);
+PREPARE
+PREPARE select_by_id AS SELECT id, guest_name, guest_email, room, check_in, check_out, status FROM reservations WHERE id = $1;
+PREPARE
+PREPARE update_status AS UPDATE reservations SET status = $1 WHERE id = $2;
+PREPARE
+\echo '--- request 1: search 12-14 Nov (one overlap question per room)'
+--- request 1: search 12-14 Nov (one overlap question per room)
+EXECUTE select_rooms;
+ number |   type   
+--------+----------
+ R7     | Standard
+ R8     | Deluxe
+(2 rows)
+
+EXECUTE has_overlap('R7', '2026-11-14', '2026-11-12');
+ exists 
+--------
+ f
+(1 row)
+
+EXECUTE has_overlap('R8', '2026-11-14', '2026-11-12');
+ exists 
+--------
+ f
+(1 row)
+
+\echo '--- request 2: Maya books R7 12-14 Nov (overlap, count for the id, INSERT, COMMIT)'
+--- request 2: Maya books R7 12-14 Nov (overlap, count for the id, INSERT, COMMIT)
+BEGIN;
+BEGIN
+EXECUTE has_overlap('R7', '2026-11-14', '2026-11-12');
+ exists 
+--------
+ f
+(1 row)
+
+EXECUTE count_all;
+ count 
+-------
+     0
+(1 row)
+
+EXECUTE insert_reservation('R101', 'Maya', 'maya@example.com', 'R7', '2026-11-12', '2026-11-14', 'Confirmed');
+INSERT 0 1
+COMMIT;
+COMMIT
+\echo '--- request 3: Omar asks for R7 13-15 Nov -> the overlap question says true (409)'
+--- request 3: Omar asks for R7 13-15 Nov -> the overlap question says true (409)
+EXECUTE has_overlap('R7', '2026-11-15', '2026-11-13');
+ exists 
+--------
+ t
+(1 row)
+
+\echo '--- request 5: search 12-14 Nov again -> R7 true (booked), R8 false (free)'
+--- request 5: search 12-14 Nov again -> R7 true (booked), R8 false (free)
+EXECUTE has_overlap('R7', '2026-11-14', '2026-11-12');
+ exists 
+--------
+ t
+(1 row)
+
+EXECUTE has_overlap('R8', '2026-11-14', '2026-11-12');
+ exists 
+--------
+ f
+(1 row)
+
+\echo '--- half-open rule: Nora 14-16 Nov does not overlap Maya 12-14'
+--- half-open rule: Nora 14-16 Nov does not overlap Maya 12-14
+EXECUTE has_overlap('R7', '2026-11-16', '2026-11-14');
+ exists 
+--------
+ f
+(1 row)
+
+\echo '--- request 6: cancel R101 (SELECT by id, then UPDATE at the end of the request, COMMIT)'
+--- request 6: cancel R101 (SELECT by id, then UPDATE at the end of the request, COMMIT)
+BEGIN;
+BEGIN
+EXECUTE select_by_id('R101');
+  id  | guest_name |   guest_email    | room |  check_in  | check_out  |  status   
+------+------------+------------------+------+------------+------------+-----------
+ R101 | Maya       | maya@example.com | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+(1 row)
+
+EXECUTE update_status('Cancelled', 'R101');
+UPDATE 1
+COMMIT;
+COMMIT
+\echo '--- request 7: cancel R101 again -> the row is Cancelled, nothing is written (404)'
+--- request 7: cancel R101 again -> the row is Cancelled, nothing is written (404)
+EXECUTE select_by_id('R101');
+  id  | guest_name |   guest_email    | room |  check_in  | check_out  |  status   
+------+------------+------------------+------+------------+------------+-----------
+ R101 | Maya       | maya@example.com | R7   | 2026-11-12 | 2026-11-14 | Cancelled
+(1 row)
+
+EXECUTE count_confirmed('R7', '2026-11-14', '2026-11-12');
+ count 
+-------
+     0
+(1 row)
+
+\echo '--- request 8: Maya books again -> count gives 1, so the id is R102'
+--- request 8: Maya books again -> count gives 1, so the id is R102
+EXECUTE count_all;
+ count 
+-------
+     1
+(1 row)
+
+EXECUTE insert_reservation('R102', 'Maya', 'maya@example.com', 'R7', '2026-11-12', '2026-11-14', 'Confirmed');
+INSERT 0 1
+SELECT id, guest_name, room, check_in, check_out, status FROM reservations ORDER BY id;
+  id  | guest_name | room |  check_in  | check_out  |  status   
+------+------------+------+------------+------------+-----------
+ R101 | Maya       | R7   | 2026-11-12 | 2026-11-14 | Cancelled
+ R102 | Maya       | R7   | 2026-11-12 | 2026-11-14 | Confirmed
+(2 rows)
+
+\echo '--- 4. the overlap question can use the partial index (seq scan disabled: the table is tiny)'
+--- 4. the overlap question can use the partial index (seq scan disabled: the table is tiny)
+SET enable_seqscan = off;
+SET
+EXPLAIN (COSTS OFF) SELECT EXISTS (SELECT 1 FROM reservations WHERE room = 'R7' AND status = 'Confirmed' AND check_in < '2026-11-14'::date AND '2026-11-12'::date < check_out);
+                                                      QUERY PLAN                                                      
+----------------------------------------------------------------------------------------------------------------------
+ Result
+   InitPlan 1 (returns $0)
+     ->  Index Only Scan using reservations_confirmed_room_stay on reservations
+           Index Cond: ((room = 'R7'::text) AND (check_in < '2026-11-14'::date) AND (check_out > '2026-11-12'::date))
+(4 rows)
+
+

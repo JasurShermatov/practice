@@ -1,0 +1,24 @@
+---
+title: POST /reservations - read, check, call, answer (every status the contract documents)
+---
+flowchart TB
+  start(["POST /reservations"]) --> json{"Content-Type application/json<br/>and a JSON object with five<br/>non-empty text fields?<br/>(pydantic ReservationRequest)"}
+  json -- no --> r400a["400 InvalidRequest"]
+  json -- yes --> dates{"checkIn and checkOut<br/>real dates like 2026-11-12?"}
+  dates -- no --> r400b["400 InvalidDates"]
+  dates -- yes --> room{"room in the catalog?"}
+  room -- no --> r400c["400 UnknownRoom"]
+  room -- yes --> svc["unit of work: BookingService.reserve<br/>(the only call into the domain)"]
+  svc -- "InvalidDates (no night)" --> r400d["400 InvalidDates"]
+  svc -- "Unavailable (a Confirmed stay shares a night)" --> r409["409 Unavailable"]
+  svc -- "Accepted, saved, committed" --> r201["201 id, Confirmed, notificationFailed"]
+  svc -- "exception (e.g. primary key refuses a 2nd R101)" --> r500["500 InternalError<br/>rolled back"]
+
+  classDef edge fill:#e3f2fd,stroke:#1565c0,color:#1b1b1b
+  classDef domain fill:#c8e6c9,stroke:#2e7d32,color:#1b1b1b
+  classDef ok fill:#e8f5e9,stroke:#2e7d32,color:#1b1b1b
+  classDef err fill:#ffebee,stroke:#c62828,color:#1b1b1b
+  class json,dates,room edge
+  class svc domain
+  class r201 ok
+  class r400a,r400b,r400c,r400d,r409,r500 err

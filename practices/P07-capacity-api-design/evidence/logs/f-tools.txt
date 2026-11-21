@@ -1,0 +1,27 @@
+$ python3 -c "import importlinter"
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import importlinter
+ModuleNotFoundError: No module named 'importlinter'
+$ python3 -c "import psycopg"
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import psycopg
+ModuleNotFoundError: No module named 'psycopg'
+$ python3 -c "import fastapi"
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import fastapi
+ModuleNotFoundError: No module named 'fastapi'
+$ python3 -c "import sqlalchemy"
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import sqlalchemy
+ModuleNotFoundError: No module named 'sqlalchemy'
+$ pip download psycopg[binary] --no-deps -d <scratch>
+WARNING: Retrying (Retry(total=0, connect=None, read=None, redirect=None, status=None)) after connection broken by 'NameResolutionError("HTTPSConnection(host='pypi.org', port=443): Failed to resolve 'pypi.org' ([Errno -2] Name or service not known)")': /simple/psycopg/
+ERROR: Could not find a version that satisfies the requirement psycopg[binary] (from versions: none)
+ERROR: No matching distribution found for psycopg[binary]
+$ python3 -c "import starlette, pydantic, uvicorn, sqlite3; ..."
+starlette 1.7.0 | pydantic 2.13.5 | uvicorn 0.54.0 | SQLite 3.53.1 | PyYAML 6.0.3
+jsonschema 4.26.0 | httpx2 2.13.1

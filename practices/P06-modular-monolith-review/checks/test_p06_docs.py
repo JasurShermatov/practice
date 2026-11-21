@@ -104,11 +104,16 @@ def test_mermaid_modules_page_matches_the_drawio_page() -> None:
 NODE_OF_MODULE = {"rooms": "rooms", "reservations": "res", "payments": "pay", "notifications": "ntf"}
 
 
-def node(module: str) -> str:
-    """hotel_booking.<m>[.x] -> <m>_c, hotel_booking.<m>.internal -> <m>_i, hotel_booking.demo -> demo."""
+def node(module: str) -> str | None:
+    """hotel_booking.<m>[.x] -> <m>_c, hotel_booking.<m>.internal -> <m>_i, hotel_booking.demo -> demo.
+
+    P07 change: layers that did not exist in version 3 (the HTTP edge hotel_booking.api) -> None.
+    """
     parts = module.split(".")
     if parts[1] == "demo":
         return "demo"
+    if parts[1] not in NODE_OF_MODULE:
+        return None
     suffix = "_i" if len(parts) > 2 and parts[2] == "internal" else "_c"
     return NODE_OF_MODULE[parts[1]] + suffix
 
@@ -120,12 +125,19 @@ def real_module_edges() -> set[tuple[str, str]]:
     for statement in tree.body:
         if isinstance(statement, ast.ImportFrom) and (statement.module or "").startswith("hotel_booking."):
             found.add(("main", node(statement.module or "")))
-    return {(a, b) for a, b in found if a != b}
+    return {(a, b) for a, b in found if a is not None and b is not None and a != b}
 
 
 def test_as_built_diagram_shows_exactly_the_real_imports() -> None:
+    """P07 change (deliberate): the P06 diagram is the as-built picture of version 3.
+
+    The code has grown since (P07: the HTTP edge, and main.py now also imports the Rooms and
+    Notifications contracts for the web app's wiring). Equality with the live code is now
+    checked against the P07 as-built diagram (practices/P07-capacity-api-design/checks); here
+    every arrow drawn in P06 must still exist - P07 removed no dependency between the modules.
+    """
     drawn = {(left, right) for left, _, right in mermaid_edges(DIAGRAMS / "module-dependencies.mmd")}
-    assert drawn == real_module_edges()
+    assert drawn <= real_module_edges()
 
 
 def test_svgs_exist_for_every_mermaid_source() -> None:

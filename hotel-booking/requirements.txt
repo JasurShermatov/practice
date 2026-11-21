@@ -1,6 +1,20 @@
-# P03-P06: standard library only - no runtime dependencies.
-# The course's 8 tests in test_booking_service.py use unittest (built in): python -m unittest -v
-# Development / test tools for the full suite, the type check and the module borders:
-pytest>=8
-mypy>=1.10
-import-linter>=2.0   # P06: `lint-imports` checks the contracts in .importlinter (tests/test_architecture.py checks the same file without it)
+# hotel-booking - everything the project needs. Install all at once (internet needed once):
+#   python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+#
+# Runtime from P07 (HTTP API). The course's Python reference uses FastAPI + SQLAlchemy + psycopg;
+# this portfolio uses Starlette (the ASGI toolkit FastAPI is built on) + pydantic + the standard
+# library's sqlite3 - see practices/P07-capacity-api-design/README.md "Substitutions".
+starlette>=1.0          # the web app (routes, requests, responses, TestClient); built here with 1.7.0
+pydantic>=2.11          # request/answer models (validate_by_alias/serialize_by_alias need 2.11); built with 2.13.5
+uvicorn>=0.30           # the ASGI server: python main.py serves on http://localhost:5080; built with 0.54.0
+
+# Optional: PostgreSQL from docker-compose.yml (python main.py --db postgres). Not needed for the tests.
+psycopg[binary]>=3.2
+
+# Development / test tools
+pytest>=8               # the full suite (python -m pytest); the course's 12 tests also run with python -m unittest
+httpx2                  # what starlette.testclient needs to send requests (older Starlette releases use httpx)
+PyYAML>=6               # tests/test_openapi_contract.py reads docs/openapi.yaml
+jsonschema>=4.18        # tests/test_openapi_contract.py validates real answers against the contract's schemas
+mypy>=1.10              # strict type check (python -m mypy)
+import-linter>=2.0      # P06/P07: `lint-imports` checks the contracts in .importlinter (tests/test_architecture.py checks the same file without it)

@@ -1,0 +1,280 @@
+openapi: 3.1.0
+info:
+  title: Hotel booking API
+  version: 1.0.0
+  summary: Search free rooms, book a room and cancel a reservation.
+  description: |
+    The contract of the hotel booking app (P07). It was written before the code; the app serves
+    this very file at GET /openapi.yaml and the tests check the code against it
+    (tests/test_openapi_contract.py: every route, status, error title and example below is
+    produced by the running app, and nothing the app produces is missing here).
+
+    Resources: room availability for a stay (read only) and reservations (created and cancelled).
+    Paths name the things, the HTTP method is the verb, the status code says what happened.
+
+    Errors: every error answer is problem details (RFC 9457) with exactly three keys, title,
+    status and detail, sent as application/problem+json. Clients compare title; detail is a
+    sentence for people and may change. Two answers can come from any path: 404 NotFound for a
+    path that does not exist and 405 MethodNotAllowed (with an Allow header) for a method the
+    path does not support - see components.responses.UnknownPath and MethodNotAllowed.
+
+    Repeating a request: GET is safe. DELETE is idempotent - a repeat answers 404 NotFound but
+    changes nothing, the reservation stays cancelled once. POST is not idempotent - a client that
+    retries a booking after a lost answer gets 409 Unavailable for its own stay and does not learn
+    the id; an Idempotency-Key header is planned for P11.
+
+    Compatibility: new fields may be added to answers; existing fields are never renamed or
+    removed in version 1. Clients must ignore fields they do not know.
+servers:
+  - url: http://localhost:5080
+    description: The app on the developer's laptop (python main.py)
+tags:
+  - name: availability
+  - name: reservations
+  - name: contract
+paths:
+  /rooms/availability:
+    get:
+      tags: [availability]
+      operationId: findFreeRooms
+      summary: Free rooms for a stay
+      description: Calls BookingService.find_free_rooms. Reads only; safe to repeat.
+      parameters:
+        - name: checkIn
+          in: query
+          required: true
+          description: The first night of the stay.
+          schema: { type: string, format: date }
+          example: "2026-11-12"
+        - name: checkOut
+          in: query
+          required: true
+          description: The day the guest leaves. That night is not booked (half-open stay).
+          schema: { type: string, format: date }
+          example: "2026-11-14"
+        - name: limit
+          in: query
+          required: false
+          description: How many rooms one page holds.
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: after
+          in: query
+          required: false
+          description: The last room number of the previous page (the value of "next"). Compared as text.
+          schema: { type: string }
+      responses:
+        "200":
+          description: The free rooms, in text order of the room number (R10 comes before R7).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Availability" }
+              examples:
+                allFree:
+                  summary: Nothing booked yet
+                  value:
+                    checkIn: "2026-11-12"
+                    checkOut: "2026-11-14"
+                    rooms:
+                      - { number: R7, type: Standard }
+                      - { number: R8, type: Deluxe }
+                    next: null
+                firstPage:
+                  summary: limit=1 - one room and the cursor for the next page
+                  value:
+                    checkIn: "2026-11-12"
+                    checkOut: "2026-11-14"
+                    rooms:
+                      - { number: R7, type: Standard }
+                    next: R7
+        "400":
+          description: >-
+            InvalidDates when a date is missing, is not a date such as 2026-11-12, or checkOut is
+            not after checkIn; InvalidRequest when limit is not a whole number from 1 to 100.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+              examples:
+                notADate:
+                  value: { title: InvalidDates, status: 400, detail: "checkIn and checkOut must be dates such as 2026-11-12." }
+                wrongOrder:
+                  value: { title: InvalidDates, status: 400, detail: "checkOut must be after checkIn." }
+                badLimit:
+                  value: { title: InvalidRequest, status: 400, detail: "limit must be a whole number from 1 to 100." }
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /reservations:
+    post:
+      tags: [reservations]
+      operationId: reserve
+      summary: Book a room for a stay
+      description: >-
+        Calls BookingService.reserve. Not idempotent: sent twice, the second answer is 409 for
+        the guest's own stay (an Idempotency-Key header is planned for P11).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReservationRequest" }
+            example: { guestName: Maya, guestEmail: maya@example.com, room: R7, checkIn: "2026-11-12", checkOut: "2026-11-14" }
+      responses:
+        "201":
+          description: Booked. The id names the new reservation.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Reservation" }
+              examples:
+                booked:
+                  value: { id: R101, status: Confirmed, notificationFailed: false }
+        "400":
+          description: >-
+            InvalidRequest when the body is not JSON (or not sent as application/json) or a field
+            is missing, empty or not text; InvalidDates when a date is not a date such as
+            2026-11-12 or checkOut is not after checkIn; UnknownRoom when the hotel has no such room.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+              examples:
+                notJson:
+                  value: { title: InvalidRequest, status: 400, detail: "The body must be JSON with guestName, guestEmail, room, checkIn and checkOut." }
+                notADate:
+                  value: { title: InvalidDates, status: 400, detail: "checkIn and checkOut must be dates such as 2026-11-12." }
+                noNight:
+                  value: { title: InvalidDates, status: 400, detail: "checkOut must be after checkIn." }
+                unknownRoom:
+                  value: { title: UnknownRoom, status: 400, detail: "There is no room R99." }
+        "409":
+          description: Unavailable when the room is booked for at least one night of the stay.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+              examples:
+                sharedNight:
+                  value: { title: Unavailable, status: 409, detail: "The room is booked for at least one night of this stay." }
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /reservations/{id}:
+    delete:
+      tags: [reservations]
+      operationId: cancel
+      summary: Cancel a confirmed reservation
+      description: >-
+        Calls BookingService.cancel. Idempotent: a repeat answers 404 NotFound and changes
+        nothing. The reservation is kept as Cancelled (history), it is not deleted.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+          example: R101
+      responses:
+        "204":
+          description: Cancelled. The nights are free again. No body.
+        "404":
+          description: NotFound when there is no confirmed reservation with this id.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+              examples:
+                notConfirmed:
+                  value: { title: NotFound, status: 404, detail: "There is no confirmed reservation R101." }
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /openapi.yaml:
+    get:
+      tags: [contract]
+      operationId: getContract
+      summary: This contract
+      description: The text of docs/openapi.yaml, so a client can read the contract from the running app.
+      responses:
+        "200":
+          description: The OpenAPI document.
+          content:
+            application/yaml:
+              schema: { type: string }
+components:
+  schemas:
+    Room:
+      type: object
+      required: [number, type]
+      properties:
+        number: { type: string, example: R7 }
+        type:
+          type: string
+          description: Catalog data from the rooms table, such as Standard or Deluxe. A new type needs no change to the API.
+          example: Standard
+    Availability:
+      type: object
+      required: [checkIn, checkOut, rooms, next]
+      properties:
+        checkIn: { type: string, format: date }
+        checkOut: { type: string, format: date }
+        rooms:
+          type: array
+          maxItems: 100
+          items: { $ref: "#/components/schemas/Room" }
+        next:
+          type: [string, "null"]
+          description: Pass it as "after" to get the next page; null on the last page.
+    ReservationRequest:
+      type: object
+      required: [guestName, guestEmail, room, checkIn, checkOut]
+      properties:
+        guestName: { type: string, minLength: 1 }
+        guestEmail: { type: string, minLength: 1 }
+        room: { type: string, minLength: 1, description: A room number from the catalog, such as R7. }
+        checkIn: { type: string, format: date, minLength: 1 }
+        checkOut: { type: string, format: date, minLength: 1 }
+    Reservation:
+      type: object
+      required: [id, status, notificationFailed]
+      properties:
+        id: { type: string, example: R101 }
+        status: { type: string, enum: [Confirmed] }
+        notificationFailed:
+          type: boolean
+          description: True when the booking is saved but its confirmation could not be sent (R6).
+    Problem:
+      type: object
+      required: [title, status, detail]
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          enum: [Unavailable, InvalidDates, UnknownRoom, InvalidRequest, NotFound, MethodNotAllowed, InternalError]
+          description: >-
+            The error's name. Clients compare this value; detail is for people. The first five
+            belong to the operations; MethodNotAllowed and InternalError can come from any path.
+        status: { type: integer, minimum: 400, maximum: 599 }
+        detail: { type: string }
+  responses:
+    InternalError:
+      description: >-
+        InternalError when the server failed, for example when the database refused a row
+        (two app instances both numbering a booking R101 - the race P09 fixes). The request's
+        database changes are rolled back; a client may retry later.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+          examples:
+            serverFailed:
+              value: { title: InternalError, status: 500, detail: "The server could not complete the request. Try again later." }
+    UnknownPath:
+      description: NotFound for a path the API does not have (any method).
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+          examples:
+            noSuchPath:
+              value: { title: NotFound, status: 404, detail: "There is no resource at /bookings." }
+    MethodNotAllowed:
+      description: MethodNotAllowed for a method the path does not support. The Allow header lists the methods it does.
+      headers:
+        Allow:
+          schema: { type: string }
+          example: POST
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+          examples:
+            wrongMethod:
+              value: { title: MethodNotAllowed, status: 405, detail: "PUT is not allowed on /reservations." }

@@ -7,6 +7,12 @@ root) does - so the tests build the app first. Every expected output is unchange
 P06 change (deliberate, arrange part only): ``run_demo`` takes a function that
 reads the sender's counter instead of the internal sender class, so
 ``demo.py`` names no internal code. Expected outputs unchanged.
+
+P07 change (deliberate, as the P07 activity sheet says): ``python main.py``
+without a flag now starts the web app, so the demo is ``--demo``. The test
+"main without flags runs the demo" became "main --demo runs the demo"; that
+no flag starts the server is checked in ``test_api_sqlite.py``. The race keeps
+its lists and its output (still double-booked; P09).
 """
 from __future__ import annotations
 
@@ -34,8 +40,8 @@ def test_demo_prints_the_nine_expected_lines(capsys: pytest.CaptureFixture[str])
     assert capsys.readouterr().out == EXPECTED_DEMO
 
 
-def test_main_without_flags_runs_the_demo(capsys: pytest.CaptureFixture[str]) -> None:
-    main([])
+def test_main_demo_flag_runs_the_demo(capsys: pytest.CaptureFixture[str]) -> None:
+    main(["--demo"])
     assert capsys.readouterr().out == EXPECTED_DEMO
 
 

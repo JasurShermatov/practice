@@ -1,0 +1,22 @@
+---
+title: Where it runs (P07) - one app process, one database; the same code on SQLite here and PostgreSQL on the Mac
+---
+flowchart LR
+  client["curl / browser / tests<br/>(TestClient: no network)"]
+  subgraph laptop["Developer laptop"]
+    subgraph proc["python main.py  (uvicorn, http://localhost:5080)"]
+      app["Starlette app<br/>hotel_booking.api"]
+      pool["thread pool<br/>one unit of work per request"]
+      app --> pool
+    end
+    sqlite[("hotel.sqlite3<br/>default; schema = db/postgres/init.sql")]
+    subgraph docker["docker compose up -d  (Proposed on the Mac)"]
+      pg[("PostgreSQL 18<br/>db hotel, init.sql on first start<br/>volume hotel-data")]
+    end
+  end
+  client -->|"HTTP + JSON / problem+json"| app
+  pool -->|"sqlite3 (--db sqlite)"| sqlite
+  pool -.->|"psycopg (--db postgres)"| pg
+
+  classDef proposed stroke-dasharray:5 3
+  class docker,pg proposed

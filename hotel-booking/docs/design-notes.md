@@ -197,3 +197,69 @@ Same as "Before": yes, all three.
   `run_demo` receives `lambda: email.sent` instead of the internal sender.
 - Payments' amount is `Decimal`, not `float` (P05 recommendation). Payments is not wired yet —
   nothing calls it before the P17 saga. P05 decision D1 (`deposit_for`) is deferred to P17.
+
+# P07 design notes
+
+The P06 app gets an address and a database: an HTTP API on http://localhost:5080
+(`hotel_booking/api.py`, Starlette + pydantic, served by uvicorn) and its reservations in a
+database through the same `ReservationStore` promise (`SqlReservationStore`: SQLite by default,
+PostgreSQL from `docker-compose.yml` on the Mac). `BookingService` and the booking rule did not
+change. Estimate: [capacity.md](capacity.md); contract: [openapi.yaml](openapi.yaml); proof:
+[api-check.md](api-check.md).
+
+## API decisions
+
+- **Free rooms come in text order of the room number** — R10 before R7, because room numbers are
+  text and text is compared character by character. `after` is compared the same way, so a client
+  that pages with `after=<next>` never skips or repeats a room, whatever the numbers look like.
+- **Clients compare `title`, never `detail`.** `title` is one of a fixed list (the five operation
+  titles plus MethodNotAllowed and InternalError); `detail` is a sentence for people and may be
+  reworded without breaking anybody.
+- **The room type is catalog data, not a fixed list.** It comes from the `rooms` table (Standard,
+  Deluxe, …); a new type is a new row, not a new API version.
+- Further decisions (mine): every error — also an unknown path, a wrong method and a server
+  failure — has the same problem-details shape; the endpoint checks only what BookingService
+  cannot know (request shape, real dates, known room) and calls it exactly once; DELETE is
+  idempotent, POST is not (a retried booking gets 409 for its own stay — Idempotency-Key in P11);
+  answers may gain fields but never lose or rename one; 201 has no `Location` header because there
+  is no `GET /reservations/{id}` to point at yet.
+
+## API tests
+
+The course's four, in `test_api.py` (list store, Starlette TestClient):
+
+| Test | Request | Expected answer |
+|---|---|---|
+| Search | `GET /rooms/availability?checkIn=2026-11-12&checkOut=2026-11-14` | 200, exact body with R7 and R8, `"next":null` |
+| Book, then book again | `POST` Maya R7 12–14; `POST` Omar R7 13–15 | 201 `{"id":"R101","status":"Confirmed","notificationFailed":false}`, then 409 Unavailable |
+| Wrong dates | `POST` with checkOut = checkIn | 400 InvalidDates as `application/problem+json`, exact body |
+| Cancel twice | `POST` Maya, `DELETE /reservations/R101` twice | 204, then 404 NotFound |
+
+Changing 409 to 201 in the second test made it fail (`AssertionError: 201 != 409`); changed back:
+green. Every other error path is in `tests/test_api_http.py`; the contract is checked against the
+code in both directions by `tests/test_openapi_contract.py`.
+
+## After
+
+- Checks: `python -m unittest` → **Ran 12 tests … OK** (8 behaviour + 4 API); border contracts
+  **5 kept** (the course's 3 + 2 for the API edge); full suite and document checks green — numbers in
+  the P07 README.
+- The seven answers of `api-check.md`: **all exactly as expected**, on SQLite, against the real app
+  started with `python main.py` (uvicorn) and called with `curl` — plus 14 more requests for every
+  other error path, paging, 404/405 and the contract.
+- Restart check: Maya's R102 **survived** stopping and starting the app; the table holds R101
+  Cancelled and R102 Confirmed. On PostgreSQL: the same SQL ran on a PostgreSQL 16 server through
+  `psql`; the full Docker + psycopg run is the student's Mac check.
+
+## Decisions made while building
+
+- **Autoflush in the SQL store.** The first version wrote status changes only in `save_changes`,
+  so inside one unit of work a cancel did not free the room for the next question — the list store
+  and the SQL store answered differently (found by the shared store test). The store now writes
+  pending changes before an overlap question; commit is still once, at the end of the request.
+- **One schema file for both databases.** `db/postgres/init.sql` is portable; the SQLite wiring
+  runs the same file, so the tables cannot drift apart. It adds a partial index for the overlap
+  question (133 of them a second at the estimated peak).
+- **The race is still there.** Through HTTP and SQLite, two simultaneous bookings of R7 either
+  both succeed (R101 and R102: double booking) or — when both number theirs R101 — the second is
+  refused by the primary key with a 500. Both outcomes are pinned by tests until P09.

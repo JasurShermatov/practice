@@ -1,0 +1,21 @@
+$ for i in $(seq 20); do python3 -m pytest -q -p no:cacheprovider tests/test_api_sqlite.py -k "race or r101" | tail -1; done
+2 passed, 6 deselected in 0.88s
+2 passed, 6 deselected in 0.93s
+2 passed, 6 deselected in 0.92s
+2 passed, 6 deselected in 0.86s
+2 passed, 6 deselected in 0.86s
+2 passed, 6 deselected in 0.89s
+2 passed, 6 deselected in 0.89s
+2 passed, 6 deselected in 0.87s
+2 passed, 6 deselected in 0.86s
+2 passed, 6 deselected in 0.88s
+2 passed, 6 deselected in 0.92s
+2 passed, 6 deselected in 0.86s
+2 passed, 6 deselected in 0.86s
+2 passed, 6 deselected in 0.85s
+2 passed, 6 deselected in 0.85s
+2 passed, 6 deselected in 0.86s
+2 passed, 6 deselected in 0.86s
+2 passed, 6 deselected in 0.90s
+2 passed, 6 deselected in 0.86s
+2 passed, 6 deselected in 0.86s

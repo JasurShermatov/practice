@@ -1,0 +1,7 @@
+$ psql -X -h <socket dir> -p 55432 -U hotel -d hotel -c "SELECT * FROM rooms;"   # PostgreSQL 16.15, after db/postgres/init.sql
+ number |   type   
+--------+----------
+ R7     | Standard
+ R8     | Deluxe
+(2 rows)
+

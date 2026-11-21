@@ -18,12 +18,21 @@ code defines it; ``<<internal>>`` boxes are exactly the classes of the
 ``internal.py`` files; and the diagram itself respects the module borders (a
 line between two modules starts in Reservations and ends at a public class).
 The two checks of the P04 activity page "Classes - after" are kept.
+
+P07 change (deliberate): CLASS_DIAGRAM now points at the P07 diagram
+(``practices/P07-capacity-api-design/diagrams/class-diagram.mmd``), which adds the
+two internal SQL classes (``SqlReservationStore``, ``SqlRoomCatalog``) with their
+"implements" lines and one link each (16 -> 18 non-"implements" lines). The
+sample instances use an in-memory SQLite connection. The HTTP API edge
+(``api.py``) is not a module and is not drawn here; its classes are pydantic
+shapes checked against docs/openapi.yaml (``test_openapi_contract.py``).
 """
 from __future__ import annotations
 
 import importlib
 import inspect
 import re
+import sqlite3
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
@@ -35,7 +44,7 @@ from typing import Any
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CLASS_DIAGRAM = REPO_ROOT / "practices" / "P06-modular-monolith-review" / "diagrams" / "class-diagram.mmd"
+CLASS_DIAGRAM = REPO_ROOT / "practices" / "P07-capacity-api-design" / "diagrams" / "class-diagram.mmd"
 CLASSES_AFTER = REPO_ROOT / "practices" / "P04-refactor-reservation" / "uml" / "classes-after.mmd"
 
 MODULES = ("rooms", "reservations", "payments", "notifications")
@@ -165,6 +174,8 @@ def sample_instances() -> dict[str, object]:
         "BookingResult": res.BookingResult(res.BookingOutcome.ACCEPTED, "R101"),
         "InMemoryReservationStore": store,
         "InMemoryRoomCatalog": rooms_internal.InMemoryRoomCatalog([room]),
+        "SqlReservationStore": reservations_internal.SqlReservationStore(sqlite3.connect(":memory:"), [room]),
+        "SqlRoomCatalog": rooms_internal.SqlRoomCatalog(sqlite3.connect(":memory:")),
         "SimulatedPaymentService": payments,
         "EmailNotificationSender": email,
         "SmsNotificationSender": notifications_internal.SmsNotificationSender(),
@@ -182,6 +193,7 @@ CONCRETE_CLASSES = [
 INTERNAL_CLASSES = [
     "EmailNotificationSender", "InMemoryReservationStore", "InMemoryRoomCatalog",
     "SimulatedPaymentService", "SmsNotificationSender",
+    "SqlReservationStore", "SqlRoomCatalog",  # P07
 ]
 INTERFACES = ["NotificationSender", "PaymentService", "ReservationStore", "RoomCatalog"]
 ENUMERATIONS = ["BookingOutcome", "PaymentStatus", "ReservationStatus"]
@@ -275,6 +287,8 @@ def test_every_implements_line_holds_in_the_code(diagram: Diagram) -> None:
         ("InMemoryRoomCatalog", "RoomCatalog"),
         ("SimulatedPaymentService", "PaymentService"),
         ("SmsNotificationSender", "NotificationSender"),
+        ("SqlReservationStore", "ReservationStore"),
+        ("SqlRoomCatalog", "RoomCatalog"),
     ]
     for implementation, interface in implements:
         assert diagram.boxes[implementation].namespace == diagram.boxes[interface].namespace
@@ -284,7 +298,7 @@ def test_every_implements_line_holds_in_the_code(diagram: Diagram) -> None:
 def test_every_other_relationship_is_visible_in_the_source(diagram: Diagram) -> None:
     """Each non-"implements" line must correspond to a reference in the code of one end."""
     others = [(left, right) for left, kind, right in diagram.relations if kind != IMPLEMENTS]
-    assert len(others) == 16
+    assert len(others) == 18  # P06: 16; P07: + SqlReservationStore -> Reservation, SqlRoomCatalog -> Room
     for left, right in others:
         left_src = inspect.getsource(lookup(left))
         right_src = inspect.getsource(lookup(right))

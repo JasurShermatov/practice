@@ -1,0 +1,41 @@
+$ python3 -I practices/P07-capacity-api-design/evidence/break_the_contract.py hotel-booking
+Unchanged copy: 35 passed in 0.38s
+
+1. code answers a status the contract does not list (UnknownRoom 400 -> 404)
+   changed hotel_booking/api.py: 'problem(400, "UnknownRoom"' -> 'problem(404, "UnknownRoom"'
+   result: 2 failed, 33 passed in 0.35s
+   FAILED tests/test_openapi_contract.py::test_statuses_and_titles_in_the_code_equal_the_contract[POST /reservations]
+   FAILED tests/test_openapi_contract.py::test_the_app_answers_exactly_the_documented_example[reserve 400:unknownRoom]
+
+2. code serves a route the contract does not have (GET /stats)
+   changed hotel_booking/api.py: '(nothing)' -> 'Route("/stats", serve_contract, methods=["GET"]),'
+   result: 1 failed, 34 passed in 0.34s
+   FAILED tests/test_openapi_contract.py::test_every_route_is_in_the_contract_and_every_operation_is_served
+
+3. contract forgets an answer the code gives (POST /reservations 409 removed)
+   changed docs/openapi.yaml: '"409":' -> '"x-removed-409":'
+   result: 4 failed, 31 passed in 0.36s
+   FAILED tests/test_openapi_contract.py::test_statuses_and_titles_in_the_code_equal_the_contract[POST /reservations]
+   FAILED tests/test_openapi_contract.py::test_the_five_course_titles_belong_to_the_operations
+   FAILED tests/test_openapi_contract.py::test_there_is_one_probe_for_every_documented_answer
+   FAILED tests/test_openapi_contract.py::test_the_app_answers_exactly_the_documented_example[reserve 409:sharedNight]
+
+4. contract example differs from the real body (detail reworded)
+   changed docs/openapi.yaml: 'detail: "There is no room R99."' -> 'detail: "Room R99 does not exist."'
+   result: 1 failed, 34 passed in 0.33s
+   FAILED tests/test_openapi_contract.py::test_the_app_answers_exactly_the_documented_example[reserve 400:unknownRoom]
+
+5. contract renames an answer field (notificationFailed -> notificationsFailed)
+   changed docs/openapi.yaml: 'notificationFailed:' -> 'notificationsFailed:'
+   result: 1 failed, 34 passed in 0.34s
+   FAILED tests/test_openapi_contract.py::test_answer_fields_match_the_pydantic_models
+
+6. code adds an error title the contract's Problem list lacks (InvalidRequest -> BadRequest for limit)
+   changed hotel_booking/api.py: 'problem(400, "InvalidRequest", LIMIT_DETAIL)' -> 'problem(400, "BadRequest", LIMIT_DETAIL)'
+   result: 3 failed, 32 passed in 0.37s
+   FAILED tests/test_openapi_contract.py::test_statuses_and_titles_in_the_code_equal_the_contract[GET /rooms/availability]
+   FAILED tests/test_openapi_contract.py::test_the_problem_title_list_is_exactly_what_the_code_can_send
+   FAILED tests/test_openapi_contract.py::test_the_app_answers_exactly_the_documented_example[findFreeRooms 400:badLimit]
+
+Every mutation was caught.
+exit 0

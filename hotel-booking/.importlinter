@@ -1,9 +1,12 @@
-# The three borders between the modules (P06 Step 6), in import-linter's INI format.
+# The borders of the app, in import-linter's INI format.
+#   - three borders between the four modules (P06 Step 6, the course's contracts);
+#   - two borders around the HTTP API edge, hotel_booking/api.py (P07, portfolio addition): the API
+#     may use only the modules' public contracts, and no module may depend on the API.
 #
 #   pip install import-linter      # dev tool, listed in requirements.txt
 #   lint-imports                   # run from the hotel-booking folder
 #
-# Expected:  Contracts: 3 kept, 0 broken.
+# Expected:  Contracts: 5 kept, 0 broken.   (the course's P07 reference expects 3; see the P07 README)
 #
 # The same file is read by tests/test_architecture.py (standard library only:
 # configparser + ast), so the borders are also checked by `python -m pytest`
@@ -40,3 +43,26 @@ source_modules =
     hotel_booking.notifications
 forbidden_modules =
     hotel_booking.reservations
+
+[importlinter:contract:api-uses-contracts-only]
+name = The HTTP API uses only the public contracts of the modules
+type = forbidden
+source_modules =
+    hotel_booking.api
+forbidden_modules =
+    hotel_booking.rooms.internal
+    hotel_booking.reservations.internal
+    hotel_booking.payments.internal
+    hotel_booking.notifications.internal
+
+[importlinter:contract:nothing-depends-on-the-api]
+name = No module depends on the HTTP API
+type = forbidden
+source_modules =
+    hotel_booking.rooms
+    hotel_booking.reservations
+    hotel_booking.payments
+    hotel_booking.notifications
+    hotel_booking.demo
+forbidden_modules =
+    hotel_booking.api

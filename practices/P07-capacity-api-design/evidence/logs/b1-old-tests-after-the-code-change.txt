@@ -1,0 +1,14 @@
+# The P06 test suite, run right after the P07 code (api.py, SQL store/catalog, new main.py) was added
+# and BEFORE any test was updated. Summary lines copied verbatim from that run. Each of the five
+# failures is an expected consequence of a deliberate P07 change; each test was then updated with a
+# note in its module docstring (see the P07 README, "What changed in the code").
+$ cd hotel-booking && python3 -m pytest -q -p no:cacheprovider
+FAILED tests/test_architecture.py::test_every_class_lives_in_one_of_the_four_modules
+FAILED tests/test_demo_and_race.py::test_main_without_flags_runs_the_demo - F...
+FAILED tests/test_uml_conformance.py::test_diagram_has_exactly_the_classes_of_the_four_modules
+FAILED tests/test_uml_conformance.py::test_every_box_is_drawn_in_the_module_that_defines_it
+FAILED tests/test_uml_conformance.py::test_internal_boxes_are_exactly_the_classes_of_the_internal_files
+5 failed, 113 passed in 2.31s
+$ cd .. && python3 -m pytest -q -p no:cacheprovider practices/*/checks
+FAILED practices/P06-modular-monolith-review/checks/test_p06_docs.py::test_as_built_diagram_shows_exactly_the_real_imports   (KeyError: 'api')
+1 failed, 50 passed in 0.69s

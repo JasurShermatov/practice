@@ -12,6 +12,11 @@ rule 2 now covers every concrete class of every module (room catalog and
 payment service included) and searches the module folders recursively; rule 3
 allows exactly one import, ``hotel_booking.rooms`` (``Room`` moved there). The
 borders *between* modules are checked in ``test_architecture.py``.
+
+P07 change (deliberate): the two SQL classes (``SqlReservationStore``,
+``SqlRoomCatalog``) joined the concrete helpers; rule 2 now also proves that
+the HTTP API (``hotel_booking/api.py``) creates none of them - it receives a
+unit of work from the wiring.
 """
 from __future__ import annotations
 
@@ -25,6 +30,7 @@ DOMAIN = PACKAGE / "reservations" / "domain.py"
 CONCRETE_HELPERS = {
     "InMemoryReservationStore", "EmailNotificationSender", "SmsNotificationSender",
     "InMemoryRoomCatalog", "SimulatedPaymentService",
+    "SqlReservationStore", "SqlRoomCatalog",  # P07
 }
 PROMISES = {"ReservationStore", "NotificationSender"}
 
@@ -79,3 +85,10 @@ def test_only_main_creates_concrete_classes_of_the_modules() -> None:
 
 def test_domain_depends_only_on_the_rooms_contract() -> None:
     assert package_imports(DOMAIN) == {"hotel_booking.rooms"}
+
+
+def test_the_api_names_no_concrete_helper() -> None:
+    """P07: the HTTP edge knows only BookingService and the contracts, never a store or a sender."""
+    used = names_used(PACKAGE / "api.py")
+    assert "BookingService" in used
+    assert not used & CONCRETE_HELPERS, f"api.py names a concrete helper: {used & CONCRETE_HELPERS}"

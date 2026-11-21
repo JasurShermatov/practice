@@ -1,0 +1,20 @@
+$ # test_api.py: 409 changed to 201 in test_booking_answers_201_then_409_for_a_shared_night
+$ python3 -m unittest test_api -v
+test_booking_answers_201_then_409_for_a_shared_night (test_api.ApiTests.test_booking_answers_201_then_409_for_a_shared_night) ... FAIL
+test_cancel_answers_204_then_404 (test_api.ApiTests.test_cancel_answers_204_then_404) ... ok
+test_search_answers_200_with_the_free_rooms (test_api.ApiTests.test_search_answers_200_with_the_free_rooms) ... ok
+test_wrong_dates_answer_400_with_problem_details (test_api.ApiTests.test_wrong_dates_answer_400_with_problem_details) ... ok
+
+======================================================================
+FAIL: test_booking_answers_201_then_409_for_a_shared_night (test_api.ApiTests.test_booking_answers_201_then_409_for_a_shared_night)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<portfolio>/hotel-booking/test_api.py", line 53, in test_booking_answers_201_then_409_for_a_shared_night
+    self.assertEqual(201, second.status_code)  # broken on purpose (P07 Step 6, item 4)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 201 != 409
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.054s
+
+FAILED (failures=1)

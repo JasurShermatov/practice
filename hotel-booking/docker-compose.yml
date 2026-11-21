@@ -1,0 +1,24 @@
+# The hotel booking app's PostgreSQL database (P07), for the student's Mac.
+#   Start: docker compose up -d     Stop: docker compose down     Empty it: docker compose down -v
+# Then run the API on it:  python main.py --db postgres      (needs: pip install "psycopg[binary]")
+# If port 5432 is taken, publish "15432:5432" below and set HOTEL_DB_PORT=15432 before starting the app.
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: hotel
+      POSTGRES_USER: hotel
+      POSTGRES_PASSWORD: hotel        # for a laptop only - never a real password
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro   # runs once, on the first start
+      - hotel-data:/var/lib/postgresql                                    # the data survives a restart
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hotel -d hotel"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  hotel-data:

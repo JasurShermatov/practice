@@ -25,6 +25,14 @@ Two more rules are portfolio extras (not in the course's three contracts):
 no module imports *another* module's internal code (this also covers
 ``demo.py`` and Payments <-> Notifications), and every class lives in one of
 the four module folders.
+
+P07 change (deliberate): the HTTP API edge ``hotel_booking/api.py`` arrived. Two
+contracts were added to ``.importlinter`` (the API uses only the modules' public
+contracts; no module or the demo depends on the API), so the file now holds the
+course's three rules plus these two and the CLI prints "Contracts: 5 kept".
+"Every class lives in one of the four modules" now allows the API file too: its
+pydantic models are the HTTP shapes of the edge, not domain classes. The
+checker's self-tests got one case per new rule.
 """
 from __future__ import annotations
 
@@ -46,6 +54,11 @@ COURSE_CONTRACTS = {
     "Rooms does not depend on any other module",
     "Payments and Notifications do not depend on Reservations",
 }
+API_CONTRACTS = {  # P07
+    "The HTTP API uses only the public contracts of the modules",
+    "No module depends on the HTTP API",
+}
+EDGE_FILES = {"api.py"}  # P07: the HTTP edge lives outside the four module folders
 
 
 # --------------------------------------------------------------------------- the import graph
@@ -213,11 +226,11 @@ def graph() -> tuple[set[str], list[Import]]:
 # --------------------------------------------------------------------------- the three course rules
 
 
-def test_contracts_file_holds_the_three_course_rules() -> None:
+def test_contracts_file_holds_the_three_course_rules_and_the_two_api_rules() -> None:
     parser = configparser.ConfigParser()
     parser.read(CONTRACTS_FILE, encoding="utf-8")
     assert parser["importlinter"]["root_package"] == "hotel_booking"
-    assert {contract.name for contract in CONTRACTS} == COURSE_CONTRACTS
+    assert {contract.name for contract in CONTRACTS} == COURSE_CONTRACTS | API_CONTRACTS
 
 
 @pytest.mark.parametrize("contract", CONTRACTS, ids=[contract.key for contract in CONTRACTS])
@@ -236,6 +249,8 @@ def test_the_checker_sees_the_allowed_dependencies(graph: tuple[set[str], list[I
     assert ("hotel_booking.reservations.booking", "hotel_booking.notifications") in pairs
     assert ("hotel_booking.reservations.booking", "hotel_booking.rooms") in pairs
     assert ("hotel_booking.notifications.internal", "hotel_booking.notifications") in pairs
+    assert ("hotel_booking.api", "hotel_booking.reservations") in pairs  # P07: the edge uses the contracts
+    assert ("hotel_booking.api", "hotel_booking.rooms") in pairs
 
 
 # --------------------------------------------------------------------------- portfolio extras
@@ -259,15 +274,25 @@ def test_package_root_exports_nothing() -> None:
     assert not [node for node in tree.body if isinstance(node, ast.Import | ast.ImportFrom)]
 
 
-def test_every_class_lives_in_one_of_the_four_modules() -> None:
+def test_every_class_lives_in_one_of_the_four_modules_or_the_api_edge() -> None:
     outside = []
     for path in PACKAGE_DIR.rglob("*.py"):
         top = path.relative_to(PACKAGE_DIR).parts[0]
         classes = [node.name for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
                    if isinstance(node, ast.ClassDef)]
-        if classes and top not in MODULES:
+        if classes and top not in MODULES and top not in EDGE_FILES:
             outside.append(f"{path.relative_to(PROJECT)}: {classes}")
     assert not outside, outside
+
+
+def test_api_edge_classes_are_only_http_shapes() -> None:
+    """P07: the API file may define pydantic models (request/answer shapes) and nothing else."""
+    tree = ast.parse((PACKAGE_DIR / "api.py").read_text(encoding="utf-8"))
+    classes = {node.name: [ast.unparse(base) for base in node.bases]
+               for node in tree.body if isinstance(node, ast.ClassDef)}
+    assert classes, "the API's JSON shapes are expected to be pydantic models"
+    shapes = {"BaseModel"} | set(classes)
+    assert all(bases and set(bases) <= shapes for bases in classes.values()), classes
 
 
 # --------------------------------------------------------------------------- the checker checks itself
@@ -290,7 +315,9 @@ MINI_APP = {
     "notifications/__init__.py": "",
     "notifications/internal.py": "from hotel_booking.notifications import X\n",
     "reservations/__init__.py": "",
+    "reservations/internal.py": "",
     "reservations/booking.py": "from hotel_booking.notifications import Confirmation\n",
+    "api.py": "from hotel_booking.reservations import BookingService\n",
 }
 
 
@@ -305,8 +332,12 @@ MINI_APP = {
          "Rooms does not depend on any other module"),
         ("notifications/__init__.py", "from hotel_booking.reservations.booking import BookingService\n",
          "Payments and Notifications do not depend on Reservations"),
+        ("api.py", "from hotel_booking.reservations.internal import SqlReservationStore\n",
+         "The HTTP API uses only the public contracts of the modules"),
+        ("reservations/booking.py", "from hotel_booking import api\n",
+         "No module depends on the HTTP API"),
     ],
-    ids=["rule1-direct", "rule1-relative", "rule2", "rule3"],
+    ids=["rule1-direct", "rule1-relative", "rule2", "rule3", "api-reaches-internal", "module-uses-api"],
 )
 def test_checker_catches_each_kind_of_bad_import(
     tmp_path: Path, bad_file: str, bad_line: str, broken: str
