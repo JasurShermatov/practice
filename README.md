@@ -28,13 +28,14 @@ separately introduced fictional hotel (rooms R7 and R8, one guest per room per n
 
 This portfolio was drafted with the help of an AI assistant (Claude by Anthropic), in line with the course's guidance on using AI tools (L01/P01). Every test, run and measurement reported as **Observed** was actually executed, and its real output is kept in the practice's `evidence/` folder. Steps that need me in person (pair work, classmate review, online worksheet submission, runs on my Mac) are marked "to do by the student".
 
-## How to read the evidence
+## How to read the evidence.
 
 Evidence claims (checks, models and results) carry one of three labels, as agreed in L01/P01:
 
 - **Proposed** — a plan or a check we intend to run. Nothing has been executed.
 - **Simulated** — the result of a classroom model or thought experiment, not a running system.
 - **Observed** — a result recorded after actually running something, with its environment.
+
 
 Numeric quality targets that have not been agreed are written as **to agree**. A target is never
 reported as met before a test has produced an observed result.
